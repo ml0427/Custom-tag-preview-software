@@ -1,0 +1,42 @@
+# 專案交接與開發筆記 (Handover Notes)
+
+這份文件用於記錄目前的系統架構、已完成進度與未來接手的開發重點，方便後續 AI 或是開發人員能夠無縫接軌。
+
+## 1. 系統環境與技術棧
+* **前端 (Client)**：
+  - 目錄：`client/`
+  - 框架：Vue 3 + Vite + TypeScript (使用 Vanilla CSS 實作毛玻璃設計)
+  - 啟動方式：`npm run dev` (搭配 `start.bat` 一鍵啟動)
+* **後端 (Server)**：
+  - 目錄：`server/`
+  - 框架：Spring Boot 3.4.2 (Java 17)
+  - 資料庫：SQLite (`server/comic.db`)
+  - ORM：Spring Data JPA + Hibernate (DDL Auto: update)
+  - 啟動方式：`.\mvnw spring-boot:run` (搭配 `start.bat` 一鍵啟動)
+* **實體存放區** (皆位於 `server/` 底下)：
+  - `comic_storage/`：存放來源 ZIP 漫畫檔。
+  - `comic_cache/`：存放從 ZIP 中提取出來的封面快取圖片。
+
+## 2. 已完成進度 (Stage 1 ~ 5)
+1. **環境建置**：前後端基礎專案結構已建立，完成 SQLite (`comic.db`) 連線設定，並在 `pom.xml` 加入 UTF-8 編碼確保跨語系相容性。
+2. **資料庫設計**：建立 `Comic`, `Tag` 以及 `comic_tag_mapping` 表達成多對多關聯。
+3. **核心檔案處理**：已實作 `ZipService` 提取圖片與解讀列表。
+4. **掃描與快取 (Stage 3)**：
+   - 實作了 `ComicScannerService`：原本為排程模式，後改為接收 `/api/comics/scan` 手動觸發，掃描指定路徑下的 ZIP 檔並寫入新漫畫。
+   - 實作了 `ComicCacheService`：非同步 `@Async` 提取 ZIP 中第一張圖並另存進 `server/comic_cache/{id}.jpg` 完成快取任務。
+5. **後端 API 服務 (Stage 4)**：
+   - 實作 DTO 模式避免遞迴，並在 `WebConfig` 開通全域 `@CrossOrigin`。
+   - 實作 `ComicController`, `TagController`, `ImageController` 以提供分頁、標籤過濾、寫入/關聯標籤、靜態圖片回傳與封面重新提取功能。
+6. **前端畫廊介面 (Stage 5)**：
+   - 使用 Vue 3 + Vite 開發高質感暗黑毛玻璃 (Glassmorphism) 介面。
+   - 包含組件：`TagSidebar` (側邊篩選與手動掃描功能), `ComicGallery` (網格展示漫畫清單), `ComicCard` (懸停動畫與標籤顯示), `ComicDetailModal` (彈出視窗並處理自訂封面與標籤增刪)。
+7. **一鍵啟動**：在專案根目錄建立了 `start.bat` 與 `啟動說明.md`，可獨立且快速地同時帶起前後端伺服器。
+
+## 3. 下一步開發重點 (未來接手指南)
+這個專案的五大核心階段已經全數完工，具備完整的本地 ZIP 漫畫管理能力。接手的開發人員可往以下方向精進：
+1. **效能優化**：針對上千本巨大的收藏，可考慮在 SQLite 添加索引或實作進階的分頁快取與懶加載機制 (Lazy Loading)。
+2. **桌面應用打包**：將前後端包裹進 Electron，實現純粹的桌面應用程式體驗，無須仰賴瀏覽器。
+
+## 4. 注意事項
+* 處理 Web MVC 的回傳編碼時，已在 `application.properties` 設定 `server.servlet.encoding.charset=UTF-8` 以防止亂碼。
+* 接手的開發人員可以由 `啟動說明.md` 來了解如何運行專案。

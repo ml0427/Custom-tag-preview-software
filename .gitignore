@@ -1,0 +1,22 @@
+# Node/Vue
+client/node_modules/
+client/dist/
+
+# Maven/Java
+server/target/
+server/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+
+# SQLite & App Specific
+server/comic.db
+server/comic_cache/*
+server/comic_storage/*
+!server/comic_cache/.gitkeep
+!server/comic_storage/.gitkeep
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.DS_Store
