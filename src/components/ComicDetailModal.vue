@@ -59,7 +59,6 @@ const addTag = async (event: Event) => {
     const select = event.target as HTMLSelectElement;
     const tagId = Number(select.value);
     if (!tagId || !props.comic) return;
-    
     try {
         await api.addTagToComic(props.comic.id, tagId);
         emit('updated');
@@ -67,6 +66,62 @@ const addTag = async (event: Event) => {
         alert('Failed to add tag');
     }
     select.value = "";
+};
+
+// 手動輸入標籤
+const tagInput = ref('');
+const tagInputSuggestions = ref<import('../api').Tag[]>([]);
+const showTagInputSuggestions = ref(false);
+let tagInputTimer: ReturnType<typeof setTimeout> | null = null;
+
+const onTagInputChange = () => {
+    if (tagInputTimer) clearTimeout(tagInputTimer);
+    const q = tagInput.value.trim();
+    if (!q) { tagInputSuggestions.value = []; showTagInputSuggestions.value = false; return; }
+    tagInputTimer = setTimeout(async () => {
+        tagInputSuggestions.value = await api.searchTags(q);
+        showTagInputSuggestions.value = true;
+    }, 200);
+};
+
+const submitTagInput = async () => {
+    const name = tagInput.value.trim();
+    if (!name || !props.comic) return;
+    try {
+        // 先找是否已存在
+        const existing = tagInputSuggestions.value.find(t => t.name.toLowerCase() === name.toLowerCase());
+        let tagId: number;
+        if (existing) {
+            tagId = existing.id;
+        } else {
+            const created = await api.createTag(name);
+            tagId = created.id;
+        }
+        await api.addTagToComic(props.comic.id, tagId);
+        tagInput.value = '';
+        tagInputSuggestions.value = [];
+        showTagInputSuggestions.value = false;
+        emit('updated');
+    } catch (e) {
+        alert('新增標籤失敗');
+    }
+};
+
+const selectTagSuggestion = async (tag: import('../api').Tag) => {
+    if (!props.comic) return;
+    try {
+        await api.addTagToComic(props.comic.id, tag.id);
+        tagInput.value = '';
+        tagInputSuggestions.value = [];
+        showTagInputSuggestions.value = false;
+        emit('updated');
+    } catch (e) {
+        alert('新增標籤失敗');
+    }
+};
+
+const hideTagSuggestions = () => {
+    setTimeout(() => { showTagInputSuggestions.value = false; }, 150);
 };
 
 const removeTag = async (tagId: number) => {
@@ -113,10 +168,25 @@ watch(() => props.comic, (newComic) => {
               </span>
             </div>
             
-            <select class="add-tag-select" @change="addTag">
-              <option value="">＋ 新增標籤...</option>
-              <option v-for="t in availableTags" :key="t.id" :value="t.id">{{ t.name }}</option>
-            </select>
+            <div class="tag-input-wrapper">
+              <input
+                v-model="tagInput"
+                class="tag-text-input"
+                placeholder="輸入標籤名稱後按 Enter..."
+                @input="onTagInputChange"
+                @keydown.enter.prevent="submitTagInput"
+                @blur="hideTagSuggestions"
+              />
+              <ul v-if="showTagInputSuggestions && tagInputSuggestions.length" class="tag-suggestions">
+                <li
+                  v-for="s in tagInputSuggestions"
+                  :key="s.id"
+                  @mousedown.prevent="selectTagSuggestion(s)"
+                >
+                  # {{ s.name }}
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
         
@@ -254,14 +324,54 @@ watch(() => props.comic, (newComic) => {
   filter: brightness(1.2);
 }
 
-.add-tag-select {
+.tag-input-wrapper {
+  position: relative;
+}
+
+.tag-text-input {
   width: 100%;
-  padding: 8px;
+  padding: 8px 10px;
   background: rgba(0,0,0,0.4);
   color: #fff;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   outline: none;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.tag-text-input:focus {
+  border-color: var(--accent-color);
+}
+
+.tag-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #1e2230;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  list-style: none;
+  padding: 4px 0;
+  z-index: 200;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.tag-suggestions li {
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.tag-suggestions li:hover {
+  background: rgba(255,255,255,0.07);
+  color: var(--text-primary);
 }
 
 .modal-right {

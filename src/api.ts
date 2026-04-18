@@ -26,8 +26,8 @@ export interface Page<T> {
 }
 
 export const api = {
-    async getComics(page = 0, size = 20, tagId?: number): Promise<Page<Comic>> {
-        return await invoke<Page<Comic>>('get_comics', { page, size, tagId });
+    async getComics(page = 0, size = 20, tagId?: number, sortBy?: string, sortDir?: string): Promise<Page<Comic>> {
+        return await invoke<Page<Comic>>('get_comics', { page, size, tagId, sortBy, sortDir });
     },
 
     async getComic(id: number): Promise<Comic> {
@@ -82,5 +82,30 @@ export const api = {
     
     async renameComic(id: number, title: string): Promise<Comic> {
         return await invoke<Comic>('rename_comic', { id, title });
-    }
+    },
+
+    // MISSION 3：用系統預設程式開啟本地檔案
+    async openFile(path: string): Promise<void> {
+        await invoke('open_file', { path });
+    },
+
+    // MISSION 2：增量掃描
+    async incrementalScan(path: string): Promise<{ message: string; added: number; updated: number; removed: number }> {
+        return await invoke('incremental_scan', { path });
+    },
+
+    // MISSION 4：標籤重新命名
+    async renameTag(id: number, name: string): Promise<Tag> {
+        return await invoke<Tag>('rename_tag', { id, name });
+    },
+
+    // MISSION 4：合併標籤（source 的所有漫畫移至 target，source 刪除）
+    async mergeTags(sourceId: number, targetId: number): Promise<void> {
+        await invoke('merge_tags', { source_id: sourceId, target_id: targetId });
+    },
+
+    // MISSION 4：搜尋標籤（自動建議用）
+    async searchTags(query: string): Promise<Tag[]> {
+        return await invoke<Tag[]>('search_tags', { query });
+    },
 }

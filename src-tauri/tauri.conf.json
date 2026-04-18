@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: https://tauri.localhost; img-src 'self' comic-cache: data: blob: https://tauri.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self' tauri: https://tauri.localhost http://localhost:5173 ws://localhost:5173; img-src 'self' comic-cache: data: blob: https://tauri.localhost; style-src 'self' 'unsafe-inline'; script-src 'self' http://localhost:5173 'unsafe-inline'"
     }
   },
   "bundle": {

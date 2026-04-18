@@ -7,7 +7,8 @@ mod commands;
 mod scanner;
 mod zip_utils;
 
-use tauri::Manager;
+use tauri::{Manager, Emitter};
+use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
 
 fn main() {
     tauri::Builder::default()
@@ -45,15 +46,39 @@ fn main() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             let app_data_dir = app_handle.path().app_data_dir().expect("failed to get app data dir");
-            
+
             let pool = tauri::async_runtime::block_on(async {
                 db::init_db(&app_data_dir).await.expect("failed to init db")
             });
-            
+
             app.manage(pool);
+
+            // 建立選單
+            let menu = Menu::with_items(app, &[
+                &Submenu::with_items(app, "掃描", true, &[
+                    &MenuItem::with_id(app, "full-scan", "完整掃描", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "incremental-scan", "⚡ 增量更新", true, None::<&str>)?,
+                ])?,
+                &Submenu::with_items(app, "標籤", true, &[
+                    &MenuItem::with_id(app, "new-tag", "新增標籤", true, None::<&str>)?,
+                    &PredefinedMenuItem::separator(app)?,
+                ])?,
+            ])?;
+            app.set_menu(menu)?;
+
+            app.on_menu_event(|app, event| {
+                match event.id().as_ref() {
+                    "full-scan" => { let _ = app.emit("menu-full-scan", ()); }
+                    "incremental-scan" => { let _ = app.emit("menu-incremental-scan", ()); }
+                    "new-tag" => { let _ = app.emit("menu-new-tag", ()); }
+                    _ => {}
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // 原有指令
             commands::scan_directory,
             commands::get_comics,
             commands::get_tags,
@@ -65,6 +90,14 @@ fn main() {
             commands::add_tag_to_comic,
             commands::remove_tag_from_comic,
             commands::set_comic_cover,
+            // MISSION 2：增量掃描
+            commands::incremental_scan,
+            // MISSION 3：開啟本地檔案
+            commands::open_file,
+            // MISSION 4：進階標籤管理
+            commands::rename_tag,
+            commands::merge_tags,
+            commands::search_tags,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

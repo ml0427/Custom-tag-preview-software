@@ -28,18 +28,30 @@ pub async fn get_comics(
     page: i64,
     size: i64,
     tag_id: Option<i64>,
+    sort_by: Option<String>,
+    sort_dir: Option<String>,
     pool: State<'_, SqlitePool>,
 ) -> Result<Page<Comic>, String> {
     let offset = page * size;
-    
+
+    // 白名單，防止 SQL injection
+    let col = match sort_by.as_deref() {
+        Some("title")              => "title",
+        Some("file_size")          => "file_size",
+        Some("file_modified_time") => "file_modified_time",
+        _                          => "import_time",
+    };
+    let dir = if sort_dir.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+    let order = format!("ORDER BY {} {}", col, dir);
+
     let (comics_query, total_query) = if let Some(tid) = tag_id {
         (
-            format!("SELECT c.* FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id WHERE ct.tag_id = {} ORDER BY c.import_time DESC LIMIT {} OFFSET {}", tid, size, offset),
+            format!("SELECT c.* FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id WHERE ct.tag_id = {} {} LIMIT {} OFFSET {}", tid, order, size, offset),
             format!("SELECT COUNT(*) FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id WHERE ct.tag_id = {}", tid)
         )
     } else {
         (
-            format!("SELECT * FROM comics ORDER BY import_time DESC LIMIT {} OFFSET {}", size, offset),
+            format!("SELECT * FROM comics {} LIMIT {} OFFSET {}", order, size, offset),
             "SELECT COUNT(*) FROM comics".to_string()
         )
     };
@@ -206,6 +218,102 @@ pub async fn set_comic_cover(id: i64, image_path: String, pool: State<'_, Sqlite
     }
 
     Ok(())
+}
+
+// ─── MISSION 3：用系統預設程式開啟本地檔案 ───────────────────────────────────
+#[tauri::command]
+pub async fn open_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("開啟檔案失敗: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("開啟檔案失敗: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("開啟檔案失敗: {}", e))?;
+    }
+    Ok(())
+}
+
+// ─── MISSION 2：增量掃描 ────────────────────────────────────────────────────
+#[tauri::command]
+pub async fn incremental_scan(
+    path: String,
+    pool: State<'_, SqlitePool>,
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+
+    scanner::incremental_scan_directory(&pool, &path, &cache_dir)
+        .await
+        .map(|(added, updated, removed)| {
+            serde_json::json!({
+                "message": "增量掃描完成",
+                "added": added,
+                "updated": updated,
+                "removed": removed
+            })
+        })
+        .map_err(|e| e.to_string())
+}
+
+// ─── MISSION 4：進階標籤管理 ────────────────────────────────────────────────
+#[tauri::command]
+pub async fn rename_tag(id: i64, name: String, pool: State<'_, SqlitePool>) -> Result<Tag, String> {
+    sqlx::query("UPDATE tags SET name = ? WHERE id = ?")
+        .bind(&name)
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(Tag { id, name })
+}
+
+#[tauri::command]
+pub async fn merge_tags(source_id: i64, target_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    // 把 source 的所有關聯移至 target（IGNORE 避免 PK 衝突）
+    sqlx::query(
+        "INSERT OR IGNORE INTO comic_tags (comic_id, tag_id)
+         SELECT comic_id, ? FROM comic_tags WHERE tag_id = ?",
+    )
+    .bind(target_id)
+    .bind(source_id)
+    .execute(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 刪除 source 標籤（cascade 會清除 comic_tags）
+    sqlx::query("DELETE FROM tags WHERE id = ?")
+        .bind(source_id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn search_tags(query: String, pool: State<'_, SqlitePool>) -> Result<Vec<Tag>, String> {
+    let pattern = format!("%{}%", query);
+    sqlx::query_as::<_, Tag>(
+        "SELECT id, name FROM tags WHERE name LIKE ? ORDER BY name ASC LIMIT 10",
+    )
+    .bind(pattern)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

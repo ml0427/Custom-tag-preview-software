@@ -8,7 +8,22 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'showDetail', comic: Comic): void
+    (e: 'renamed', comic: Comic): void
 }>();
+
+const isOpening = ref(false);
+
+const handleOpenFile = async () => {
+    if (!props.comic || isOpening.value) return;
+    isOpening.value = true;
+    try {
+        await api.openFile(props.comic.filePath);
+    } catch (e: any) {
+        alert('開啟失敗：' + (e?.message ?? e));
+    } finally {
+        isOpening.value = false;
+    }
+};
 
 const coverUrl = ref('');
 
@@ -84,9 +99,14 @@ const formatDate = (dateStr: string) => {
                 </div>
             </div>
             
-            <button class="btn-primary detail-btn" @click="emit('showDetail', comic)">
-                編輯詳情
-            </button>
+            <div class="action-buttons">
+                <button class="btn-primary detail-btn" @click="emit('showDetail', comic)">
+                    編輯詳情
+                </button>
+                <button class="btn-open" :disabled="isOpening" @click="handleOpenFile">
+                    {{ isOpening ? '開啟中...' : '📂 用預設程式開啟' }}
+                </button>
+            </div>
         </div>
         
         <div v-else class="empty-state">
@@ -259,10 +279,38 @@ const formatDate = (dateStr: string) => {
     line-height: 1.4;
 }
 
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .detail-btn {
     width: 100%;
     padding: 12px;
     font-weight: 600;
+}
+
+.btn-open {
+    width: 100%;
+    padding: 10px;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-open:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-primary);
+}
+
+.btn-open:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* Custom Scrollbar */

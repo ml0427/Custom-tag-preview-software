@@ -22,6 +22,22 @@ const editingComicId = ref<number | null>(null);
 const editTitle = ref('');
 const isSaving = ref(false);
 
+// Context Menu
+const contextMenu = ref({ visible: false, x: 0, y: 0, comic: null as Comic | null });
+
+const handleContextMenu = (comic: Comic, e: MouseEvent) => {
+    contextMenu.value = { visible: true, x: e.clientX, y: e.clientY, comic };
+};
+
+const closeContextMenu = () => {
+    contextMenu.value.visible = false;
+};
+
+const contextMenuRename = () => {
+    if (contextMenu.value.comic) startRename(contextMenu.value.comic);
+    closeContextMenu();
+};
+
 const startRename = (comic: Comic) => {
     editingComicId.value = comic.id;
     editTitle.value = comic.title;
@@ -61,6 +77,32 @@ const submitRename = async (comic: Comic) => {
     } finally {
         isSaving.value = false;
     }
+};
+
+// Sorting
+const sortBy = ref('import_time');
+const sortDir = ref<'asc' | 'desc'>('desc');
+
+const toggleSort = (col: string) => {
+    if (sortBy.value === col) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = col;
+        sortDir.value = 'desc';
+    }
+    loadComics(0);
+};
+
+const sortIcon = (col: string) => {
+    if (sortBy.value !== col) return '↕';
+    return sortDir.value === 'asc' ? '↑' : '↓';
+};
+
+// Preview toggle
+const isPreviewOpen = ref(false);
+
+const togglePreview = () => {
+    isPreviewOpen.value = !isPreviewOpen.value;
 };
 
 // Resizing logic
@@ -157,7 +199,7 @@ const selectAndScroll = (comic: Comic) => {
 const loadComics = async (page: number) => {
     isLoading.value = true;
     try {
-        const res = await api.getComics(page, 20, props.selectedTagId ?? undefined);
+        const res = await api.getComics(page, 20, props.selectedTagId ?? undefined, sortBy.value, sortDir.value);
         comicsPage.value = res;
         currentPage.value = page;
         
@@ -213,12 +255,15 @@ watch(() => props.selectedTagId, () => {
 onMounted(() => {
     loadComics(0);
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('click', closeContextMenu);
 });
 
 onUnmounted(() => {
     stopResizing();
     window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('click', closeContextMenu);
 });
+
 
 const handlePrev = () => {
     if (currentPage.value > 0) loadComics(currentPage.value - 1);
@@ -264,28 +309,27 @@ defineExpose({
         <table v-else class="comic-table">
           <thead>
             <tr>
-              <th class="col-name">名稱</th>
-              <th class="col-size">大小</th>
-              <th class="col-date">修改日期</th>
+              <th class="col-name sortable" @click="toggleSort('title')">名稱 {{ sortIcon('title') }}</th>
+              <th class="col-size sortable" @click="toggleSort('file_size')">大小 {{ sortIcon('file_size') }}</th>
+              <th class="col-date sortable" @click="toggleSort('file_modified_time')">修改日期 {{ sortIcon('file_modified_time') }}</th>
               <th class="col-tags">標籤</th>
             </tr>
           </thead>
           <tbody>
-            <tr 
-              v-for="comic in comicsPage?.content" 
+            <tr
+              v-for="comic in comicsPage?.content"
               :key="comic.id"
               :class="{ 'selected': selectedComic?.id === comic.id, 'is-editing-row': editingComicId === comic.id }"
               @click="selectComic(comic)"
               @dblclick="handleDblClick(comic)"
+              @contextmenu.prevent="handleContextMenu(comic, $event)"
             >
               <td class="col-name">
                 <div class="file-info">
-                  <span class="file-icon">📦</span>
-                  
                   <!-- Inline Rename UI -->
                   <div v-if="editingComicId === comic.id" class="inline-edit-wrapper">
-                      <input 
-                        v-model="editTitle" 
+                      <input
+                        v-model="editTitle"
                         class="inline-edit-input"
                         @click.stop
                         @keydown.enter="submitRename(comic)"
@@ -293,10 +337,7 @@ defineExpose({
                         @blur="submitRename(comic)"
                       />
                   </div>
-                  <div v-else class="title-display-wrapper">
-                      <button class="list-edit-btn" @click.stop="startRename(comic)" title="重新命名 (F2)">✏️</button>
-                      <span class="file-title" :title="comic.title">{{ comic.title }}</span>
-                  </div>
+                  <span v-else class="file-title" :title="comic.title">{{ comic.title }}</span>
                 </div>
               </td>
               <td class="col-size">{{ formatSize(comic.fileSize) }}</td>
@@ -315,18 +356,35 @@ defineExpose({
       </div>
     </div>
 
+    <!-- Right-click Context Menu -->
+    <div
+      v-if="contextMenu.visible"
+      class="context-menu"
+      :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+      @click.stop
+    >
+      <div class="context-menu-item" @click="contextMenuRename">✏️ 重新命名</div>
+    </div>
+
+    <!-- Preview Toggle Button -->
+    <button class="preview-toggle-btn" @click="togglePreview" :title="isPreviewOpen ? '收起預覽' : '展開預覽'">
+        {{ isPreviewOpen ? '›' : '‹' }}
+    </button>
+
     <!-- Draggable Resizer -->
-    <div 
-        class="resizer" 
+    <div
+        v-if="isPreviewOpen"
+        class="resizer"
         :class="{ 'is-resizing': isResizing }"
         @mousedown="startResizing"
     ></div>
 
     <!-- Preview Pane -->
-    <PreviewPane 
-        :comic="selectedComic" 
+    <PreviewPane
+        v-if="isPreviewOpen"
+        :comic="selectedComic"
         :style="{ width: previewWidth + 'px', minWidth: previewWidth + 'px' }"
-        @show-detail="emit('showDetail', $event)" 
+        @show-detail="emit('showDetail', $event)"
         @renamed="handleRenamed"
     />
   </div>
@@ -449,6 +507,37 @@ defineExpose({
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border-bottom: 1px solid var(--panel-border);
+    white-space: nowrap;
+}
+
+.comic-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.comic-table th.sortable:hover {
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.05);
+}
+
+.preview-toggle-btn {
+    width: 20px;
+    flex-shrink: 0;
+    background: var(--panel-bg);
+    border: none;
+    border-left: 1px solid var(--panel-border);
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+}
+
+.preview-toggle-btn:hover {
+    background: rgba(255,255,255,0.07);
+    color: var(--text-primary);
 }
 
 .comic-table td {
@@ -478,37 +567,34 @@ defineExpose({
 .col-date { width: 18%; }
 .col-tags { width: 25%; }
 
+.context-menu {
+    position: fixed;
+    z-index: 9999;
+    background: #1e2230;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 4px 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    min-width: 140px;
+}
+
+.context-menu-item {
+    padding: 9px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: background 0.15s, color 0.15s;
+}
+
+.context-menu-item:hover {
+    background: rgba(255,255,255,0.07);
+    color: var(--text-primary);
+}
+
 .file-info {
     display: flex;
     align-items: center;
     gap: 10px;
-}
-
-/* Inline Edit Styles */
-.title-display-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    overflow: hidden;
-}
-
-.list-edit-btn {
-    background: transparent;
-    border: none;
-    font-size: 0.9rem;
-    padding: 2px;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-tr:hover .list-edit-btn {
-    opacity: 0.6;
-}
-
-.list-edit-btn:hover {
-    opacity: 1 !important;
 }
 
 .inline-edit-wrapper {
@@ -524,11 +610,6 @@ tr:hover .list-edit-btn {
     padding: 4px 8px;
     font-size: 0.95rem;
     outline: none;
-}
-
-.file-icon {
-    font-size: 1.2rem;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
 .file-title {
