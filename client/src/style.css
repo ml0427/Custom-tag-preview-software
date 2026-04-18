@@ -9,6 +9,8 @@
   --accent-hover: #38bdf8;
   --tag-bg: rgba(47, 129, 247, 0.2);
   --tag-text: #2f81f7;
+  --text-tertiary: #6e7681;
+  --accent-color-transparent: rgba(47, 129, 247, 0.15);
   --danger-color: #f85149;
   
   --glass-blur: blur(16px);

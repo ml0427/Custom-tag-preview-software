@@ -67,4 +67,23 @@ public class ComicCacheService {
             logger.error("Error extracting cover for comic {}: {}", comic.getId(), e.getMessage());
         }
     }
+
+    public void clearCache() {
+        try {
+            Path cacheDir = Paths.get(cachePath);
+            if (Files.exists(cacheDir)) {
+                File[] files = cacheDir.toFile().listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.isFile()) {
+                            file.delete();
+                        }
+                    }
+                }
+                logger.info("Thumbnails cache cleared.");
+            }
+        } catch (Exception e) {
+            logger.error("Error clearing thumbnail cache: {}", e.getMessage());
+        }
+    }
 }

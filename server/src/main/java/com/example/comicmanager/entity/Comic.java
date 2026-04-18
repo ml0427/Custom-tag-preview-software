@@ -24,6 +24,12 @@ public class Comic {
     @Column(name = "import_time", nullable = false)
     private LocalDateTime importTime = LocalDateTime.now();
 
+    @Column(name = "file_size")
+    private Long fileSize;
+
+    @Column(name = "file_modified_time")
+    private LocalDateTime fileModifiedTime;
+
     @ManyToMany
     @JoinTable(
         name = "comic_tag_mapping",
@@ -46,6 +52,12 @@ public class Comic {
 
     public LocalDateTime getImportTime() { return importTime; }
     public void setImportTime(LocalDateTime importTime) { this.importTime = importTime; }
+
+    public Long getFileSize() { return fileSize; }
+    public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
+
+    public LocalDateTime getFileModifiedTime() { return fileModifiedTime; }
+    public void setFileModifiedTime(LocalDateTime fileModifiedTime) { this.fileModifiedTime = fileModifiedTime; }
 
     public Set<Tag> getTags() { return tags; }
     public void setTags(Set<Tag> tags) { this.tags = tags; }

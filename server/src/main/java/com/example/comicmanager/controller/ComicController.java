@@ -14,6 +14,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -64,6 +67,42 @@ public class ComicController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PutMapping("/{id}/rename")
+    public ResponseEntity<?> renameComic(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String newTitle = body.get("title");
+        if (newTitle == null || newTitle.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "The 'title' property is required"));
+        }
+
+        return comicRepository.findById(id).map(comic -> {
+            try {
+                Path oldPath = Paths.get(comic.getFilePath());
+                String fileName = oldPath.getFileName().toString();
+                String extension = "";
+                int dotIndex = fileName.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    extension = fileName.substring(dotIndex);
+                }
+
+                Path newPath = oldPath.resolveSibling(newTitle + extension);
+                
+                if (Files.exists(newPath)) {
+                    return ResponseEntity.status(409).body(Map.of("error", "A file with the same name already exists: " + newPath.getFileName()));
+                }
+
+                Files.move(oldPath, newPath);
+                
+                comic.setTitle(newTitle);
+                comic.setFilePath(newPath.toString());
+                
+                Comic saved = comicRepository.save(comic);
+                return ResponseEntity.ok(convertToDto(saved));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError().body(Map.of("error", "Failed to rename file: " + e.getMessage()));
+            }
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     private ComicDto convertToDto(Comic comic) {
         ComicDto dto = new ComicDto();
         dto.setId(comic.getId());
@@ -71,6 +110,8 @@ public class ComicController {
         dto.setFilePath(comic.getFilePath());
         dto.setCustomCoverPath(comic.getCustomCoverPath());
         dto.setImportTime(comic.getImportTime());
+        dto.setFileSize(comic.getFileSize());
+        dto.setFileModifiedTime(comic.getFileModifiedTime());
         
         if (comic.getTags() != null) {
             Set<TagDto> tagDtos = comic.getTags().stream()

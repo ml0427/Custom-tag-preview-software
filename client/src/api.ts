@@ -12,6 +12,8 @@ export interface Comic {
     title: string;
     customCoverPath: string | null;
     importTime: string;
+    fileSize: number;
+    fileModifiedTime: string;
     tags: Tag[];
 }
 
@@ -96,5 +98,18 @@ export const api = {
 
     getCoverUrl(comicId: number): string {
         return `${API_BASE}/comics/${comicId}/cover?stamp=${Date.now()}`;
+    },
+    
+    async renameComic(id: number, title: string): Promise<Comic> {
+        const res = await fetch(`${API_BASE}/comics/${id}/rename`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Failed to rename');
+        }
+        return res.json();
     }
 }
