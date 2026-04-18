@@ -27,10 +27,10 @@ const handleOpenFile = async () => {
 
 const coverUrl = ref('');
 
-watch(() => props.comic?.id, async (id) => {
+watch(() => [props.comic?.id, props.comic?.customCoverPath], async ([id]) => {
     if (!id) { coverUrl.value = ''; return; }
     try {
-        coverUrl.value = await api.getCoverBase64(id);
+        coverUrl.value = await api.getCoverBase64(id as number);
     } catch {
         coverUrl.value = '';
     }

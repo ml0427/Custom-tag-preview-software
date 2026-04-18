@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { api, type Source } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import DirTreeNode from './DirTreeNode.vue';
 
 const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{ (e: 'select', path: string | null): void }>();
@@ -9,12 +10,12 @@ const emit = defineEmits<{ (e: 'select', path: string | null): void }>();
 const sources = ref<Source[]>([]);
 const isSyncing = ref(false);
 
-const handleSelectSource = (path: string) => {
-  emit('select', props.selectedPath === path ? null : path);
-};
-
 const loadSources = async () => {
   sources.value = await api.getSources();
+};
+
+const handleSelectPath = (path: string) => {
+  emit('select', props.selectedPath === path ? null : path);
 };
 
 const handleAddSource = async () => {
@@ -28,9 +29,11 @@ const handleAddSource = async () => {
   }
 };
 
-const handleRemoveSource = async (source: Source) => {
+const handleRemoveSource = async (source: Source, e: MouseEvent) => {
+  e.stopPropagation();
   if (!confirm(`確定移除「${source.path}」？\n（不影響已掃描的漫畫資料）`)) return;
   await api.removeSource(source.id);
+  if (props.selectedPath?.startsWith(source.path)) emit('select', null);
   await loadSources();
 };
 
@@ -50,11 +53,6 @@ const handleSyncSources = async () => {
   }
 };
 
-const formatLastSync = (s: string | null) => {
-  if (!s) return '從未同步';
-  return new Date(s).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-};
-
 onMounted(loadSources);
 </script>
 
@@ -64,38 +62,39 @@ onMounted(loadSources);
       <h2>工作目錄</h2>
     </div>
 
-    <div class="source-list">
+    <div class="tree-area">
       <!-- 全部目錄 -->
       <div
-        class="source-card all-card"
+        class="all-item"
         :class="{ active: selectedPath === null }"
         @click="emit('select', null)"
       >
-        <div class="source-icon">🌐</div>
-        <div class="source-info">
-          <div class="source-name">全部目錄</div>
-          <div class="source-path">所有已登記來源的聯集</div>
-        </div>
+        <span class="all-icon">🌐</span>
+        <span class="all-label">全部目錄</span>
       </div>
 
       <div v-if="sources.length === 0" class="empty">
         <p>尚未新增任何目錄</p>
         <p class="hint">點擊下方「新增目錄」開始</p>
       </div>
-      <div
-        v-for="src in sources"
-        :key="src.id"
-        class="source-card"
-        :class="{ active: selectedPath === src.path }"
-        @click="handleSelectSource(src.path)"
-      >
-        <div class="source-icon">📂</div>
-        <div class="source-info">
-          <div class="source-name" :title="src.path">{{ src.path.split(/[\\/]/).pop() }}</div>
-          <div class="source-path" :title="src.path">{{ src.path }}</div>
-          <div class="source-sync">上次同步：{{ formatLastSync(src.lastSync) }}</div>
+
+      <!-- 各來源根目錄（可展開樹狀） -->
+      <div v-for="src in sources" :key="src.id" class="source-root">
+        <div class="root-header" :class="{ active: selectedPath === src.path }">
+          <DirTreeNode
+            :path="src.path"
+            :label="src.path.split(/[\\/]/).filter(Boolean).pop() ?? src.path"
+            :depth="0"
+            :selectedPath="selectedPath"
+            :isRoot="true"
+            @select="handleSelectPath"
+          />
+          <button
+            class="remove-btn"
+            :title="`移除 ${src.path}`"
+            @click="handleRemoveSource(src, $event)"
+          >✕</button>
         </div>
-        <button class="remove-btn" @click.stop="handleRemoveSource(src)" title="移除">✕</button>
       </div>
     </div>
 
@@ -121,7 +120,7 @@ onMounted(loadSources);
 }
 
 .panel-header {
-  padding: 20px 20px 12px;
+  padding: 20px 16px 12px;
   border-bottom: 1px solid var(--panel-border);
   flex-shrink: 0;
 }
@@ -134,97 +133,85 @@ onMounted(loadSources);
   font-weight: 600;
 }
 
-.source-list {
+.tree-area {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 8px 6px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
 
+.all-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: background 0.15s;
+  margin-bottom: 4px;
+}
+
+.all-item:hover { background: rgba(255,255,255,0.06); }
+.all-item.active {
+  background: var(--tag-bg);
+  color: var(--accent-hover);
+  border-left: 3px solid var(--accent-color);
+  padding-left: 7px;
+}
+
+.all-icon { font-size: 1rem; }
+.all-label { font-size: 0.88rem; }
+
 .empty {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
   text-align: center;
-  padding: 40px 20px;
+  padding: 40px 16px;
   gap: 6px;
+  font-size: 0.85rem;
 }
 
-.hint { font-size: 0.8rem; opacity: 0.6; }
+.hint { font-size: 0.75rem; opacity: 0.6; }
 
-.source-card {
+.source-root {
+  margin-bottom: 2px;
+}
+
+.root-header {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  transition: background 0.15s;
+  align-items: flex-start;
+  position: relative;
 }
 
-.source-card { cursor: pointer; }
-.source-card:hover { background: rgba(255,255,255,0.07); }
-.source-card.active {
-  background: var(--tag-bg);
-  border-color: var(--accent-color);
-  border-left: 3px solid var(--accent-color);
-}
-.all-card { margin-bottom: 4px; }
-
-.source-icon { font-size: 1.2rem; flex-shrink: 0; }
-
-.source-info {
+.root-header > :first-child {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.source-name {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-path {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-sync {
-  font-size: 0.72rem;
-  color: var(--text-tertiary);
 }
 
 .remove-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  font-size: 0.8rem;
-  padding: 4px 6px;
+  font-size: 0.75rem;
+  padding: 6px 4px;
   border-radius: 4px;
-  opacity: 0.5;
+  opacity: 0;
   flex-shrink: 0;
   transition: opacity 0.15s, color 0.15s;
+  cursor: pointer;
+  align-self: center;
 }
 
-.remove-btn:hover {
-  opacity: 1;
-  color: var(--danger-color);
-}
+.root-header:hover .remove-btn { opacity: 0.5; }
+.root-header:hover .remove-btn:hover { opacity: 1; color: var(--danger-color); }
 
 .panel-footer {
   padding: 12px;
@@ -242,6 +229,7 @@ onMounted(loadSources);
   font-size: 0.88rem;
   font-weight: 500;
   transition: all 0.15s;
+  cursor: pointer;
 }
 
 .btn-add {
@@ -268,8 +256,8 @@ onMounted(loadSources);
   cursor: not-allowed;
 }
 
-.source-list::-webkit-scrollbar { width: 4px; }
-.source-list::-webkit-scrollbar-thumb {
+.tree-area::-webkit-scrollbar { width: 4px; }
+.tree-area::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.1);
   border-radius: 10px;
 }

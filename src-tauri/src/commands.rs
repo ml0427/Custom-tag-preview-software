@@ -455,3 +455,25 @@ pub async fn get_cover_base64(id: i64, pool: State<'_, SqlitePool>) -> Result<St
     let b64 = general_purpose::STANDARD.encode(&image_data);
     Ok(format!("data:image/jpeg;base64,{}", b64))
 }
+
+// ─── 目錄樹：列出指定路徑下的直接子目錄 ────────────────────────────────────
+#[tauri::command]
+pub async fn list_subdirs(path: String) -> Result<Vec<String>, String> {
+    let dir = std::path::Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("不是有效目錄：{}", path));
+    }
+    let mut subdirs: Vec<String> = std::fs::read_dir(dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            if entry.file_type().ok()?.is_dir() {
+                Some(entry.path().to_string_lossy().to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    subdirs.sort();
+    Ok(subdirs)
+}

@@ -99,6 +99,8 @@ fn main() {
             commands::rename_tag,
             commands::merge_tags,
             commands::search_tags,
+            // 目錄樹
+            commands::list_subdirs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

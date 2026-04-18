@@ -125,4 +125,8 @@ export const api = {
     async syncSources(): Promise<{ added: number; updated: number; removed: number; sourceCount: number; errors: string[] }> {
         return await invoke('sync_sources');
     },
+
+    async listSubdirs(path: string): Promise<string[]> {
+        return await invoke<string[]>('list_subdirs', { path });
+    },
 }

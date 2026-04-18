@@ -7,7 +7,7 @@ import WorkspacePanel from './components/WorkspacePanel.vue'
 import ComicGallery from './components/ComicGallery.vue'
 import ComicDetailModal from './components/ComicDetailModal.vue'
 
-const activePanel = ref<string | null>('tags')
+const activePanel = ref<string | null>('workspace')
 const selectedTagId = ref<number | null>(null)
 const selectedSourcePath = ref<string | null>(null)
 const selectedComic = ref<Comic | null>(null)
@@ -49,7 +49,7 @@ onMounted(() => loadGlobalTags())
 
 <template>
   <div class="layout">
-    <ActivityBar :active="activePanel" @select="handleActivitySelect" />
+    <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
       <div v-if="activePanel" class="side-panel glass-panel">
@@ -61,7 +61,7 @@ onMounted(() => loadGlobalTags())
         <WorkspacePanel
           v-else-if="activePanel === 'workspace'"
           :selectedPath="selectedSourcePath"
-          @select="selectedSourcePath = $event"
+          @select="(path) => { selectedSourcePath = path; }"
         />
       </div>
     </transition>

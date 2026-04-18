@@ -14,7 +14,6 @@ const emit = defineEmits<{
 
 const comicsPage = ref<Page<Comic> | null>(null);
 const isLoading = ref(false);
-const currentPage = ref(0);
 const selectedComic = ref<Comic | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 
@@ -91,7 +90,7 @@ const toggleSort = (col: string) => {
         sortBy.value = col;
         sortDir.value = 'desc';
     }
-    loadComics(0);
+    loadComics();
 };
 
 const sortIcon = (col: string) => {
@@ -197,13 +196,12 @@ const selectAndScroll = (comic: Comic) => {
     });
 };
 
-const loadComics = async (page: number) => {
+const loadComics = async () => {
     isLoading.value = true;
     try {
-        const res = await api.getComics(page, 20, props.selectedTagId ?? undefined, sortBy.value, sortDir.value, props.sourcePath ?? undefined);
+        const res = await api.getComics(0, 9999, props.selectedTagId ?? undefined, sortBy.value, sortDir.value, props.sourcePath ?? undefined);
         comicsPage.value = res;
-        currentPage.value = page;
-        
+
         if (res.content.length > 0 && !selectedComic.value) {
             selectedComic.value = res.content[0];
         } else if (selectedComic.value) {
@@ -250,11 +248,11 @@ const formatDate = (dateStr: string) => {
 
 watch(() => [props.selectedTagId, props.sourcePath], () => {
     selectedComic.value = null;
-    loadComics(0);
+    loadComics();
 });
 
 onMounted(() => {
-    loadComics(0);
+    loadComics();
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('click', closeContextMenu);
 });
@@ -266,18 +264,8 @@ onUnmounted(() => {
 });
 
 
-const handlePrev = () => {
-    if (currentPage.value > 0) loadComics(currentPage.value - 1);
-};
-
-const handleNext = () => {
-    if (comicsPage.value && currentPage.value < comicsPage.value.totalPages - 1) {
-        loadComics(currentPage.value + 1);
-    }
-};
-
 defineExpose({
-    refresh: () => loadComics(currentPage.value)
+    refresh: () => loadComics()
 });
 </script>
 
@@ -288,11 +276,6 @@ defineExpose({
         <div class="title-group">
             <h2>📚 收藏庫</h2>
             <span v-if="comicsPage" class="count-badge">{{ comicsPage.totalElements }} 項目</span>
-        </div>
-        <div v-if="comicsPage" class="pagination">
-          <button class="btn-icon" @click="handlePrev" :disabled="currentPage === 0 || isLoading">◀</button>
-          <span class="page-info">{{ currentPage + 1 }} / {{ comicsPage.totalPages || 1 }}</span>
-          <button class="btn-icon" @click="handleNext" :disabled="!comicsPage || currentPage >= comicsPage.totalPages - 1 || isLoading">▶</button>
         </div>
       </div>
       
@@ -449,36 +432,6 @@ defineExpose({
     color: var(--text-secondary);
 }
 
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.btn-icon {
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    cursor: pointer;
-    font-size: 1rem;
-    padding: 5px 10px;
-    border-radius: 6px;
-    transition: background 0.2s;
-}
-
-.btn-icon:hover:not(:disabled) {
-    background: rgba(255,255,255,0.1);
-}
-
-.btn-icon:disabled {
-    opacity: 0.3;
-}
-
-.page-info {
-    font-weight: 600;
-    min-width: 80px;
-    text-align: center;
-}
 
 .table-wrapper {
   flex: 1;

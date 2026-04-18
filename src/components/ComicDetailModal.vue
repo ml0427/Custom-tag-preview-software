@@ -144,6 +144,8 @@ const removeTag = async (tagId: number) => {
     }
 };
 
+const zoomedCover = ref(false);
+
 const availableTags = computed(() => {
     if (!props.allTags) return [];
     const currentTagIds = new Set(localTags.value.map(t => t.id));
@@ -152,6 +154,7 @@ const availableTags = computed(() => {
 
 watch(() => props.comic, (newComic) => {
     zipImages.value = [];
+    zoomedCover.value = false;
     if (newComic) {
         loadCover();
         loadImages();
@@ -164,10 +167,18 @@ watch(() => props.comic, (newComic) => {
   <div class="modal-backdrop" v-if="isVisible" @click.self="emit('close')">
     <div class="modal-content glass-panel">
       <button class="close-btn" @click="emit('close')">✖</button>
+
+      <!-- 封面放大 overlay（定位在 modal 內） -->
+      <transition name="zoom-fade">
+        <div v-if="zoomedCover" class="cover-zoom-overlay" @click="zoomedCover = false">
+          <img :src="coverUrl" class="cover-zoom-img" @click.stop />
+          <button class="cover-zoom-close" @click="zoomedCover = false">✖</button>
+        </div>
+      </transition>
       
       <div v-if="comic" class="modal-body">
         <div class="modal-left">
-          <img :src="coverUrl" alt="Cover" class="large-cover" />
+          <img :src="coverUrl" alt="Cover" class="large-cover" @click="zoomedCover = true" />
           
           <div class="tag-editor">
             <h3>目前標籤</h3>
@@ -249,6 +260,7 @@ watch(() => props.comic, (newComic) => {
   max-width: 1000px;
   height: 85vh;
   position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -300,6 +312,60 @@ watch(() => props.comic, (newComic) => {
   background: #000;
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
   flex-shrink: 0;
+  cursor: zoom-in;
+  transition: opacity 0.15s;
+}
+.large-cover:hover { opacity: 0.85; }
+
+.cover-zoom-overlay {
+  position: absolute;
+  inset: 24px;
+  background: rgba(0, 0, 0, 0.88);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  cursor: zoom-out;
+}
+
+.cover-zoom-img {
+  max-width: 88%;
+  max-height: 88%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+}
+
+.cover-zoom-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  font-size: 1rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.cover-zoom-close:hover { background: rgba(255,255,255,0.2); }
+
+.zoom-fade-enter-active, .zoom-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.zoom-fade-enter-from, .zoom-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+.zoom-fade-enter-to, .zoom-fade-leave-from {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .tag-editor h3 {
