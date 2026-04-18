@@ -1,22 +1,24 @@
-# Node/Vue
-client/node_modules/
-client/dist/
-
-# Maven/Java
-server/target/
-server/.mvn/wrapper/maven-wrapper.jar
-*.class
+# Logs
+logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# SQLite & App Specific
-server/comic.db
-server/comic_cache/*
-server/comic_storage/*
-!server/comic_cache/.gitkeep
-!server/comic_storage/.gitkeep
+node_modules
+dist
+dist-ssr
+*.local
 
-# IDEs
-.idea/
-.vscode/
-*.swp
-*.DS_Store
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

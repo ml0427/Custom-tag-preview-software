@@ -1,0 +1,71 @@
+// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod models;
+mod db;
+mod commands;
+mod scanner;
+mod zip_utils;
+
+use tauri::Manager;
+
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::new().build())
+        .register_uri_scheme_protocol("comic-cache", |_app_handle, request| {
+            // 在 Tauri v2 中，protocol 閉包會傳入 UriSchemeContext
+            // 我們需要透過 .app_handle() 才能獲取 AppHandle
+            let app_data_dir = _app_handle.app_handle().path().app_data_dir().expect("failed to get app data dir");
+            let cache_dir = app_data_dir.join("comic_cache");
+
+            let path = request.uri().path().trim_start_matches('/');
+            let file_path = cache_dir.join(path);
+
+            let content_type = if file_path.extension().map_or(false, |e| e == "png") {
+                "image/png"
+            } else if file_path.extension().map_or(false, |e| e == "webp") {
+                "image/webp"
+            } else {
+                "image/jpeg"
+            };
+
+            if let Ok(data) = std::fs::read(&file_path) {
+                tauri::http::Response::builder()
+                    .header("Content-Type", content_type)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(data)
+                    .unwrap()
+            } else {
+                tauri::http::Response::builder()
+                    .status(404)
+                    .body(Vec::new())
+                    .unwrap()
+            }
+        })
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            let app_data_dir = app_handle.path().app_data_dir().expect("failed to get app data dir");
+            
+            let pool = tauri::async_runtime::block_on(async {
+                db::init_db(&app_data_dir).await.expect("failed to init db")
+            });
+            
+            app.manage(pool);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::scan_directory,
+            commands::get_comics,
+            commands::get_tags,
+            commands::rename_comic,
+            commands::get_comic_images,
+            commands::get_cover_base64,
+            commands::create_tag,
+            commands::delete_tag,
+            commands::add_tag_to_comic,
+            commands::remove_tag_from_comic,
+            commands::set_comic_cover,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
