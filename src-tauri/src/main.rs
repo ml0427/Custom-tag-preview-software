@@ -13,6 +13,7 @@ use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("comic-cache", |_app_handle, request| {
             // 在 Tauri v2 中，protocol 閉包會傳入 UriSchemeContext
             // 我們需要透過 .app_handle() 才能獲取 AppHandle
@@ -55,10 +56,6 @@ fn main() {
 
             // 建立選單
             let menu = Menu::with_items(app, &[
-                &Submenu::with_items(app, "掃描", true, &[
-                    &MenuItem::with_id(app, "full-scan", "完整掃描", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "incremental-scan", "⚡ 增量更新", true, None::<&str>)?,
-                ])?,
                 &Submenu::with_items(app, "標籤", true, &[
                     &MenuItem::with_id(app, "new-tag", "新增標籤", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
@@ -68,8 +65,6 @@ fn main() {
 
             app.on_menu_event(|app, event| {
                 match event.id().as_ref() {
-                    "full-scan" => { let _ = app.emit("menu-full-scan", ()); }
-                    "incremental-scan" => { let _ = app.emit("menu-incremental-scan", ()); }
                     "new-tag" => { let _ = app.emit("menu-new-tag", ()); }
                     _ => {}
                 }
@@ -81,6 +76,7 @@ fn main() {
             // 原有指令
             commands::scan_directory,
             commands::get_comics,
+            commands::get_comic,
             commands::get_tags,
             commands::rename_comic,
             commands::get_comic_images,
@@ -90,6 +86,11 @@ fn main() {
             commands::add_tag_to_comic,
             commands::remove_tag_from_comic,
             commands::set_comic_cover,
+            // MISSION 2：Workspace 來源管理
+            commands::get_sources,
+            commands::add_source,
+            commands::remove_source,
+            commands::sync_sources,
             // MISSION 2：增量掃描
             commands::incremental_scan,
             // MISSION 3：開啟本地檔案

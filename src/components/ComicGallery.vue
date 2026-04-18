@@ -5,6 +5,7 @@ import PreviewPane from './PreviewPane.vue';
 
 const props = defineProps<{
   selectedTagId: number | null
+  sourcePath: string | null
 }>();
 
 const emit = defineEmits<{
@@ -199,7 +200,7 @@ const selectAndScroll = (comic: Comic) => {
 const loadComics = async (page: number) => {
     isLoading.value = true;
     try {
-        const res = await api.getComics(page, 20, props.selectedTagId ?? undefined, sortBy.value, sortDir.value);
+        const res = await api.getComics(page, 20, props.selectedTagId ?? undefined, sortBy.value, sortDir.value, props.sourcePath ?? undefined);
         comicsPage.value = res;
         currentPage.value = page;
         
@@ -247,7 +248,7 @@ const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('zh-TW');
 };
 
-watch(() => props.selectedTagId, () => {
+watch(() => [props.selectedTagId, props.sourcePath], () => {
     selectedComic.value = null;
     loadComics(0);
 });

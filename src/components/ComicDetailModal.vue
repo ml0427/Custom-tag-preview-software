@@ -17,6 +17,12 @@ const isLoadingImages = ref(false);
 const zipImages = ref<string[]>([]);
 const isSettingCover = ref(false);
 
+// 本地標籤副本，操作後立即更新 UI，不依賴後端 roundtrip
+const localTags = ref<Tag[]>([]);
+watch(() => props.comic, (comic) => {
+    localTags.value = comic ? [...comic.tags] : [];
+}, { immediate: true });
+
 const coverUrl = ref('');
 
 const loadCover = async () => {
@@ -87,36 +93,39 @@ const onTagInputChange = () => {
 const submitTagInput = async () => {
     const name = tagInput.value.trim();
     if (!name || !props.comic) return;
+    tagInput.value = '';
+    tagInputSuggestions.value = [];
+    showTagInputSuggestions.value = false;
     try {
-        // 先找是否已存在
         const existing = tagInputSuggestions.value.find(t => t.name.toLowerCase() === name.toLowerCase());
-        let tagId: number;
+        let tag: Tag;
         if (existing) {
-            tagId = existing.id;
+            tag = existing;
         } else {
-            const created = await api.createTag(name);
-            tagId = created.id;
+            tag = await api.createTag(name);
         }
-        await api.addTagToComic(props.comic.id, tagId);
-        tagInput.value = '';
-        tagInputSuggestions.value = [];
-        showTagInputSuggestions.value = false;
+        // 避免重複新增
+        if (localTags.value.some(t => t.id === tag.id)) return;
+        await api.addTagToComic(props.comic.id, tag.id);
+        localTags.value = [...localTags.value, tag];
         emit('updated');
     } catch (e) {
-        alert('新增標籤失敗');
+        alert('新增標籤失敗: ' + String(e));
     }
 };
 
-const selectTagSuggestion = async (tag: import('../api').Tag) => {
+const selectTagSuggestion = async (tag: Tag) => {
     if (!props.comic) return;
+    if (localTags.value.some(t => t.id === tag.id)) return;
+    tagInput.value = '';
+    tagInputSuggestions.value = [];
+    showTagInputSuggestions.value = false;
     try {
         await api.addTagToComic(props.comic.id, tag.id);
-        tagInput.value = '';
-        tagInputSuggestions.value = [];
-        showTagInputSuggestions.value = false;
+        localTags.value = [...localTags.value, tag];
         emit('updated');
     } catch (e) {
-        alert('新增標籤失敗');
+        alert('新增標籤失敗: ' + String(e));
     }
 };
 
@@ -128,15 +137,16 @@ const removeTag = async (tagId: number) => {
     if (!props.comic) return;
     try {
         await api.removeTagFromComic(props.comic.id, tagId);
+        localTags.value = localTags.value.filter(t => t.id !== tagId);
         emit('updated');
     } catch (e) {
-        alert('Failed to remove tag');
+        alert('移除標籤失敗: ' + String(e));
     }
 };
 
 const availableTags = computed(() => {
-    if (!props.comic || !props.allTags) return [];
-    const currentTagIds = new Set(props.comic.tags.map(t => t.id));
+    if (!props.allTags) return [];
+    const currentTagIds = new Set(localTags.value.map(t => t.id));
     return props.allTags.filter(t => !currentTagIds.has(t.id));
 });
 
@@ -162,7 +172,7 @@ watch(() => props.comic, (newComic) => {
           <div class="tag-editor">
             <h3>目前標籤</h3>
             <div class="current-tags">
-              <span v-for="tag in comic.tags" :key="tag.id" class="edit-tag">
+              <span v-for="tag in localTags" :key="tag.id" class="edit-tag">
                 # {{ tag.name }}
                 <span class="remove" @click="removeTag(tag.id)">✖</span>
               </span>
@@ -279,15 +289,17 @@ watch(() => props.comic, (newComic) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-y: auto;
 }
 
 .large-cover {
   width: 100%;
-  aspect-ratio: 2/3;
+  max-height: 300px;
   object-fit: contain;
   border-radius: 8px;
   background: #000;
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  flex-shrink: 0;
 }
 
 .tag-editor h3 {

@@ -17,6 +17,12 @@ export interface Comic {
     tags: Tag[];
 }
 
+export interface Source {
+    id: number;
+    path: string;
+    lastSync: string | null;
+}
+
 export interface Page<T> {
     content: T[];
     totalPages: number;
@@ -26,15 +32,12 @@ export interface Page<T> {
 }
 
 export const api = {
-    async getComics(page = 0, size = 20, tagId?: number, sortBy?: string, sortDir?: string): Promise<Page<Comic>> {
-        return await invoke<Page<Comic>>('get_comics', { page, size, tagId, sortBy, sortDir });
+    async getComics(page = 0, size = 20, tagId?: number, sortBy?: string, sortDir?: string, sourcePath?: string): Promise<Page<Comic>> {
+        return await invoke<Page<Comic>>('get_comics', { page, size, tagId, sortBy, sortDir, sourcePath });
     },
 
     async getComic(id: number): Promise<Comic> {
-        // We don't have a specific get_comic yet, but list can serve or we can add it.
-        // For now, let's assume we can get it from the list or implement if needed.
-        const page = await this.getComics(0, 1);
-        return page.content[0];
+        return await invoke<Comic>('get_comic', { id });
     },
 
     async getTags(): Promise<Tag[]> {
@@ -51,11 +54,11 @@ export const api = {
     },
 
     async addTagToComic(comicId: number, tagId: number): Promise<void> {
-        await invoke('add_tag_to_comic', { comic_id: comicId, tag_id: tagId });
+        await invoke('add_tag_to_comic', { comicId, tagId });
     },
 
     async removeTagFromComic(comicId: number, tagId: number): Promise<void> {
-        await invoke('remove_tag_from_comic', { comic_id: comicId, tag_id: tagId });
+        await invoke('remove_tag_from_comic', { comicId, tagId });
     },
 
     async getComicImages(comicId: number): Promise<string[]> {
@@ -101,11 +104,25 @@ export const api = {
 
     // MISSION 4：合併標籤（source 的所有漫畫移至 target，source 刪除）
     async mergeTags(sourceId: number, targetId: number): Promise<void> {
-        await invoke('merge_tags', { source_id: sourceId, target_id: targetId });
+        await invoke('merge_tags', { sourceId, targetId });
     },
 
     // MISSION 4：搜尋標籤（自動建議用）
     async searchTags(query: string): Promise<Tag[]> {
         return await invoke<Tag[]>('search_tags', { query });
+    },
+
+    // MISSION 2：Workspace 來源管理
+    async getSources(): Promise<Source[]> {
+        return await invoke<Source[]>('get_sources');
+    },
+    async addSource(path: string): Promise<Source> {
+        return await invoke<Source>('add_source', { path });
+    },
+    async removeSource(id: number): Promise<void> {
+        await invoke('remove_source', { id });
+    },
+    async syncSources(): Promise<{ added: number; updated: number; removed: number; sourceCount: number; errors: string[] }> {
+        return await invoke('sync_sources');
     },
 }

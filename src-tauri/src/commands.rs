@@ -1,6 +1,6 @@
 use tauri::{AppHandle, Manager, State};
 use sqlx::{SqlitePool, Row};
-use crate::models::{Comic, Tag, Page};
+use crate::models::{Comic, Tag, Page, Source};
 use crate::db;
 use crate::scanner;
 use crate::zip_utils;
@@ -30,29 +30,48 @@ pub async fn get_comics(
     tag_id: Option<i64>,
     sort_by: Option<String>,
     sort_dir: Option<String>,
+    source_path: Option<String>,
     pool: State<'_, SqlitePool>,
 ) -> Result<Page<Comic>, String> {
     let offset = page * size;
 
-    // 白名單，防止 SQL injection
     let col = match sort_by.as_deref() {
-        Some("title")              => "title",
-        Some("file_size")          => "file_size",
-        Some("file_modified_time") => "file_modified_time",
-        _                          => "import_time",
+        Some("title")              => "c.title",
+        Some("file_size")          => "c.file_size",
+        Some("file_modified_time") => "c.file_modified_time",
+        _                          => "c.import_time",
     };
     let dir = if sort_dir.as_deref() == Some("asc") { "ASC" } else { "DESC" };
-    let order = format!("ORDER BY {} {}", col, dir);
+
+    // 來源篩選條件：指定路徑 or 所有已登記來源的聯集
+    let source_cond = match &source_path {
+        Some(p) => {
+            let escaped = p.replace('\'', "''");
+            format!("c.file_path LIKE '{}%'", escaped)
+        }
+        None => "EXISTS (SELECT 1 FROM sources s WHERE c.file_path LIKE s.path || '%')".to_string(),
+    };
 
     let (comics_query, total_query) = if let Some(tid) = tag_id {
         (
-            format!("SELECT c.* FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id WHERE ct.tag_id = {} {} LIMIT {} OFFSET {}", tid, order, size, offset),
-            format!("SELECT COUNT(*) FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id WHERE ct.tag_id = {}", tid)
+            format!(
+                "SELECT c.* FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id \
+                 WHERE ct.tag_id = {} AND {} ORDER BY {} {} LIMIT {} OFFSET {}",
+                tid, source_cond, col, dir, size, offset
+            ),
+            format!(
+                "SELECT COUNT(*) FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id \
+                 WHERE ct.tag_id = {} AND {}",
+                tid, source_cond
+            ),
         )
     } else {
         (
-            format!("SELECT * FROM comics {} LIMIT {} OFFSET {}", order, size, offset),
-            "SELECT COUNT(*) FROM comics".to_string()
+            format!(
+                "SELECT c.* FROM comics c WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
+                source_cond, col, dir, size, offset
+            ),
+            format!("SELECT COUNT(*) FROM comics c WHERE {}", source_cond),
         )
     };
 
@@ -172,7 +191,17 @@ pub async fn get_comic_images(id: i64, pool: State<'_, SqlitePool>) -> Result<Ve
 
 #[tauri::command]
 pub async fn create_tag(name: String, pool: State<'_, SqlitePool>) -> Result<Tag, String> {
-    db::create_tag(&pool, &name).await.map_err(|e| e.to_string())
+    // INSERT OR IGNORE: 已存在就不報錯，直接回傳現有紀錄
+    sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
+        .bind(&name)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    db::find_tag_by_name(&pool, &name)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Tag not found after insert".to_string())
 }
 
 #[tauri::command]
@@ -185,6 +214,7 @@ pub async fn delete_tag(id: i64, pool: State<'_, SqlitePool>) -> Result<(), Stri
 pub async fn add_tag_to_comic(comic_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
     db::add_tag_to_comic(&pool, comic_id, tag_id).await.map_err(|e| e.to_string())
 }
+
 
 #[tauri::command]
 pub async fn remove_tag_from_comic(comic_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
@@ -220,6 +250,34 @@ pub async fn set_comic_cover(id: i64, image_path: String, pool: State<'_, Sqlite
     Ok(())
 }
 
+#[tauri::command]
+pub async fn get_comic(id: i64, pool: State<'_, SqlitePool>) -> Result<Comic, String> {
+    let row = sqlx::query("SELECT * FROM comics WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let tags = sqlx::query_as::<_, Tag>(
+        "SELECT t.id, t.name FROM tags t JOIN comic_tags ct ON t.id = ct.tag_id WHERE ct.comic_id = ?"
+    )
+    .bind(id)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(Comic {
+        id,
+        title: row.get("title"),
+        file_path: row.get("file_path"),
+        custom_cover_path: row.get("custom_cover_path"),
+        import_time: row.get("import_time"),
+        file_size: row.get("file_size"),
+        file_modified_time: row.get("file_modified_time"),
+        tags,
+    })
+}
+
 // ─── MISSION 3：用系統預設程式開啟本地檔案 ───────────────────────────────────
 #[tauri::command]
 pub async fn open_file(path: String) -> Result<(), String> {
@@ -245,6 +303,58 @@ pub async fn open_file(path: String) -> Result<(), String> {
             .map_err(|e| format!("開啟檔案失敗: {}", e))?;
     }
     Ok(())
+}
+
+// ─── MISSION 2：Workspace 來源管理 ──────────────────────────────────────────
+#[tauri::command]
+pub async fn get_sources(pool: State<'_, SqlitePool>) -> Result<Vec<Source>, String> {
+    db::get_sources(&pool).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn add_source(path: String, pool: State<'_, SqlitePool>) -> Result<Source, String> {
+    if !std::path::Path::new(&path).is_dir() {
+        return Err(format!("路徑不存在或不是資料夾：{}", path));
+    }
+    db::add_source(&pool, &path).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn remove_source(id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    db::remove_source(&pool, id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_sources(pool: State<'_, SqlitePool>, app: AppHandle) -> Result<serde_json::Value, String> {
+    let sources = db::get_sources(&pool).await.map_err(|e| e.to_string())?;
+    let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+
+    let mut total_added = 0i32;
+    let mut total_updated = 0i32;
+    let mut total_removed = 0i32;
+    let mut errors: Vec<String> = Vec::new();
+
+    for source in &sources {
+        match scanner::incremental_scan_directory(&pool, &source.path, &cache_dir).await {
+            Ok((added, updated, removed)) => {
+                total_added += added;
+                total_updated += updated;
+                total_removed += removed;
+                let _ = db::update_source_sync_time(&pool, source.id).await;
+            }
+            Err(e) => {
+                errors.push(format!("{}: {}", source.path, e));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "added": total_added,
+        "updated": total_updated,
+        "removed": total_removed,
+        "sourceCount": sources.len(),
+        "errors": errors
+    }))
 }
 
 // ─── MISSION 2：增量掃描 ────────────────────────────────────────────────────
@@ -283,7 +393,7 @@ pub async fn rename_tag(id: i64, name: String, pool: State<'_, SqlitePool>) -> R
 
 #[tauri::command]
 pub async fn merge_tags(source_id: i64, target_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
-    // 把 source 的所有關聯移至 target（IGNORE 避免 PK 衝突）
+    // sourceId/targetId 從 JS 傳入，Tauri v2 camelCase→snake_case 自動對應
     sqlx::query(
         "INSERT OR IGNORE INTO comic_tags (comic_id, tag_id)
          SELECT comic_id, ? FROM comic_tags WHERE tag_id = ?",

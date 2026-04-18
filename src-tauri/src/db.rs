@@ -2,7 +2,7 @@ use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use std::fs;
 use std::path::Path;
 use anyhow::Result;
-use crate::models::{Comic, Tag};
+use crate::models::{Tag, Source};
 
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     if !app_data_dir.exists() {
@@ -33,6 +33,14 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             import_time DATETIME NOT NULL,
             file_size INTEGER NOT NULL,
             file_modified_time DATETIME NOT NULL
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            last_sync DATETIME
         );"
     ).execute(&pool).await?;
 
@@ -79,6 +87,50 @@ pub async fn create_tag(pool: &SqlitePool, name: &str) -> Result<Tag> {
         .last_insert_rowid();
     
     Ok(Tag { id, name: name.to_string() })
+}
+
+pub async fn get_sources(pool: &SqlitePool) -> Result<Vec<Source>> {
+    let sources = sqlx::query_as::<_, Source>(
+        "SELECT id, path, last_sync FROM sources ORDER BY id ASC"
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(sources)
+}
+
+pub async fn add_source(pool: &SqlitePool, path: &str) -> Result<Source> {
+    let id = sqlx::query("INSERT OR IGNORE INTO sources (path) VALUES (?)")
+        .bind(path)
+        .execute(pool)
+        .await?
+        .last_insert_rowid();
+
+    // 若 path 已存在，last_insert_rowid 為 0，改用查詢取得
+    let source = sqlx::query_as::<_, Source>(
+        "SELECT id, path, last_sync FROM sources WHERE path = ?"
+    )
+    .bind(path)
+    .fetch_one(pool)
+    .await?;
+
+    let _ = id;
+    Ok(source)
+}
+
+pub async fn remove_source(pool: &SqlitePool, id: i64) -> Result<()> {
+    sqlx::query("DELETE FROM sources WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn update_source_sync_time(pool: &SqlitePool, id: i64) -> Result<()> {
+    sqlx::query("UPDATE sources SET last_sync = datetime('now') WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 pub async fn add_tag_to_comic(pool: &SqlitePool, comic_id: i64, tag_id: i64) -> Result<()> {

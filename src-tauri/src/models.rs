@@ -22,6 +22,14 @@ pub struct Tag {
     pub name: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Source {
+    pub id: i64,
+    pub path: String,
+    pub last_sync: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Page<T> {
