@@ -7,50 +7,14 @@ const props = defineProps<{ selectedTagId: number | null }>();
 const emit = defineEmits<{ (e: 'select', tagId: number | null): void }>();
 
 const tags = ref<Tag[]>([]);
-const newTagName = ref('');
-
-// ─── 自動建議 ────────────────────────────────────────────────────────────────
-const suggestions = ref<Tag[]>([]);
-const showSuggestions = ref(false);
-let suggestionTimer: ReturnType<typeof setTimeout> | null = null;
-
-const onTagInput = () => {
-  if (suggestionTimer) clearTimeout(suggestionTimer);
-  const q = newTagName.value.trim();
-  if (!q) { suggestions.value = []; showSuggestions.value = false; return; }
-  suggestionTimer = setTimeout(async () => {
-    suggestions.value = await api.searchTags(q);
-    showSuggestions.value = suggestions.value.length > 0;
-  }, 200);
-};
-
-const selectSuggestion = (tag: Tag) => {
-  emit('select', tag.id);
-  newTagName.value = '';
-  showSuggestions.value = false;
-};
-
-const hideSuggestions = () => setTimeout(() => { showSuggestions.value = false; }, 150);
 
 // ─── 標籤操作 ────────────────────────────────────────────────────────────────
 const editingTagId = ref<number | null>(null);
 const editTagName = ref('');
-const mergingTagId = ref<number | null>(null);
-const mergeTargetId = ref<number | null>(null);
 
 const loadTags = async () => { tags.value = await api.getTags(); };
 
 const handleSelect = (id: number | null) => emit('select', id);
-
-const handleCreateTag = async () => {
-  if (!newTagName.value.trim()) return;
-  try {
-    await api.createTag(newTagName.value.trim());
-    newTagName.value = '';
-    showSuggestions.value = false;
-    await loadTags();
-  } catch { alert('建立標籤失敗'); }
-};
 
 const startRenameTag = (tag: Tag) => {
   editingTagId.value = tag.id;
@@ -68,23 +32,6 @@ const submitRenameTag = async (tag: Tag) => {
   finally { cancelTagEdit(); }
 };
 
-const startMergeTag = (tag: Tag) => {
-  mergingTagId.value = tag.id;
-  mergeTargetId.value = null;
-  editingTagId.value = null;
-};
-
-const submitMergeTag = async (tag: Tag) => {
-  if (!mergeTargetId.value) { alert('請選擇合併目標'); return; }
-  if (!confirm(`確定將「${tag.name}」合併至選定標籤？此操作不可復原。`)) return;
-  try {
-    await api.mergeTags(tag.id, mergeTargetId.value);
-    if (props.selectedTagId === tag.id) emit('select', null);
-    await loadTags();
-  } catch { alert('合併標籤失敗'); }
-  finally { cancelTagEdit(); }
-};
-
 const handleDeleteTag = async (tag: Tag) => {
   if (!confirm(`確定刪除標籤「${tag.name}」？`)) return;
   try {
@@ -96,8 +43,6 @@ const handleDeleteTag = async (tag: Tag) => {
 
 const cancelTagEdit = () => {
   editingTagId.value = null;
-  mergingTagId.value = null;
-  mergeTargetId.value = null;
 };
 
 const handleGlobalClick = (e: MouseEvent) => {
@@ -129,25 +74,6 @@ onUnmounted(() => {
       <h2>標籤篩選</h2>
     </div>
 
-    <!-- 新增標籤 -->
-    <div class="add-tag">
-      <div class="input-wrapper">
-        <input
-          v-model="newTagName"
-          type="text"
-          placeholder="新增標籤..."
-          @input="onTagInput"
-          @keydown.enter="handleCreateTag"
-          @blur="hideSuggestions"
-        />
-        <ul v-if="showSuggestions" class="suggestions">
-          <li v-for="s in suggestions" :key="s.id" @mousedown.prevent="selectSuggestion(s)">
-            # {{ s.name }}
-          </li>
-        </ul>
-      </div>
-    </div>
-
     <!-- 全部漫畫 -->
     <div class="all-item" :class="{ active: selectedTagId === null }" @click="handleSelect(null)">
       🌟 全部漫畫
@@ -167,25 +93,10 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <template v-else-if="mergingTagId === tag.id">
-          <div class="tag-merge-row">
-            <span class="merge-label">合併至</span>
-            <select v-model="mergeTargetId" class="merge-select" @click.stop>
-              <option :value="null" disabled>請選擇...</option>
-              <option v-for="t in tags.filter(t => t.id !== tag.id)" :key="t.id" :value="t.id">
-                {{ t.name }}
-              </option>
-            </select>
-            <button class="icon-btn confirm" @click.stop="submitMergeTag(tag)">✓</button>
-            <button class="icon-btn cancel" @click.stop="cancelTagEdit">✗</button>
-          </div>
-        </template>
-
         <template v-else>
           <span class="tag-name" @click="handleSelect(tag.id)"># {{ tag.name }}</span>
           <div class="tag-actions">
             <button class="icon-btn" title="重新命名" @click.stop="startRenameTag(tag)">✏️</button>
-            <button class="icon-btn" title="合併" @click.stop="startMergeTag(tag)">🔀</button>
             <button class="icon-btn danger" title="刪除" @click.stop="handleDeleteTag(tag)">🗑️</button>
           </div>
         </template>
@@ -215,54 +126,6 @@ onUnmounted(() => {
   color: var(--text-secondary);
   font-weight: 600;
 }
-
-.add-tag {
-  padding: 12px 12px 8px;
-  position: relative;
-  flex-shrink: 0;
-}
-
-.input-wrapper { position: relative; }
-
-.input-wrapper input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 12px;
-  font-size: 0.88rem;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.input-wrapper input:focus { border-color: var(--accent-color); }
-
-.suggestions {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0; right: 0;
-  background: #1e2230;
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  list-style: none;
-  padding: 4px 0;
-  z-index: 200;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.suggestions li {
-  padding: 8px 14px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  transition: background 0.15s;
-}
-
-.suggestions li:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
 
 .all-item {
   margin: 0 12px 6px;
@@ -338,14 +201,14 @@ onUnmounted(() => {
 .icon-btn.cancel  { color: #f87171; }
 .icon-btn.danger  { color: var(--danger-color); }
 
-.tag-edit-row, .tag-merge-row {
+.tag-edit-row {
   display: flex;
   align-items: center;
   gap: 4px;
   width: 100%;
 }
 
-.tag-rename-input, .merge-select {
+.tag-rename-input {
   flex: 1;
   background: rgba(0,0,0,0.4);
   border: 1px solid var(--accent-color);
@@ -356,8 +219,6 @@ onUnmounted(() => {
   outline: none;
   min-width: 0;
 }
-
-.merge-label { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
 
 .tag-list::-webkit-scrollbar { width: 4px; }
 .tag-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }

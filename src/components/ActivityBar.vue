@@ -1,10 +1,10 @@
 <script setup lang="ts">
-defineProps<{ active: string | null }>();
+defineProps<{ active: string | null; hasSource: boolean }>();
 const emit = defineEmits<{ (e: 'select', id: string): void }>();
 
 const items = [
-  { id: 'tags',      icon: '🏷️', label: '標籤篩選' },
-  { id: 'workspace', icon: '📁', label: '工作目錄' },
+  { id: 'workspace', icon: '📁', label: '工作目錄', alwaysEnabled: true },
+  { id: 'tags',      icon: '🏷️', label: '標籤篩選', alwaysEnabled: false },
 ];
 </script>
 
@@ -14,8 +14,9 @@ const items = [
       v-for="item in items"
       :key="item.id"
       class="activity-btn"
-      :class="{ active: active === item.id }"
-      :title="item.label"
+      :class="{ active: active === item.id, disabled: !item.alwaysEnabled && !hasSource }"
+      :title="!item.alwaysEnabled && !hasSource ? '請先選擇工作目錄' : item.label"
+      :disabled="!item.alwaysEnabled && !hasSource"
       @click="emit('select', item.id)"
     >
       <span class="icon">{{ item.icon }}</span>
@@ -81,6 +82,15 @@ const items = [
 
 .activity-btn.active::before {
   transform: translateY(-50%) scaleY(1);
+}
+
+.activity-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.activity-btn.disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
 }
 
 .icon { font-size: 1.3rem; line-height: 1; }
