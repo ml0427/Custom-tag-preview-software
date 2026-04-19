@@ -153,6 +153,10 @@ export const api = {
         return await invoke<FileItem[]>('list_dir_files', { path });
     },
 
+    async getImageBase64ByPath(path: string): Promise<string> {
+        return await invoke<string>('get_image_base64_by_path', { path });
+    },
+
     // 資料夾知識庫
     async getFolders(tagId?: number, search?: string): Promise<Folder[]> {
         return await invoke<Folder[]>('get_folders', { tagId, search });

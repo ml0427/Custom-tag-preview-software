@@ -38,12 +38,22 @@ const getComicForFile = (item: FileItem): Comic | undefined =>
 
 const selectedFileItemPath = ref<string | null>(null);
 const selectedComic = ref<Comic | null>(null);
+const selectedFolder = ref<Folder | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 
 const handleFileItemClick = (item: FileItem) => {
   selectedFileItemPath.value = item.path;
-  const comic = getComicForFile(item);
-  if (comic) selectedComic.value = comic;
+  if (item.isDir) {
+    const folder = getFolderForFile(item);
+    if (folder?.folderType === 'comic') {
+      selectedFolder.value = folder;
+      selectedComic.value = null;
+    }
+  } else {
+    selectedFolder.value = null;
+    const comic = getComicForFile(item);
+    selectedComic.value = comic ?? null;
+  }
 };
 
 const handleFileItemDblClick = (item: FileItem) => {
@@ -126,6 +136,7 @@ const loadAll = async () => {
   fileItems.value = [];
   folders.value = [];
   comicsData.value = [];
+  selectedFolder.value = null;
   try {
     await Promise.all([loadFolders(), loadFileItems(), loadComicsBackground()]);
   } catch (e) {
@@ -224,6 +235,7 @@ defineExpose({
     <PreviewPane
       v-if="isPreviewOpen"
       :comic="selectedComic"
+      :folder="selectedFolder"
       :style="{ width: previewWidth + 'px', minWidth: previewWidth + 'px' }"
       @show-detail="emit('showDetail', $event)"
       @renamed="handleRenamed"

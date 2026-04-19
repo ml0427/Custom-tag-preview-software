@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { api, type Comic } from '../api';
+import { ref, watch } from 'vue';
+import { api, type Comic, type Folder } from '../api';
 
 const props = defineProps<{
-    comic: Comic | null
+    comic: Comic | null;
+    folder?: Folder | null;
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +27,7 @@ const handleOpenFile = async () => {
 };
 
 const coverUrl = ref('');
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
 watch(() => [props.comic?.id, props.comic?.customCoverPath], async ([id]) => {
     if (!id) { coverUrl.value = ''; return; }
@@ -34,6 +36,20 @@ watch(() => [props.comic?.id, props.comic?.customCoverPath], async ([id]) => {
     } catch {
         coverUrl.value = '';
     }
+}, { immediate: true });
+
+watch(() => props.folder?.path, async (folderPath) => {
+    if (!folderPath) { coverUrl.value = ''; return; }
+    coverUrl.value = '';
+    try {
+        const files = await api.listDirFiles(folderPath);
+        const firstImage = files.find(f =>
+            !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
+        );
+        if (firstImage) {
+            coverUrl.value = await api.getImageBase64ByPath(firstImage.path);
+        }
+    } catch { coverUrl.value = ''; }
 }, { immediate: true });
 
 const formatSize = (bytes: number) => {
@@ -58,7 +74,7 @@ const formatDate = (dateStr: string) => {
 </script>
 
 <template>
-    <div class="preview-pane" :class="{ 'empty': !comic }">
+    <div class="preview-pane" :class="{ 'empty': !comic && !folder }">
         <div v-if="comic" class="content">
             <div class="cover-wrapper" @click="emit('showDetail', comic)">
                 <img :src="coverUrl" :alt="comic.title" class="preview-cover" />
@@ -109,6 +125,39 @@ const formatDate = (dateStr: string) => {
             </div>
         </div>
         
+        <!-- 資料夾預覽（漫畫類型資料夾） -->
+        <div v-else-if="folder" class="content">
+            <div class="cover-wrapper">
+                <img v-if="coverUrl" :src="coverUrl" :alt="folder.name" class="preview-cover" />
+                <div v-else class="cover-placeholder">📚</div>
+            </div>
+
+            <div class="info-scroll">
+                <div class="title-container">
+                    <h3 class="comic-title">{{ folder.name }}</h3>
+                </div>
+
+                <div class="tags-section">
+                    <h4>標籤</h4>
+                    <div class="tags-container">
+                        <span v-for="tag in folder.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
+                        <span v-if="folder.tags.length === 0" class="no-tags">尚未添加標籤</span>
+                    </div>
+                </div>
+
+                <div class="path-section">
+                    <h4>路徑</h4>
+                    <div class="path-box">{{ folder.path }}</div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn-open" @click="api.openFile(folder.path)">
+                    📂 用預設程式開啟
+                </button>
+            </div>
+        </div>
+
         <div v-else class="empty-state">
             <div class="empty-icon">📂</div>
             <p>選取一個檔案來預覽詳細資訊</p>
@@ -173,6 +222,16 @@ const formatDate = (dateStr: string) => {
 
 .cover-wrapper:hover .preview-cover {
     transform: scale(1.05);
+}
+
+.cover-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 5rem;
+    background: rgba(255,255,255,0.03);
 }
 
 .zoom-overlay {

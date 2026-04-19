@@ -109,6 +109,7 @@ fn main() {
             commands::delete_folder,
             commands::add_tag_to_folder,
             commands::remove_tag_from_folder,
+            commands::get_image_base64_by_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

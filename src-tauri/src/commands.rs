@@ -677,3 +677,22 @@ pub async fn list_subdirs(path: String) -> Result<Vec<String>, String> {
     subdirs.sort();
     Ok(subdirs)
 }
+
+// ─── 讀取任意圖片檔案為 base64 data URL（資料夾封面用） ──────────────────────
+#[tauri::command]
+pub async fn get_image_base64_by_path(path: String) -> Result<String, String> {
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("jpeg")
+        .to_lowercase();
+    let mime = match ext.as_str() {
+        "png"  => "image/png",
+        "gif"  => "image/gif",
+        "webp" => "image/webp",
+        "bmp"  => "image/bmp",
+        _      => "image/jpeg",
+    };
+    Ok(format!("data:{};base64,{}", mime, general_purpose::STANDARD.encode(&bytes)))
+}
