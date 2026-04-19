@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { api } from '../api';
+import { ref, computed, onMounted, inject } from 'vue';
+import { api, type Folder } from '../api';
 
 const props = defineProps<{
   path: string;
@@ -20,6 +20,13 @@ const children = ref<string[]>([]);
 const loaded = ref(false);
 const loading = ref(false);
 const hasChildren = ref<boolean | null>(null); // null = 未知
+
+const folderByPath = inject<{ value: Map<string, Folder> }>('folderByPath', { value: new Map() });
+
+const nodeIcon = computed(() => {
+  if (props.isRoot) return '📂';
+  return folderByPath.value.get(props.path)?.folderType === 'comic' ? '📚' : '📁';
+});
 
 const getLabel = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
 
@@ -81,7 +88,7 @@ onMounted(probe);
       >
         {{ loading ? '⏳' : '▶' }}
       </span>
-      <span class="node-icon">{{ isRoot ? '📂' : '📁' }}</span>
+      <span class="node-icon">{{ nodeIcon }}</span>
       <span class="node-label" :title="path">{{ label }}</span>
     </div>
 

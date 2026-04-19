@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { api, type Source } from '../api';
+import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
+import { api, type Source, type Folder } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import DirTreeNode from './DirTreeNode.vue';
 
@@ -53,6 +53,7 @@ const submitFolderModal = async () => {
       await api.createFolder(path, name.trim(), folderType, note.trim());
     }
     showFolderModal.value = false;
+    await loadDbFolders();
     emit('folderCreated');
   } catch (e) {
     alert('操作失敗: ' + String(e));
@@ -61,6 +62,14 @@ const submitFolderModal = async () => {
 
 onMounted(() => document.addEventListener('click', closeCtxMenu));
 onUnmounted(() => document.removeEventListener('click', closeCtxMenu));
+
+const dbFolders = ref<Folder[]>([]);
+const folderByPath = computed(() => new Map(dbFolders.value.map(f => [f.path, f])));
+provide('folderByPath', folderByPath);
+
+const loadDbFolders = async () => {
+  dbFolders.value = await api.getFolders();
+};
 
 const sources = ref<Source[]>([]);
 const isSyncing = ref(false);
@@ -111,7 +120,7 @@ const handleSyncSources = async () => {
   }
 };
 
-onMounted(loadSources);
+onMounted(() => { loadSources(); loadDbFolders(); });
 </script>
 
 <template>
