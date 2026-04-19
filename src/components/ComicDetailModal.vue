@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { api, type Comic, type Tag } from '../api';
+import { useTagManager } from '../composables/useTagManager';
 
 const props = defineProps<{
   comic: Comic | null;
@@ -16,14 +17,24 @@ const isVisible = computed(() => props.comic !== null);
 const isLoadingImages = ref(false);
 const zipImages = ref<string[]>([]);
 const isSettingCover = ref(false);
-
-// 本地標籤副本，操作後立即更新 UI，不依賴後端 roundtrip
-const localTags = ref<Tag[]>([]);
-watch(() => props.comic, (comic) => {
-    localTags.value = comic ? [...comic.tags] : [];
-}, { immediate: true });
-
 const coverUrl = ref('');
+const zoomedCover = ref(false);
+
+const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: showTagInputSuggestions,
+    initTags, onInputChange: onTagInputChange, submitInput: submitTagInput,
+    selectSuggestion: selectTagSuggestion, removeTagById: removeTag, hideSuggestions: hideTagSuggestions,
+} = useTagManager({
+    getEntityId: () => props.comic?.id ?? null,
+    addTag: (id, tagId) => api.addTagToComic(id, tagId),
+    removeTag: (id, tagId) => api.removeTagFromComic(id, tagId),
+    onUpdated: () => emit('updated'),
+});
+
+const availableTags = computed(() => {
+    if (!props.allTags) return [];
+    const currentTagIds = new Set(localTags.value.map((t: Tag) => t.id));
+    return props.allTags.filter(t => !currentTagIds.has(t.id));
+});
 
 const loadCover = async () => {
     if (!props.comic) { coverUrl.value = ''; return; }
@@ -39,7 +50,7 @@ const loadImages = async () => {
     isLoadingImages.value = true;
     try {
         zipImages.value = await api.getComicImages(props.comic.id);
-    } catch (e) {
+    } catch {
         alert('Failed to load images from ZIP');
     } finally {
         isLoadingImages.value = false;
@@ -52,145 +63,24 @@ const handleSetCover = async (imagePath: string) => {
     try {
         await api.setComicCover(props.comic.id, imagePath);
         alert('Cover updated successfully!');
-        await loadCover(); // 重新載入封面
+        await loadCover();
         emit('updated');
-    } catch (e) {
+    } catch {
         alert('Failed to update cover');
     } finally {
         isSettingCover.value = false;
     }
 };
 
-const addTag = async (event: Event) => {
-    const select = event.target as HTMLSelectElement;
-    const tagId = Number(select.value);
-    if (!tagId || !props.comic) return;
-    try {
-        await api.addTagToComic(props.comic.id, tagId);
-        emit('updated');
-    } catch (e) {
-        alert('Failed to add tag');
-    }
-    select.value = "";
-};
-
-// 手動輸入標籤
-const tagInput = ref('');
-const tagInputSuggestions = ref<import('../api').Tag[]>([]);
-const showTagInputSuggestions = ref(false);
-let tagInputTimer: ReturnType<typeof setTimeout> | null = null;
-
-const onTagInputChange = () => {
-    if (tagInputTimer) clearTimeout(tagInputTimer);
-    const q = tagInput.value.trim();
-    if (!q) { tagInputSuggestions.value = []; showTagInputSuggestions.value = false; return; }
-    tagInputTimer = setTimeout(async () => {
-        tagInputSuggestions.value = await api.searchTags(q);
-        showTagInputSuggestions.value = true;
-    }, 200);
-};
-
-const splitTagInput = (input: string): string[] => {
-    // 剝掉最外層 [] 或 【】
-    let text = input.trim();
-    if ((text.startsWith('[') && text.endsWith(']')) ||
-        (text.startsWith('【') && text.endsWith('】'))) {
-        text = text.slice(1, -1).trim();
-    }
-
-    const parts: string[] = [];
-    const parenRe = /\(([^)]*)\)|（([^）]*)）/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-
-    while ((m = parenRe.exec(text)) !== null) {
-        const before = text.slice(last, m.index).trim();
-        if (before) parts.push(...before.split(/[、，]/).map(s => s.trim()).filter(Boolean));
-        const inner = (m[1] ?? m[2] ?? '').trim();
-        if (inner) parts.push(...inner.split(/[、，]/).map(s => s.trim()).filter(Boolean));
-        last = m.index + m[0].length;
-    }
-
-    const tail = text.slice(last).trim();
-    if (tail) parts.push(...tail.split(/[、，]/).map(s => s.trim()).filter(Boolean));
-
-    return parts;
-};
-
-const submitTagInput = async () => {
-    if (!props.comic) return;
-    const names = splitTagInput(tagInput.value);
-    if (!names.length) return;
-    tagInput.value = '';
-    tagInputSuggestions.value = [];
-    showTagInputSuggestions.value = false;
-    const suggestions = tagInputSuggestions.value;
-    for (const name of names) {
-        try {
-            const existing = suggestions.find(t => t.name.toLowerCase() === name.toLowerCase());
-            let tag: Tag;
-            if (existing) {
-                tag = existing;
-            } else {
-                tag = await api.createTag(name);
-            }
-            if (localTags.value.some(t => t.id === tag.id)) continue;
-            await api.addTagToComic(props.comic.id, tag.id);
-            localTags.value = [...localTags.value, tag];
-        } catch (e) {
-            alert('新增標籤失敗: ' + String(e));
-        }
-    }
-    emit('updated');
-};
-
-const selectTagSuggestion = async (tag: Tag) => {
-    if (!props.comic) return;
-    if (localTags.value.some(t => t.id === tag.id)) return;
-    tagInput.value = '';
-    tagInputSuggestions.value = [];
-    showTagInputSuggestions.value = false;
-    try {
-        await api.addTagToComic(props.comic.id, tag.id);
-        localTags.value = [...localTags.value, tag];
-        emit('updated');
-    } catch (e) {
-        alert('新增標籤失敗: ' + String(e));
-    }
-};
-
-const hideTagSuggestions = () => {
-    setTimeout(() => { showTagInputSuggestions.value = false; }, 150);
-};
-
-const removeTag = async (tagId: number) => {
-    if (!props.comic) return;
-    try {
-        await api.removeTagFromComic(props.comic.id, tagId);
-        localTags.value = localTags.value.filter(t => t.id !== tagId);
-        emit('updated');
-    } catch (e) {
-        alert('移除標籤失敗: ' + String(e));
-    }
-};
-
-const zoomedCover = ref(false);
-
-const availableTags = computed(() => {
-    if (!props.allTags) return [];
-    const currentTagIds = new Set(localTags.value.map(t => t.id));
-    return props.allTags.filter(t => !currentTagIds.has(t.id));
-});
-
-watch(() => props.comic, (newComic) => {
+watch(() => props.comic, (comic) => {
+    initTags(comic?.tags ?? []);
     zipImages.value = [];
     zoomedCover.value = false;
-    if (newComic) {
+    if (comic) {
         loadCover();
         loadImages();
     }
 }, { immediate: true });
-
 </script>
 
 <template>

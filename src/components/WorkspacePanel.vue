@@ -103,7 +103,7 @@ const handleSyncSources = async () => {
     const errMsg = res.errors.length ? `\n\n失敗：${res.errors.join('\n')}` : '';
     alert(`同步完成（${res.sourceCount} 個來源）\n新增 ${res.added}、更新 ${res.updated}、移除 ${res.removed} 本${errMsg}`);
     await loadSources();
-    window.location.reload();
+    emit('folderCreated'); // 通知父元件刷新 gallery，不需重載整頁
   } catch (e) {
     alert('同步失敗: ' + String(e));
   } finally {

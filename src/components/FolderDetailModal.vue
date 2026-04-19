@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import { api, type Folder, type Tag } from '../api';
+import { useTagManager } from '../composables/useTagManager';
 
 const props = defineProps<{
   folder: Folder | null;
@@ -14,23 +15,29 @@ const emit = defineEmits<{
 }>();
 
 const isVisible = computed(() => props.folder !== null);
-
-// 本地副本
-const localTags = ref<Tag[]>([]);
 const editName = ref('');
 const editNote = ref('');
 const editType = ref('default');
+const isSaving = ref(false);
+
+const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: showTagInputSuggestions,
+    initTags, onInputChange: onTagInputChange, submitInput: submitTagInput,
+    selectSuggestion: selectTagSuggestion, removeTagById: removeTag, hideSuggestions: hideTagSuggestions,
+} = useTagManager({
+    getEntityId: () => props.folder?.id ?? null,
+    addTag: (id, tagId) => api.addTagToFolder(id, tagId),
+    removeTag: (id, tagId) => api.removeTagFromFolder(id, tagId),
+    onUpdated: () => emit('updated'),
+});
 
 watch(() => props.folder, (f) => {
   if (f) {
-    localTags.value = [...f.tags];
+    initTags(f.tags);
     editName.value = f.name;
     editNote.value = f.note;
     editType.value = f.folderType;
   }
 }, { immediate: true });
-
-const isSaving = ref(false);
 
 const saveChanges = async () => {
   if (!props.folder || isSaving.value) return;
@@ -60,71 +67,6 @@ const handleDelete = async () => {
 const openFolder = async () => {
   if (!props.folder) return;
   await api.openFile(props.folder.path);
-};
-
-// 標籤編輯
-const tagInput = ref('');
-const tagInputSuggestions = ref<Tag[]>([]);
-const showTagInputSuggestions = ref(false);
-let tagTimer: ReturnType<typeof setTimeout> | null = null;
-
-const onTagInputChange = () => {
-  if (tagTimer) clearTimeout(tagTimer);
-  const q = tagInput.value.trim();
-  if (!q) { tagInputSuggestions.value = []; showTagInputSuggestions.value = false; return; }
-  tagTimer = setTimeout(async () => {
-    tagInputSuggestions.value = await api.searchTags(q);
-    showTagInputSuggestions.value = true;
-  }, 200);
-};
-
-const submitTagInput = async () => {
-  if (!props.folder) return;
-  const name = tagInput.value.trim();
-  if (!name) return;
-  tagInput.value = '';
-  tagInputSuggestions.value = [];
-  showTagInputSuggestions.value = false;
-  try {
-    let tag: Tag;
-    const existing = await api.searchTags(name).then(r => r.find(t => t.name.toLowerCase() === name.toLowerCase()));
-    tag = existing ?? await api.createTag(name);
-    if (localTags.value.some(t => t.id === tag.id)) return;
-    await api.addTagToFolder(props.folder.id, tag.id);
-    localTags.value = [...localTags.value, tag];
-    emit('updated');
-  } catch (e) {
-    alert('新增標籤失敗: ' + String(e));
-  }
-};
-
-const selectTagSuggestion = async (tag: Tag) => {
-  if (!props.folder || localTags.value.some(t => t.id === tag.id)) return;
-  tagInput.value = '';
-  tagInputSuggestions.value = [];
-  showTagInputSuggestions.value = false;
-  try {
-    await api.addTagToFolder(props.folder.id, tag.id);
-    localTags.value = [...localTags.value, tag];
-    emit('updated');
-  } catch (e) {
-    alert('新增標籤失敗: ' + String(e));
-  }
-};
-
-const removeTag = async (tagId: number) => {
-  if (!props.folder) return;
-  try {
-    await api.removeTagFromFolder(props.folder.id, tagId);
-    localTags.value = localTags.value.filter(t => t.id !== tagId);
-    emit('updated');
-  } catch (e) {
-    alert('移除標籤失敗: ' + String(e));
-  }
-};
-
-const hideTagSuggestions = () => {
-  setTimeout(() => { showTagInputSuggestions.value = false; }, 150);
 };
 </script>
 

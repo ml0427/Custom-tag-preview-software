@@ -43,39 +43,40 @@ pub async fn get_comics(
     };
     let dir = if sort_dir.as_deref() == Some("asc") { "ASC" } else { "DESC" };
 
-    // 來源篩選條件：指定路徑 or 所有已登記來源的聯集
-    let source_cond = match &source_path {
-        Some(p) => {
-            let escaped = p.replace('\'', "''");
-            format!("c.file_path LIKE '{}%'", escaped)
+    // 使用 QueryBuilder 避免 SQL injection（source_path 為使用者輸入）
+    let has_source = source_path.is_some();
+    let source_like = source_path.as_deref().map(|p| format!("{}%", p));
+
+    let build_base = |select: &str, with_tag: bool| -> sqlx::QueryBuilder<'_, sqlx::Sqlite> {
+        let mut qb = sqlx::QueryBuilder::new(select);
+        if with_tag {
+            qb.push(" JOIN comic_tags ct ON c.id = ct.comic_id WHERE ct.tag_id = ");
+            qb.push_bind(tag_id.unwrap());
+            if has_source {
+                qb.push(" AND c.file_path LIKE "); qb.push_bind(source_like.clone().unwrap());
+            } else {
+                qb.push(" AND EXISTS (SELECT 1 FROM sources s WHERE c.file_path LIKE s.path || '%')");
+            }
+        } else {
+            if has_source {
+                qb.push(" WHERE c.file_path LIKE "); qb.push_bind(source_like.clone().unwrap());
+            } else {
+                qb.push(" WHERE EXISTS (SELECT 1 FROM sources s WHERE c.file_path LIKE s.path || '%')");
+            }
         }
-        None => "EXISTS (SELECT 1 FROM sources s WHERE c.file_path LIKE s.path || '%')".to_string(),
+        qb
     };
 
-    let (comics_query, total_query) = if let Some(tid) = tag_id {
-        (
-            format!(
-                "SELECT c.* FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id \
-                 WHERE ct.tag_id = {} AND {} ORDER BY {} {} LIMIT {} OFFSET {}",
-                tid, source_cond, col, dir, size, offset
-            ),
-            format!(
-                "SELECT COUNT(*) FROM comics c JOIN comic_tags ct ON c.id = ct.comic_id \
-                 WHERE ct.tag_id = {} AND {}",
-                tid, source_cond
-            ),
-        )
-    } else {
-        (
-            format!(
-                "SELECT c.* FROM comics c WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
-                source_cond, col, dir, size, offset
-            ),
-            format!("SELECT COUNT(*) FROM comics c WHERE {}", source_cond),
-        )
-    };
+    let with_tag = tag_id.is_some();
+    let mut qb = build_base("SELECT c.* FROM comics c", with_tag);
+    qb.push(format!(" ORDER BY {} {} LIMIT ", col, dir));
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
 
-    let rows = sqlx::query(&comics_query).fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+    let mut count_qb = build_base("SELECT COUNT(*) FROM comics c", with_tag);
+
+    let rows = qb.build().fetch_all(&*pool).await.map_err(|e| e.to_string())?;
     
     let mut comics = Vec::new();
     for row in rows {
@@ -101,7 +102,8 @@ pub async fn get_comics(
         });
     }
 
-    let total_elements: i64 = sqlx::query(&total_query)
+    let total_elements: i64 = count_qb
+        .build()
         .fetch_one(&*pool)
         .await
         .map_err(|e| e.to_string())?
@@ -464,32 +466,24 @@ pub async fn get_folders(
     search: Option<String>,
     pool: State<'_, SqlitePool>,
 ) -> Result<Vec<Folder>, String> {
-    let search_cond = match &search {
-        Some(q) if !q.trim().is_empty() => {
-            let escaped = q.replace('\'', "''");
-            format!("AND f.name LIKE '%{}%'", escaped)
+    let mut qb = sqlx::QueryBuilder::new("SELECT f.* FROM folders f");
+    if let Some(tid) = tag_id {
+        qb.push(" JOIN folder_tags ft ON f.id = ft.folder_id WHERE ft.tag_id = ");
+        qb.push_bind(tid);
+        if let Some(ref q) = search {
+            if !q.trim().is_empty() {
+                qb.push(" AND f.name LIKE "); qb.push_bind(format!("%{}%", q.trim()));
+            }
         }
-        _ => String::new(),
-    };
-
-    let rows = if let Some(tid) = tag_id {
-        sqlx::query(&format!(
-            "SELECT f.* FROM folders f JOIN folder_tags ft ON f.id = ft.folder_id \
-             WHERE ft.tag_id = {} {} ORDER BY f.created_at DESC",
-            tid, search_cond
-        ))
-        .fetch_all(&*pool)
-        .await
-        .map_err(|e| e.to_string())?
     } else {
-        sqlx::query(&format!(
-            "SELECT f.* FROM folders f WHERE 1=1 {} ORDER BY f.created_at DESC",
-            search_cond
-        ))
-        .fetch_all(&*pool)
-        .await
-        .map_err(|e| e.to_string())?
-    };
+        if let Some(ref q) = search {
+            if !q.trim().is_empty() {
+                qb.push(" WHERE f.name LIKE "); qb.push_bind(format!("%{}%", q.trim()));
+            }
+        }
+    }
+    qb.push(" ORDER BY f.created_at DESC");
+    let rows = qb.build().fetch_all(&*pool).await.map_err(|e| e.to_string())?;
 
     let mut folders = Vec::new();
     for row in rows {

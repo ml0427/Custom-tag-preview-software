@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { api } from '../api';
 
 const props = defineProps<{
@@ -51,7 +51,7 @@ const onContextMenu = (e: MouseEvent) => {
   emit('contextmenu', { path: props.path, x: e.clientX, y: e.clientY });
 };
 
-// 初始化：偷偷探測是否有子目錄（只做一次，不展開）
+// 探測是否有子目錄（掛載後執行一次，不展開）
 const probe = async () => {
   if (hasChildren.value !== null) return;
   try {
@@ -63,7 +63,7 @@ const probe = async () => {
     hasChildren.value = false;
   }
 };
-probe();
+onMounted(probe);
 </script>
 
 <template>
