@@ -36,6 +36,9 @@ const folderByPath = computed(() =>
 const getComicForFile = (item: FileItem): Comic | undefined =>
   comicByPath.value.get(item.path);
 
+const getFolderForFile = (item: FileItem): Folder | undefined =>
+  folderByPath.value.get(item.path);
+
 const selectedFileItemPath = ref<string | null>(null);
 const selectedComic = ref<Comic | null>(null);
 const selectedFolder = ref<Folder | null>(null);
