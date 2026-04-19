@@ -67,7 +67,7 @@ probe();
 </script>
 
 <template>
-  <div class="tree-node" :style="{ '--depth': depth }">
+  <div v-if="isRoot || hasChildren !== false" class="tree-node" :style="{ '--depth': depth }">
     <div
       class="node-row"
       :class="{ active: selectedPath === path, root: isRoot }"

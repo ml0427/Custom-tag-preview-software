@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
-import { api, type Comic, type Folder, type Page } from '../api';
+import { api, type Comic, type Folder, type FileItem, type Page } from '../api';
 import PreviewPane from './PreviewPane.vue';
 
 const props = defineProps<{
@@ -11,12 +11,17 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'showDetail', comic: Comic): void;
   (e: 'showFolderDetail', folder: Folder): void;
+  (e: 'navigateDir', path: string): void;
 }>();
 
 const comicsPage = ref<Page<Comic> | null>(null);
 const folders = ref<Folder[]>([]);
+const fileItems = ref<FileItem[]>([]);
 const isLoading = ref(false);
 const gallerySearch = ref('');
+
+// 當 sourcePath 有值時進入檔案總管模式
+const showExplorerMode = computed(() => props.sourcePath !== null);
 
 const filteredComics = computed(() => {
   const all = comicsPage.value?.content ?? [];
@@ -31,6 +36,71 @@ const filteredFolders = computed(() => {
   return folders.value.filter(f => f.name.toLowerCase().includes(q));
 });
 
+const filteredFileItems = computed(() => {
+  const q = gallerySearch.value.trim().toLowerCase();
+  if (!q) return fileItems.value;
+  return fileItems.value.filter(item => item.name.toLowerCase().includes(q));
+});
+
+// 從已載入的 comics/folders 中找到對應此檔案路徑的紀錄（用於顯示標籤/類型）
+const getComicForFile = (item: FileItem): Comic | undefined =>
+  comicsPage.value?.content.find(c => c.filePath === item.path);
+const getFolderForFile = (item: FileItem): Folder | undefined =>
+  folders.value.find(f => f.path === item.path);
+
+const getFileIcon = (item: FileItem): string => {
+  if (item.isDir) {
+    const folder = getFolderForFile(item);
+    return folder?.folderType === 'comic' ? '📚' : '📁';
+  }
+  const ext = item.extension?.toLowerCase() ?? '';
+  if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return '🖼️';
+  if (['mp4','mkv','avi','mov','wmv'].includes(ext)) return '🎬';
+  if (['zip','rar','7z','cbz','cbr'].includes(ext)) return '📦';
+  if (ext === 'pdf') return '📄';
+  if (['mp3','flac','wav','ogg'].includes(ext)) return '🎵';
+  if (ext === 'exe') return '⚙️';
+  if (['txt','md'].includes(ext)) return '📝';
+  return '📄';
+};
+
+const folderTypeLabel = (type: string): string => {
+  if (type === 'comic') return '漫畫';
+  if (type === 'default') return '一般';
+  return type;
+};
+
+const getFileItemType = (item: FileItem): string => {
+  if (item.isDir) {
+    const folder = getFolderForFile(item);
+    return folder ? folderTypeLabel(folder.folderType) : '目錄';
+  }
+  return item.extension?.toUpperCase() ?? '—';
+};
+
+const handleFileItemClick = (item: FileItem) => {
+  if (item.isDir) {
+    emit('navigateDir', item.path);
+  } else {
+    const comic = getComicForFile(item);
+    if (comic) {
+      selectedComic.value = comic;
+    } else {
+      api.openFile(item.path);
+    }
+  }
+};
+
+const handleFileItemDblClick = (item: FileItem) => {
+  if (item.isDir) {
+    const folder = getFolderForFile(item);
+    if (folder) emit('showFolderDetail', folder);
+  } else {
+    const comic = getComicForFile(item);
+    if (comic) emit('showDetail', comic);
+  }
+};
+
 
 const selectedFolder = ref<Folder | null>(null);
 
@@ -43,6 +113,15 @@ const handleFolderClick = async (folder: Folder) => {
 
 const loadFolders = async () => {
   folders.value = await api.getFolders(props.selectedTagId ?? undefined);
+};
+
+const loadFileItems = async () => {
+  if (!props.sourcePath) { fileItems.value = []; return; }
+  try {
+    fileItems.value = await api.listDirFiles(props.sourcePath);
+  } catch {
+    fileItems.value = [];
+  }
 };
 const selectedComic = ref<Comic | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
@@ -280,11 +359,13 @@ watch(() => [props.selectedTagId, props.sourcePath], () => {
     selectedComic.value = null;
     loadComics();
     loadFolders();
+    loadFileItems();
 });
 
 onMounted(() => {
     loadComics();
     loadFolders();
+    loadFileItems();
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('click', closeContextMenu);
 });
@@ -297,7 +378,7 @@ onUnmounted(() => {
 
 
 defineExpose({
-    refresh: () => { loadComics(); loadFolders(); }
+    refresh: () => { loadComics(); loadFolders(); loadFileItems(); }
 });
 </script>
 
@@ -313,11 +394,13 @@ defineExpose({
             placeholder="搜尋名稱..."
           />
           <span class="search-count">
-            <template v-if="gallerySearch.trim()">
-              {{ filteredComics.length + filteredFolders.length }} / {{ (comicsPage?.totalElements ?? 0) + folders.length }} 項
+            <template v-if="showExplorerMode">
+              <template v-if="gallerySearch.trim()">{{ filteredFileItems.length }} / {{ fileItems.length }} 項</template>
+              <template v-else>{{ fileItems.length }} 項</template>
             </template>
             <template v-else>
-              {{ (comicsPage?.totalElements ?? 0) + folders.length }} 項
+              <template v-if="gallerySearch.trim()">{{ filteredComics.length + filteredFolders.length }} / {{ (comicsPage?.totalElements ?? 0) + folders.length }} 項</template>
+              <template v-else>{{ (comicsPage?.totalElements ?? 0) + folders.length }} 項</template>
             </template>
           </span>
         </div>
@@ -329,17 +412,65 @@ defineExpose({
           <p>載入中...</p>
         </div>
         
-        <div v-else-if="filteredComics.length === 0 && filteredFolders.length === 0" class="empty-state">
+        <!-- 空狀態 -->
+        <div v-else-if="showExplorerMode ? filteredFileItems.length === 0 : (filteredComics.length === 0 && filteredFolders.length === 0)" class="empty-state">
           <h3>沒有找到相關記錄 🥺</h3>
           <p>請嘗試切換標籤，或執行掃描功能。</p>
         </div>
-        
-        <table v-else-if="filteredComics.length > 0 || filteredFolders.length > 0" class="comic-table">
+
+        <!-- ── 檔案總管模式（sourcePath 已選） ── -->
+        <table v-else-if="showExplorerMode && filteredFileItems.length > 0" class="comic-table">
+          <thead>
+            <tr>
+              <th class="col-name">名稱</th>
+              <th class="col-size">大小</th>
+              <th class="col-date">修改日期</th>
+              <th class="col-type">類型</th>
+              <th class="col-tags">標籤</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in filteredFileItems"
+              :key="item.path"
+              :class="{ 'selected': selectedComic ? getComicForFile(item)?.id === selectedComic.id : false }"
+              @click="handleFileItemClick(item)"
+              @dblclick="handleFileItemDblClick(item)"
+            >
+              <td class="col-name">
+                <div class="file-info">
+                  <span class="folder-type-icon">{{ getFileIcon(item) }}</span>
+                  <span class="file-title" :title="item.path">{{ item.name }}</span>
+                </div>
+              </td>
+              <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
+              <td class="col-date">{{ item.modifiedTime ?? '—' }}</td>
+              <td class="col-type">{{ getFileItemType(item) }}</td>
+              <td class="col-tags">
+                <div class="tag-chips">
+                  <span
+                    v-for="tag in ((getComicForFile(item) ?? getFolderForFile(item))?.tags ?? []).slice(0, 3)"
+                    :key="tag.id"
+                    class="mini-tag"
+                  >{{ tag.name }}</span>
+                  <span
+                    v-if="((getComicForFile(item) ?? getFolderForFile(item))?.tags?.length ?? 0) > 3"
+                    class="tag-more"
+                  >+{{ ((getComicForFile(item) ?? getFolderForFile(item))?.tags?.length ?? 0) - 3 }}</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- ── 標籤篩選模式（無 sourcePath） ── -->
+        <table v-else-if="!showExplorerMode && (filteredComics.length > 0 || filteredFolders.length > 0)" class="comic-table">
           <thead>
             <tr>
               <th class="col-name sortable" @click="toggleSort('title')">名稱 {{ sortIcon('title') }}</th>
               <th class="col-size sortable" @click="toggleSort('file_size')">大小 {{ sortIcon('file_size') }}</th>
               <th class="col-date sortable" @click="toggleSort('file_modified_time')">修改日期 {{ sortIcon('file_modified_time') }}</th>
+              <th class="col-type">類型</th>
               <th class="col-tags">標籤</th>
             </tr>
           </thead>
@@ -354,7 +485,6 @@ defineExpose({
             >
               <td class="col-name">
                 <div class="file-info">
-                  <!-- Inline Rename UI -->
                   <div v-if="editingComicId === comic.id" class="inline-edit-wrapper">
                       <input
                         v-model="editTitle"
@@ -370,11 +500,10 @@ defineExpose({
               </td>
               <td class="col-size">{{ formatSize(comic.fileSize) }}</td>
               <td class="col-date">{{ formatDate(comic.fileModifiedTime || comic.importTime) }}</td>
+              <td class="col-type">—</td>
               <td class="col-tags">
                 <div class="tag-chips">
-                  <span v-for="tag in comic.tags.slice(0, 3)" :key="tag.id" class="mini-tag">
-                    {{ tag.name }}
-                  </span>
+                  <span v-for="tag in comic.tags.slice(0, 3)" :key="tag.id" class="mini-tag">{{ tag.name }}</span>
                   <span v-if="comic.tags.length > 3" class="tag-more">+{{ comic.tags.length - 3 }}</span>
                 </div>
               </td>
@@ -394,13 +523,12 @@ defineExpose({
                   <span class="file-title" :title="folder.path">{{ folder.name }}</span>
                 </div>
               </td>
-              <td class="col-size">-</td>
-              <td class="col-date">{{ folder.note || '-' }}</td>
+              <td class="col-size">—</td>
+              <td class="col-date">{{ folder.note || '—' }}</td>
+              <td class="col-type">{{ folderTypeLabel(folder.folderType) }}</td>
               <td class="col-tags">
                 <div class="tag-chips">
-                  <span v-for="tag in folder.tags.slice(0, 3)" :key="tag.id" class="mini-tag">
-                    {{ tag.name }}
-                  </span>
+                  <span v-for="tag in folder.tags.slice(0, 3)" :key="tag.id" class="mini-tag">{{ tag.name }}</span>
                   <span v-if="folder.tags.length > 3" class="tag-more">+{{ folder.tags.length - 3 }}</span>
                 </div>
               </td>
@@ -409,7 +537,7 @@ defineExpose({
         </table>
       </div>
       <div class="status-bar">
-        <span>{{ filteredComics.length + filteredFolders.length }} 個項目</span>
+        <span>{{ showExplorerMode ? filteredFileItems.length : (filteredComics.length + filteredFolders.length) }} 個項目</span>
       </div>
 
     </div>
@@ -490,7 +618,6 @@ defineExpose({
   gap: 10px;
   padding: 10px 16px;
   background: var(--panel-bg);
-  backdrop-filter: var(--glass-blur);
   border-radius: 12px;
   border: 1px solid var(--panel-border);
 }
@@ -528,7 +655,6 @@ defineExpose({
   border-radius: 12px;
   border: 1px solid var(--panel-border);
   overflow-y: auto;
-  backdrop-filter: var(--glass-blur);
   scroll-behavior: smooth;
 }
 
@@ -605,9 +731,10 @@ defineExpose({
     background: var(--accent-color-transparent) !important;
 }
 
-.col-name { width: 45%; }
-.col-size { width: 12%; }
-.col-date { width: 18%; }
+.col-name { width: 38%; }
+.col-size { width: 10%; }
+.col-date { width: 15%; }
+.col-type { width: 12%; }
 .col-tags { width: 25%; }
 
 .context-menu {

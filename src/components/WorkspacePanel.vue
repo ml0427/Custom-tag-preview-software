@@ -12,8 +12,9 @@ const emit = defineEmits<{
 
 // 右鍵選單
 const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
-const showAddFolder = ref(false);
-const newFolder = ref({ path: '', name: '', folderType: 'default', note: '' });
+const showFolderModal = ref(false);
+const folderInDb = ref<{ id: number } | null>(null);
+const editFolder = ref({ path: '', name: '', folderType: 'default', note: '' });
 
 const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
   ctxMenu.value = { visible: true, x: payload.x, y: payload.y, path: payload.path };
@@ -21,27 +22,40 @@ const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
 
 const closeCtxMenu = () => { ctxMenu.value.visible = false; };
 
-const openAddFolderFromCtx = () => {
+const openModifyTypeFromCtx = async () => {
   const p = ctxMenu.value.path;
-  newFolder.value = {
-    path: p,
-    name: p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p,
-    folderType: 'default',
-    note: '',
-  };
   closeCtxMenu();
-  showAddFolder.value = true;
+  // 查詢該路徑是否已在知識庫
+  const all = await api.getFolders();
+  const existing = all.find(f => f.path === p);
+  if (existing) {
+    folderInDb.value = { id: existing.id };
+    editFolder.value = { path: p, name: existing.name, folderType: existing.folderType, note: existing.note };
+  } else {
+    folderInDb.value = null;
+    editFolder.value = {
+      path: p,
+      name: p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p,
+      folderType: 'default',
+      note: '',
+    };
+  }
+  showFolderModal.value = true;
 };
 
-const submitAddFolder = async () => {
-  const { path, name, folderType, note } = newFolder.value;
+const submitFolderModal = async () => {
+  const { path, name, folderType, note } = editFolder.value;
   if (!path || !name) return;
   try {
-    await api.createFolder(path, name.trim(), folderType, note.trim());
-    showAddFolder.value = false;
+    if (folderInDb.value) {
+      await api.updateFolder(folderInDb.value.id, name.trim(), folderType, note.trim());
+    } else {
+      await api.createFolder(path, name.trim(), folderType, note.trim());
+    }
+    showFolderModal.value = false;
     emit('folderCreated');
   } catch (e) {
-    alert('新增失敗: ' + String(e));
+    alert('操作失敗: ' + String(e));
   }
 };
 
@@ -140,35 +154,35 @@ onMounted(loadSources);
       :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
       @click.stop
     >
-      <div class="ctx-item" @click="openAddFolderFromCtx">📌 加入知識庫</div>
+      <div class="ctx-item" @click="openModifyTypeFromCtx">✏️ 修改類型</div>
     </div>
 
-    <!-- 加入知識庫 Modal -->
-    <div v-if="showAddFolder" class="folder-modal-backdrop" @click.self="showAddFolder = false">
+    <!-- 修改類型 / 加入知識庫 Modal -->
+    <div v-if="showFolderModal" class="folder-modal-backdrop" @click.self="showFolderModal = false">
       <div class="folder-modal glass-panel">
-        <h3>加入知識庫</h3>
+        <h3>{{ folderInDb ? '修改類型' : '加入知識庫' }}</h3>
         <div class="folder-field">
           <label>路徑</label>
-          <span class="path-text">{{ newFolder.path }}</span>
+          <span class="path-text">{{ editFolder.path }}</span>
         </div>
         <div class="folder-field">
           <label>名稱</label>
-          <input v-model="newFolder.name" class="folder-input" placeholder="顯示名稱" />
+          <input v-model="editFolder.name" class="folder-input" placeholder="顯示名稱" />
         </div>
         <div class="folder-field">
           <label>類型</label>
-          <select v-model="newFolder.folderType" class="folder-input">
+          <select v-model="editFolder.folderType" class="folder-input">
             <option value="default">📁 一般資料夾</option>
             <option value="comic">📚 漫畫</option>
           </select>
         </div>
         <div class="folder-field">
           <label>備註</label>
-          <input v-model="newFolder.note" class="folder-input" placeholder="選填" />
+          <input v-model="editFolder.note" class="folder-input" placeholder="選填" />
         </div>
         <div class="folder-actions">
-          <button class="btn-cancel" @click="showAddFolder = false">取消</button>
-          <button class="btn-confirm" @click="submitAddFolder" :disabled="!newFolder.name">確認</button>
+          <button class="btn-cancel" @click="showFolderModal = false">取消</button>
+          <button class="btn-confirm" @click="submitFolderModal" :disabled="!editFolder.name">確認</button>
         </div>
       </div>
     </div>

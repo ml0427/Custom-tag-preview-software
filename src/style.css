@@ -1,8 +1,8 @@
 :root {
   /* Sleek Dark Mode colors */
   --bg-color: #0d1117;
-  --panel-bg: rgba(22, 27, 34, 0.7);
-  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel-bg: rgb(22, 27, 34);
+  --panel-border: rgba(255, 255, 255, 0.15);
   --text-primary: #e6edf3;
   --text-secondary: #7d8590;
   --accent-color: #2f81f7;
@@ -52,8 +52,6 @@ body {
 /* Reusable Glass Panel */
 .glass-panel {
   background: var(--panel-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);

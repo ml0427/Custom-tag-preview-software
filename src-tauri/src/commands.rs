@@ -626,6 +626,42 @@ pub async fn remove_tag_from_folder(folder_id: i64, tag_id: i64, pool: State<'_,
     Ok(())
 }
 
+// ─── 目錄內容：列出指定路徑下的所有直接子項目（目錄優先） ─────────────────
+#[tauri::command]
+pub async fn list_dir_files(path: String) -> Result<Vec<crate::models::FileItem>, String> {
+    use std::path::Path;
+    let dir = Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("不是有效目錄：{}", path));
+    }
+    let mut dirs: Vec<crate::models::FileItem> = Vec::new();
+    let mut files: Vec<crate::models::FileItem> = Vec::new();
+
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        let p = entry.path();
+        let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let extension = if metadata.is_dir() { None } else {
+            p.extension().map(|e| e.to_string_lossy().to_string())
+        };
+        let is_dir = metadata.is_dir();
+        let file_size = if is_dir { None } else { Some(metadata.len()) };
+        let modified_time = metadata.modified().ok().map(|t| {
+            let dt: chrono::DateTime<chrono::Local> = t.into();
+            dt.format("%Y-%m-%d %H:%M").to_string()
+        });
+
+        let item = crate::models::FileItem { name, path: p.to_string_lossy().to_string(), is_dir, file_size, modified_time, extension };
+        if is_dir { dirs.push(item); } else { files.push(item); }
+    }
+
+    dirs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    dirs.extend(files);
+    Ok(dirs)
+}
+
 // ─── 目錄樹：列出指定路徑下的直接子目錄 ────────────────────────────────────
 #[tauri::command]
 pub async fn list_subdirs(path: String) -> Result<Vec<String>, String> {

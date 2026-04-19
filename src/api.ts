@@ -27,6 +27,15 @@ export interface Folder {
     tags: Tag[];
 }
 
+export interface FileItem {
+    name: string;
+    path: string;
+    isDir: boolean;
+    fileSize: number | null;
+    modifiedTime: string | null;
+    extension: string | null;
+}
+
 export interface Source {
     id: number;
     path: string;
@@ -138,6 +147,10 @@ export const api = {
 
     async listSubdirs(path: string): Promise<string[]> {
         return await invoke<string[]>('list_subdirs', { path });
+    },
+
+    async listDirFiles(path: string): Promise<FileItem[]> {
+        return await invoke<FileItem[]>('list_dir_files', { path });
     },
 
     // 資料夾知識庫

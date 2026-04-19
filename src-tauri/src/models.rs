@@ -43,6 +43,17 @@ pub struct Folder {
     pub tags: Vec<Tag>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FileItem {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub file_size: Option<u64>,
+    pub modified_time: Option<String>,
+    pub extension: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Page<T> {

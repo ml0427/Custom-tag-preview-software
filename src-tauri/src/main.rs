@@ -101,6 +101,7 @@ fn main() {
             commands::search_tags,
             // 目錄樹
             commands::list_subdirs,
+            commands::list_dir_files,
             // 資料夾知識庫
             commands::get_folders,
             commands::create_folder,
