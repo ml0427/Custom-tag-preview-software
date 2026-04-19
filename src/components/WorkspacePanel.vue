@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { api, type Source, type Folder } from '../api';
+import { api, type Source, type Folder, type Tag } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import DirTreeNode from './DirTreeNode.vue';
+import { useTagManager } from '../composables/useTagManager';
 
 const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
@@ -13,9 +14,21 @@ const emit = defineEmits<{
 // 右鍵選單
 const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const showFolderModal = ref(false);
+const modalPhase = ref<'edit' | 'tags'>('edit');
 const folderInDb = ref<{ id: number } | null>(null);
-const editFolder = ref({ path: '', name: '', folderType: 'default', note: '' });
+const editFolder = ref({ path: '', name: '', folderType: 'default' });
 const applyToSubfolders = ref(false);
+const allTags = ref<Tag[]>([]);
+
+const {
+  localTags, tagInput, suggestions, showSuggestions,
+  initTags, onInputChange, submitInput, selectSuggestion,
+  removeTagById, hideSuggestions,
+} = useTagManager({
+  getEntityId: () => folderInDb.value?.id ?? null,
+  addTag: api.addTagToFolder,
+  removeTag: api.removeTagFromFolder,
+});
 
 const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
   ctxMenu.value = { visible: true, x: payload.x, y: payload.y, path: payload.path };
@@ -26,22 +39,24 @@ const closeCtxMenu = () => { ctxMenu.value.visible = false; };
 const openModifyTypeFromCtx = async () => {
   const p = ctxMenu.value.path;
   closeCtxMenu();
-  // 查詢該路徑是否已在知識庫
-  const all = await api.getFolders();
+  const [all, tags] = await Promise.all([api.getFolders(), api.getTags()]);
+  allTags.value = tags;
   const existing = all.find(f => f.path === p);
   if (existing) {
     folderInDb.value = { id: existing.id };
-    editFolder.value = { path: p, name: existing.name, folderType: existing.folderType, note: existing.note };
+    editFolder.value = { path: p, name: existing.name, folderType: existing.folderType };
+    initTags(existing.tags ?? []);
   } else {
     folderInDb.value = null;
     editFolder.value = {
       path: p,
       name: p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p,
       folderType: 'default',
-      note: '',
     };
+    initTags([]);
   }
   applyToSubfolders.value = false;
+  modalPhase.value = 'edit';
   showFolderModal.value = true;
 };
 
@@ -62,14 +77,16 @@ const collectAllSubdirs = async (path: string): Promise<string[]> => {
 };
 
 const submitFolderModal = async () => {
-  const { path, name, folderType, note } = editFolder.value;
+  const { path, name, folderType } = editFolder.value;
   if (!path || !name) return;
   try {
+    let saved: Folder;
     if (folderInDb.value) {
-      await api.updateFolder(folderInDb.value.id, name.trim(), folderType, note.trim());
+      saved = await api.updateFolder(folderInDb.value.id, name.trim(), folderType, '');
     } else {
-      await api.createFolder(path, name.trim(), folderType, note.trim());
+      saved = await api.createFolder(path, name.trim(), folderType, '');
     }
+    folderInDb.value = { id: saved.id };
     if (applyToSubfolders.value) {
       const currentMap = new Map(dbFolders.value.map(f => [f.path, f]));
       const allSubs = await collectAllSubdirs(path);
@@ -77,13 +94,13 @@ const submitFolderModal = async () => {
         const existing = currentMap.get(subPath);
         const subName = subPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? subPath;
         return existing
-          ? api.updateFolder(existing.id, existing.name, folderType, existing.note)
+          ? api.updateFolder(existing.id, existing.name, folderType, '')
           : api.createFolder(subPath, subName, folderType, '');
       }));
     }
-    showFolderModal.value = false;
     await loadDbFolders();
     emit('folderCreated');
+    modalPhase.value = 'tags';
   } catch (e) {
     alert('操作失敗: ' + String(e));
   }
@@ -210,34 +227,80 @@ onMounted(() => {
     <!-- 修改類型 / 加入知識庫 Modal -->
     <div v-if="showFolderModal" class="folder-modal-backdrop" @click.self="showFolderModal = false">
       <div class="folder-modal glass-panel">
-        <h3>{{ folderInDb ? '修改類型' : '加入知識庫' }}</h3>
-        <div class="folder-field">
-          <label>路徑</label>
+
+        <!-- Phase 1：基本設定 -->
+        <template v-if="modalPhase === 'edit'">
+          <h3>{{ folderInDb ? '修改類型' : '加入知識庫' }}</h3>
+          <div class="folder-field">
+            <label>路徑</label>
+            <span class="path-text">{{ editFolder.path }}</span>
+          </div>
+          <div class="folder-field">
+            <label>名稱</label>
+            <input v-model="editFolder.name" class="folder-input" placeholder="顯示名稱" />
+          </div>
+          <div class="folder-field">
+            <label>類型</label>
+            <select v-model="editFolder.folderType" class="folder-input">
+              <option value="default">📁 一般資料夾</option>
+              <option value="comic">📚 漫畫</option>
+            </select>
+          </div>
+          <label class="apply-sub-check">
+            <input type="checkbox" v-model="applyToSubfolders" />
+            套用至所有子資料夾
+          </label>
+          <div class="folder-actions">
+            <button class="btn-cancel" @click="showFolderModal = false">取消</button>
+            <button class="btn-confirm" @click="submitFolderModal" :disabled="!editFolder.name">
+              下一步：設定標籤
+            </button>
+          </div>
+        </template>
+
+        <!-- Phase 2：標籤設定 -->
+        <template v-else>
+          <h3>設定標籤</h3>
           <span class="path-text">{{ editFolder.path }}</span>
-        </div>
-        <div class="folder-field">
-          <label>名稱</label>
-          <input v-model="editFolder.name" class="folder-input" placeholder="顯示名稱" />
-        </div>
-        <div class="folder-field">
-          <label>類型</label>
-          <select v-model="editFolder.folderType" class="folder-input">
-            <option value="default">📁 一般資料夾</option>
-            <option value="comic">📚 漫畫</option>
-          </select>
-        </div>
-        <div class="folder-field">
-          <label>備註</label>
-          <input v-model="editFolder.note" class="folder-input" placeholder="選填" />
-        </div>
-        <label class="apply-sub-check">
-          <input type="checkbox" v-model="applyToSubfolders" />
-          套用至所有子資料夾
-        </label>
-        <div class="folder-actions">
-          <button class="btn-cancel" @click="showFolderModal = false">取消</button>
-          <button class="btn-confirm" @click="submitFolderModal" :disabled="!editFolder.name">確認</button>
-        </div>
+
+          <!-- 現有標籤 -->
+          <div class="tag-chips">
+            <span
+              v-for="tag in localTags"
+              :key="tag.id"
+              class="tag-chip"
+              @click="removeTagById(tag.id)"
+              title="點擊移除"
+            >{{ tag.name }} ✕</span>
+            <span v-if="localTags.length === 0" class="no-tags">尚無標籤</span>
+          </div>
+
+          <!-- 新增標籤輸入 -->
+          <div class="tag-input-wrap" @click.stop>
+            <input
+              v-model="tagInput"
+              class="folder-input"
+              placeholder="輸入標籤名稱，Enter 新增"
+              @input="onInputChange(tagInput, allTags)"
+              @keydown.enter.prevent="submitInput(allTags)"
+              @keydown.esc="hideSuggestions"
+              @blur="hideSuggestions"
+            />
+            <div v-if="showSuggestions && suggestions.length > 0" class="tag-suggestions">
+              <div
+                v-for="s in suggestions"
+                :key="s.id"
+                class="suggestion-item"
+                @mousedown.prevent="selectSuggestion(s)"
+              >{{ s.name }}</div>
+            </div>
+          </div>
+
+          <div class="folder-actions">
+            <button class="btn-confirm" @click="showFolderModal = false">完成</button>
+          </div>
+        </template>
+
       </div>
     </div>
 
@@ -488,6 +551,52 @@ onMounted(() => {
 .apply-sub-check input[type="checkbox"] { cursor: pointer; accent-color: var(--accent-color); }
 
 .folder-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+  align-items: flex-start;
+}
+
+.tag-chip {
+  background: var(--tag-bg);
+  color: var(--accent-hover);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.tag-chip:hover { background: rgba(255,80,80,0.2); color: #ff8080; }
+
+.no-tags { font-size: 0.8rem; color: var(--text-secondary); opacity: 0.5; }
+
+.tag-input-wrap { position: relative; }
+
+.tag-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #1e2230;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  z-index: 100;
+  max-height: 140px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.suggestion-item {
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.suggestion-item:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
 
 .btn-cancel {
   background: transparent;
