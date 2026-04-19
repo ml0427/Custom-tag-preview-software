@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
 import { api, type Comic, type Page } from '../api';
 import PreviewPane from './PreviewPane.vue';
 
@@ -14,6 +14,14 @@ const emit = defineEmits<{
 
 const comicsPage = ref<Page<Comic> | null>(null);
 const isLoading = ref(false);
+const gallerySearch = ref('');
+
+const filteredComics = computed(() => {
+  const all = comicsPage.value?.content ?? [];
+  const q = gallerySearch.value.trim().toLowerCase();
+  if (!q) return all;
+  return all.filter(c => c.title.toLowerCase().includes(q));
+});
 const selectedComic = ref<Comic | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 
@@ -148,9 +156,9 @@ const handleKeyDown = (e: KeyboardEvent) => {
         return;
     }
 
-    if (!comicsPage.value || comicsPage.value.content.length === 0) return;
+    if (filteredComics.value.length === 0) return;
 
-    const content = comicsPage.value.content;
+    const content = filteredComics.value;
     const currentIndex = selectedComic.value 
         ? content.findIndex(c => c.id === selectedComic.value?.id) 
         : -1;
@@ -273,9 +281,21 @@ defineExpose({
   <div class="main-layout">
     <div class="gallery-container">
       <div class="header">
-        <div class="title-group">
-            <h2>📚 收藏庫</h2>
-            <span v-if="comicsPage" class="count-badge">{{ comicsPage.totalElements }} 項目</span>
+        <div class="search-bar-wrap">
+          <span class="search-icon">🔍</span>
+          <input
+            v-model="gallerySearch"
+            class="gallery-search"
+            placeholder="搜尋檔案名稱..."
+          />
+          <span class="search-count">
+            <template v-if="gallerySearch.trim()">
+              {{ filteredComics.length }} / {{ comicsPage?.totalElements ?? 0 }} 項
+            </template>
+            <template v-else>
+              {{ comicsPage?.totalElements ?? 0 }} 項
+            </template>
+          </span>
         </div>
       </div>
       
@@ -285,7 +305,7 @@ defineExpose({
           <p>載入中...</p>
         </div>
         
-        <div v-else-if="comicsPage?.content.length === 0" class="empty-state">
+        <div v-else-if="filteredComics.length === 0" class="empty-state">
           <h3>沒有找到相關記錄 🥺</h3>
           <p>請嘗試切換標籤，或執行掃描功能。</p>
         </div>
@@ -301,7 +321,7 @@ defineExpose({
           </thead>
           <tbody>
             <tr
-              v-for="comic in comicsPage?.content"
+              v-for="comic in filteredComics"
               :key="comic.id"
               :class="{ 'selected': selectedComic?.id === comic.id, 'is-editing-row': editingComicId === comic.id }"
               @click="selectComic(comic)"
@@ -337,6 +357,9 @@ defineExpose({
             </tr>
           </tbody>
         </table>
+      </div>
+      <div class="status-bar">
+        <span>{{ filteredComics.length }} 個項目</span>
       </div>
     </div>
 
@@ -407,29 +430,44 @@ defineExpose({
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 20px;
-  padding: 12px 24px;
+}
+
+.search-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
   background: var(--panel-bg);
   backdrop-filter: var(--glass-blur);
   border-radius: 12px;
   border: 1px solid var(--panel-border);
 }
 
-.title-group {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+.search-icon { font-size: 0.95rem; flex-shrink: 0; }
+
+.gallery-search {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.95rem;
 }
 
-.count-badge {
-    background: rgba(255,255,255,0.1);
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
+.gallery-search::placeholder { color: var(--text-secondary); }
+
+.search-count {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-bar {
+  padding: 6px 4px 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
 }
 
 
@@ -616,7 +654,7 @@ defineExpose({
 }
 
 .table-wrapper::-webkit-scrollbar {
-    width: 6px;
+    width: 10px;
 }
 .table-wrapper::-webkit-scrollbar-thumb {
     background: rgba(255,255,255,0.1);

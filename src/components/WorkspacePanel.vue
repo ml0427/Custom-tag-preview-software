@@ -12,6 +12,9 @@ const isSyncing = ref(false);
 
 const loadSources = async () => {
   sources.value = await api.getSources();
+  if (props.selectedPath === null && sources.value.length > 0) {
+    emit('select', sources.value[0].path);
+  }
 };
 
 const handleSelectPath = (path: string) => {
@@ -63,16 +66,6 @@ onMounted(loadSources);
     </div>
 
     <div class="tree-area">
-      <!-- 全部目錄 -->
-      <div
-        class="all-item"
-        :class="{ active: selectedPath === null }"
-        @click="emit('select', null)"
-      >
-        <span class="all-icon">🌐</span>
-        <span class="all-label">全部目錄</span>
-      </div>
-
       <div v-if="sources.length === 0" class="empty">
         <p>尚未新增任何目錄</p>
         <p class="hint">點擊下方「新增目錄」開始</p>

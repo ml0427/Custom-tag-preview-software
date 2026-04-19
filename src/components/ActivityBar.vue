@@ -84,6 +84,7 @@ const items = [
   transform: translateY(-50%) scaleY(1);
 }
 
+
 .activity-btn.disabled {
   opacity: 0.3;
   cursor: not-allowed;

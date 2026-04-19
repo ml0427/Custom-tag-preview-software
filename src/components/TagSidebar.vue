@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { api, type Tag } from '../api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 const props = defineProps<{ selectedTagId: number | null }>();
 const emit = defineEmits<{ (e: 'select', tagId: number | null): void }>();
+
+const searchQuery = ref('');
 
 const tags = ref<Tag[]>([]);
 
@@ -15,6 +17,12 @@ const editTagName = ref('');
 const loadTags = async () => { tags.value = await api.getTags(); };
 
 const handleSelect = (id: number | null) => emit('select', id);
+
+const filteredTags = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return tags.value;
+  return tags.value.filter(t => t.name.toLowerCase().includes(q));
+});
 
 const startRenameTag = (tag: Tag) => {
   editingTagId.value = tag.id;
@@ -74,6 +82,15 @@ onUnmounted(() => {
       <h2>標籤篩選</h2>
     </div>
 
+    <!-- 搜尋框 -->
+    <div class="search-box">
+      <input
+        v-model="searchQuery"
+        class="search-input"
+        placeholder="搜尋標籤..."
+      />
+    </div>
+
     <!-- 全部漫畫 -->
     <div class="all-item" :class="{ active: selectedTagId === null }" @click="handleSelect(null)">
       🌟 全部漫畫
@@ -81,7 +98,7 @@ onUnmounted(() => {
 
     <!-- 標籤清單 -->
     <ul class="tag-list">
-      <li v-for="tag in tags" :key="tag.id" :class="{ active: selectedTagId === tag.id }">
+      <li v-for="tag in filteredTags" :key="tag.id" :class="{ active: selectedTagId === tag.id }">
 
         <template v-if="editingTagId === tag.id">
           <div class="tag-edit-row">
@@ -126,6 +143,27 @@ onUnmounted(() => {
   color: var(--text-secondary);
   font-weight: 600;
 }
+
+.search-box {
+  padding: 8px 12px 4px;
+  flex-shrink: 0;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-input::placeholder { color: var(--text-secondary); }
+.search-input:focus { border-color: var(--accent-color); }
 
 .all-item {
   margin: 0 12px 6px;
@@ -220,6 +258,6 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.tag-list::-webkit-scrollbar { width: 4px; }
+.tag-list::-webkit-scrollbar { width: 8px; }
 .tag-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 </style>

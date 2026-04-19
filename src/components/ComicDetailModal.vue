@@ -90,28 +90,58 @@ const onTagInputChange = () => {
     }, 200);
 };
 
+const splitTagInput = (input: string): string[] => {
+    // 剝掉最外層 [] 或 【】
+    let text = input.trim();
+    if ((text.startsWith('[') && text.endsWith(']')) ||
+        (text.startsWith('【') && text.endsWith('】'))) {
+        text = text.slice(1, -1).trim();
+    }
+
+    const parts: string[] = [];
+    const parenRe = /\(([^)]*)\)|（([^）]*)）/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+
+    while ((m = parenRe.exec(text)) !== null) {
+        const before = text.slice(last, m.index).trim();
+        if (before) parts.push(...before.split(/[、，]/).map(s => s.trim()).filter(Boolean));
+        const inner = (m[1] ?? m[2] ?? '').trim();
+        if (inner) parts.push(...inner.split(/[、，]/).map(s => s.trim()).filter(Boolean));
+        last = m.index + m[0].length;
+    }
+
+    const tail = text.slice(last).trim();
+    if (tail) parts.push(...tail.split(/[、，]/).map(s => s.trim()).filter(Boolean));
+
+    return parts;
+};
+
 const submitTagInput = async () => {
-    const name = tagInput.value.trim();
-    if (!name || !props.comic) return;
+    if (!props.comic) return;
+    const names = splitTagInput(tagInput.value);
+    if (!names.length) return;
     tagInput.value = '';
     tagInputSuggestions.value = [];
     showTagInputSuggestions.value = false;
-    try {
-        const existing = tagInputSuggestions.value.find(t => t.name.toLowerCase() === name.toLowerCase());
-        let tag: Tag;
-        if (existing) {
-            tag = existing;
-        } else {
-            tag = await api.createTag(name);
+    const suggestions = tagInputSuggestions.value;
+    for (const name of names) {
+        try {
+            const existing = suggestions.find(t => t.name.toLowerCase() === name.toLowerCase());
+            let tag: Tag;
+            if (existing) {
+                tag = existing;
+            } else {
+                tag = await api.createTag(name);
+            }
+            if (localTags.value.some(t => t.id === tag.id)) continue;
+            await api.addTagToComic(props.comic.id, tag.id);
+            localTags.value = [...localTags.value, tag];
+        } catch (e) {
+            alert('新增標籤失敗: ' + String(e));
         }
-        // 避免重複新增
-        if (localTags.value.some(t => t.id === tag.id)) return;
-        await api.addTagToComic(props.comic.id, tag.id);
-        localTags.value = [...localTags.value, tag];
-        emit('updated');
-    } catch (e) {
-        alert('新增標籤失敗: ' + String(e));
     }
+    emit('updated');
 };
 
 const selectTagSuggestion = async (tag: Tag) => {
@@ -193,7 +223,7 @@ watch(() => props.comic, (newComic) => {
               <input
                 v-model="tagInput"
                 class="tag-text-input"
-                placeholder="輸入標籤名稱後按 Enter..."
+                placeholder="輸入標籤，用 、 或 ， 分隔後按 Enter..."
                 @input="onTagInputChange"
                 @keydown.enter.prevent="submitTagInput"
                 @blur="hideTagSuggestions"
