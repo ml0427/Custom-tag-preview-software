@@ -30,6 +30,19 @@ pub struct Source {
     pub last_sync: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Folder {
+    pub id: i64,
+    pub path: String,
+    pub name: String,
+    pub folder_type: String,
+    pub note: String,
+    pub created_at: String,
+    #[sqlx(skip)]
+    pub tags: Vec<Tag>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Page<T> {

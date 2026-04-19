@@ -1,6 +1,6 @@
 use tauri::{AppHandle, Manager, State};
 use sqlx::{SqlitePool, Row};
-use crate::models::{Comic, Tag, Page, Source};
+use crate::models::{Comic, Tag, Page, Source, Folder};
 use crate::db;
 use crate::scanner;
 use crate::zip_utils;
@@ -454,6 +454,176 @@ pub async fn get_cover_base64(id: i64, pool: State<'_, SqlitePool>) -> Result<St
     // 轉換為 base64 data URL
     let b64 = general_purpose::STANDARD.encode(&image_data);
     Ok(format!("data:image/jpeg;base64,{}", b64))
+}
+
+// ─── 資料夾知識庫 ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_folders(
+    tag_id: Option<i64>,
+    search: Option<String>,
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<Folder>, String> {
+    let search_cond = match &search {
+        Some(q) if !q.trim().is_empty() => {
+            let escaped = q.replace('\'', "''");
+            format!("AND f.name LIKE '%{}%'", escaped)
+        }
+        _ => String::new(),
+    };
+
+    let rows = if let Some(tid) = tag_id {
+        sqlx::query(&format!(
+            "SELECT f.* FROM folders f JOIN folder_tags ft ON f.id = ft.folder_id \
+             WHERE ft.tag_id = {} {} ORDER BY f.created_at DESC",
+            tid, search_cond
+        ))
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+    } else {
+        sqlx::query(&format!(
+            "SELECT f.* FROM folders f WHERE 1=1 {} ORDER BY f.created_at DESC",
+            search_cond
+        ))
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+    };
+
+    let mut folders = Vec::new();
+    for row in rows {
+        let id: i64 = row.get("id");
+        let tags = sqlx::query_as::<_, Tag>(
+            "SELECT t.id, t.name FROM tags t JOIN folder_tags ft ON t.id = ft.tag_id WHERE ft.folder_id = ?"
+        )
+        .bind(id)
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        folders.push(Folder {
+            id,
+            path: row.get("path"),
+            name: row.get("name"),
+            folder_type: row.get("folder_type"),
+            note: row.get("note"),
+            created_at: row.get("created_at"),
+            tags,
+        });
+    }
+    Ok(folders)
+}
+
+#[tauri::command]
+pub async fn create_folder(
+    path: String,
+    name: String,
+    folder_type: String,
+    note: String,
+    pool: State<'_, SqlitePool>,
+) -> Result<Folder, String> {
+    let id = sqlx::query(
+        "INSERT INTO folders (path, name, folder_type, note) VALUES (?, ?, ?, ?)"
+    )
+    .bind(&path)
+    .bind(&name)
+    .bind(&folder_type)
+    .bind(&note)
+    .execute(&*pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .last_insert_rowid();
+
+    let row = sqlx::query("SELECT * FROM folders WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(Folder {
+        id,
+        path,
+        name,
+        folder_type,
+        note,
+        created_at: row.get("created_at"),
+        tags: vec![],
+    })
+}
+
+#[tauri::command]
+pub async fn update_folder(
+    id: i64,
+    name: String,
+    folder_type: String,
+    note: String,
+    pool: State<'_, SqlitePool>,
+) -> Result<Folder, String> {
+    sqlx::query("UPDATE folders SET name = ?, folder_type = ?, note = ? WHERE id = ?")
+        .bind(&name)
+        .bind(&folder_type)
+        .bind(&note)
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let row = sqlx::query("SELECT * FROM folders WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let tags = sqlx::query_as::<_, Tag>(
+        "SELECT t.id, t.name FROM tags t JOIN folder_tags ft ON t.id = ft.tag_id WHERE ft.folder_id = ?"
+    )
+    .bind(id)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(Folder {
+        id,
+        path: row.get("path"),
+        name,
+        folder_type,
+        note,
+        created_at: row.get("created_at"),
+        tags,
+    })
+}
+
+#[tauri::command]
+pub async fn delete_folder(id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    sqlx::query("DELETE FROM folders WHERE id = ?")
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn add_tag_to_folder(folder_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    sqlx::query("INSERT OR IGNORE INTO folder_tags (folder_id, tag_id) VALUES (?, ?)")
+        .bind(folder_id)
+        .bind(tag_id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn remove_tag_from_folder(folder_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    sqlx::query("DELETE FROM folder_tags WHERE folder_id = ? AND tag_id = ?")
+        .bind(folder_id)
+        .bind(tag_id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ─── 目錄樹：列出指定路徑下的直接子目錄 ────────────────────────────────────

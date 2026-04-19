@@ -17,6 +17,16 @@ export interface Comic {
     tags: Tag[];
 }
 
+export interface Folder {
+    id: number;
+    path: string;
+    name: string;
+    folderType: string;
+    note: string;
+    createdAt: string;
+    tags: Tag[];
+}
+
 export interface Source {
     id: number;
     path: string;
@@ -128,5 +138,25 @@ export const api = {
 
     async listSubdirs(path: string): Promise<string[]> {
         return await invoke<string[]>('list_subdirs', { path });
+    },
+
+    // 資料夾知識庫
+    async getFolders(tagId?: number, search?: string): Promise<Folder[]> {
+        return await invoke<Folder[]>('get_folders', { tagId, search });
+    },
+    async createFolder(path: string, name: string, folderType: string, note: string): Promise<Folder> {
+        return await invoke<Folder>('create_folder', { path, name, folderType, note });
+    },
+    async updateFolder(id: number, name: string, folderType: string, note: string): Promise<Folder> {
+        return await invoke<Folder>('update_folder', { id, name, folderType, note });
+    },
+    async deleteFolder(id: number): Promise<void> {
+        await invoke('delete_folder', { id });
+    },
+    async addTagToFolder(folderId: number, tagId: number): Promise<void> {
+        await invoke('add_tag_to_folder', { folderId, tagId });
+    },
+    async removeTagFromFolder(folderId: number, tagId: number): Promise<void> {
+        await invoke('remove_tag_from_folder', { folderId, tagId });
     },
 }

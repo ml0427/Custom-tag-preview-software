@@ -1,0 +1,392 @@
+<script setup lang="ts">
+import { ref, watch, computed } from 'vue';
+import { api, type Folder, type Tag } from '../api';
+
+const props = defineProps<{
+  folder: Folder | null;
+  allTags: Tag[];
+}>();
+
+const emit = defineEmits<{
+  (e: 'close'): void;
+  (e: 'updated'): void;
+  (e: 'deleted'): void;
+}>();
+
+const isVisible = computed(() => props.folder !== null);
+
+// 本地副本
+const localTags = ref<Tag[]>([]);
+const editName = ref('');
+const editNote = ref('');
+const editType = ref('default');
+
+watch(() => props.folder, (f) => {
+  if (f) {
+    localTags.value = [...f.tags];
+    editName.value = f.name;
+    editNote.value = f.note;
+    editType.value = f.folderType;
+  }
+}, { immediate: true });
+
+const isSaving = ref(false);
+
+const saveChanges = async () => {
+  if (!props.folder || isSaving.value) return;
+  isSaving.value = true;
+  try {
+    await api.updateFolder(props.folder.id, editName.value.trim(), editType.value, editNote.value.trim());
+    emit('updated');
+  } catch (e) {
+    alert('儲存失敗: ' + String(e));
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const handleDelete = async () => {
+  if (!props.folder) return;
+  if (!confirm(`確定刪除「${props.folder.name}」？`)) return;
+  try {
+    await api.deleteFolder(props.folder.id);
+    emit('deleted');
+    emit('close');
+  } catch (e) {
+    alert('刪除失敗: ' + String(e));
+  }
+};
+
+const openFolder = async () => {
+  if (!props.folder) return;
+  await api.openFile(props.folder.path);
+};
+
+// 標籤編輯
+const tagInput = ref('');
+const tagInputSuggestions = ref<Tag[]>([]);
+const showTagInputSuggestions = ref(false);
+let tagTimer: ReturnType<typeof setTimeout> | null = null;
+
+const onTagInputChange = () => {
+  if (tagTimer) clearTimeout(tagTimer);
+  const q = tagInput.value.trim();
+  if (!q) { tagInputSuggestions.value = []; showTagInputSuggestions.value = false; return; }
+  tagTimer = setTimeout(async () => {
+    tagInputSuggestions.value = await api.searchTags(q);
+    showTagInputSuggestions.value = true;
+  }, 200);
+};
+
+const submitTagInput = async () => {
+  if (!props.folder) return;
+  const name = tagInput.value.trim();
+  if (!name) return;
+  tagInput.value = '';
+  tagInputSuggestions.value = [];
+  showTagInputSuggestions.value = false;
+  try {
+    let tag: Tag;
+    const existing = await api.searchTags(name).then(r => r.find(t => t.name.toLowerCase() === name.toLowerCase()));
+    tag = existing ?? await api.createTag(name);
+    if (localTags.value.some(t => t.id === tag.id)) return;
+    await api.addTagToFolder(props.folder.id, tag.id);
+    localTags.value = [...localTags.value, tag];
+    emit('updated');
+  } catch (e) {
+    alert('新增標籤失敗: ' + String(e));
+  }
+};
+
+const selectTagSuggestion = async (tag: Tag) => {
+  if (!props.folder || localTags.value.some(t => t.id === tag.id)) return;
+  tagInput.value = '';
+  tagInputSuggestions.value = [];
+  showTagInputSuggestions.value = false;
+  try {
+    await api.addTagToFolder(props.folder.id, tag.id);
+    localTags.value = [...localTags.value, tag];
+    emit('updated');
+  } catch (e) {
+    alert('新增標籤失敗: ' + String(e));
+  }
+};
+
+const removeTag = async (tagId: number) => {
+  if (!props.folder) return;
+  try {
+    await api.removeTagFromFolder(props.folder.id, tagId);
+    localTags.value = localTags.value.filter(t => t.id !== tagId);
+    emit('updated');
+  } catch (e) {
+    alert('移除標籤失敗: ' + String(e));
+  }
+};
+
+const hideTagSuggestions = () => {
+  setTimeout(() => { showTagInputSuggestions.value = false; }, 150);
+};
+</script>
+
+<template>
+  <div class="modal-backdrop" v-if="isVisible" @click.self="emit('close')">
+    <div class="modal-content glass-panel">
+      <button class="close-btn" @click="emit('close')">✖</button>
+
+      <div v-if="folder" class="modal-body">
+        <!-- 左欄：資訊 + 標籤 -->
+        <div class="modal-left">
+          <div class="folder-icon-area">
+            <span class="big-icon">{{ folder.folderType === 'comic' ? '📚' : '📁' }}</span>
+          </div>
+
+          <div class="info-block">
+            <label>名稱</label>
+            <input v-model="editName" class="edit-input" @blur="saveChanges" @keydown.enter="saveChanges" />
+          </div>
+
+          <div class="info-block">
+            <label>類型</label>
+            <select v-model="editType" class="edit-input" @change="saveChanges">
+              <option value="default">📁 一般資料夾</option>
+              <option value="comic">📚 漫畫</option>
+            </select>
+          </div>
+
+          <div class="info-block">
+            <label>備註</label>
+            <textarea v-model="editNote" class="edit-input edit-textarea" rows="3"
+              @blur="saveChanges" placeholder="輸入備註..."></textarea>
+          </div>
+
+          <div class="tag-editor">
+            <h3>標籤</h3>
+            <div class="current-tags">
+              <span v-for="tag in localTags" :key="tag.id" class="edit-tag">
+                # {{ tag.name }}
+                <span class="remove" @click="removeTag(tag.id)">✖</span>
+              </span>
+            </div>
+            <div class="tag-input-wrapper">
+              <input
+                v-model="tagInput"
+                class="tag-text-input"
+                placeholder="輸入標籤後按 Enter..."
+                @input="onTagInputChange"
+                @keydown.enter.prevent="submitTagInput"
+                @blur="hideTagSuggestions"
+              />
+              <ul v-if="showTagInputSuggestions && tagInputSuggestions.length" class="tag-suggestions">
+                <li v-for="s in tagInputSuggestions" :key="s.id" @mousedown.prevent="selectTagSuggestion(s)">
+                  # {{ s.name }}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右欄：路徑 + 操作 -->
+        <div class="modal-right">
+          <h2 class="title">{{ folder.name }}</h2>
+          <p class="file-path">{{ folder.path }}</p>
+
+          <div class="actions">
+            <button class="btn-open" @click="openFolder">📂 用系統開啟</button>
+            <button class="btn-delete" @click="handleDelete">🗑️ 刪除條目</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.25s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-content {
+  width: 80%;
+  max-width: 820px;
+  height: 80vh;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  animation: slideUp 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes slideUp {
+  from { transform: translateY(24px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.close-btn {
+  position: absolute;
+  top: 14px; right: 14px;
+  background: transparent;
+  color: #fff;
+  font-size: 1.3rem;
+  padding: 4px 9px;
+  border-radius: 50%;
+  z-index: 10;
+  transition: background 0.15s, transform 0.2s;
+}
+.close-btn:hover { background: rgba(255,255,255,0.1); transform: rotate(90deg); }
+
+.modal-body {
+  display: flex;
+  height: 100%;
+  padding: 28px;
+  gap: 28px;
+  overflow: hidden;
+}
+
+.modal-left {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.folder-icon-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0 10px;
+}
+.big-icon { font-size: 4rem; line-height: 1; }
+
+.info-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.info-block label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.edit-input {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 7px 10px;
+  font-size: 0.9rem;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+.edit-input:focus { border-color: var(--accent-color); }
+.edit-textarea { resize: vertical; }
+
+.tag-editor h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--accent-hover); }
+
+.current-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+.edit-tag {
+  background: var(--tag-bg);
+  border: 1px solid var(--accent-color);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.edit-tag .remove { cursor: pointer; color: var(--danger-color); }
+
+.tag-input-wrapper { position: relative; }
+.tag-text-input {
+  width: 100%;
+  padding: 7px 10px;
+  background: rgba(0,0,0,0.35);
+  color: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  outline: none;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.tag-text-input:focus { border-color: var(--accent-color); }
+
+.tag-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: #1e2230;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  list-style: none;
+  padding: 4px 0;
+  z-index: 200;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  max-height: 140px;
+  overflow-y: auto;
+}
+.tag-suggestions li {
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+.tag-suggestions li:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+
+.modal-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.title { font-size: 1.6rem; margin-bottom: 6px; line-height: 1.3; }
+.file-path {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+  margin-bottom: 24px;
+}
+
+.actions { display: flex; flex-direction: column; gap: 10px; }
+
+.btn-open, .btn-delete {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+  text-align: left;
+}
+.btn-open {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+}
+.btn-open:hover { background: rgba(255,255,255,0.12); }
+
+.btn-delete {
+  background: transparent;
+  border: 1px solid var(--danger-color);
+  color: var(--danger-color);
+}
+.btn-delete:hover { background: rgba(248,113,113,0.1); }
+</style>

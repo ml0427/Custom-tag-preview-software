@@ -54,6 +54,27 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
         );"
     ).execute(&pool).await?;
 
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS folders (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            path        TEXT NOT NULL UNIQUE,
+            name        TEXT NOT NULL,
+            folder_type TEXT NOT NULL DEFAULT 'default',
+            note        TEXT NOT NULL DEFAULT '',
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS folder_tags (
+            folder_id INTEGER NOT NULL,
+            tag_id    INTEGER NOT NULL,
+            PRIMARY KEY (folder_id, tag_id),
+            FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        );"
+    ).execute(&pool).await?;
+
     Ok(pool)
 }
 

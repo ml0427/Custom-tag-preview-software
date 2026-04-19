@@ -101,6 +101,13 @@ fn main() {
             commands::search_tags,
             // 目錄樹
             commands::list_subdirs,
+            // 資料夾知識庫
+            commands::get_folders,
+            commands::create_folder,
+            commands::update_folder,
+            commands::delete_folder,
+            commands::add_tag_to_folder,
+            commands::remove_tag_from_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

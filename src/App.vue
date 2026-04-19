@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { api, type Comic, type Tag } from './api'
+import { api, type Comic, type Folder, type Tag } from './api'
 import ActivityBar from './components/ActivityBar.vue'
 import TagSidebar from './components/TagSidebar.vue'
 import WorkspacePanel from './components/WorkspacePanel.vue'
 import ComicGallery from './components/ComicGallery.vue'
 import ComicDetailModal from './components/ComicDetailModal.vue'
+import FolderDetailModal from './components/FolderDetailModal.vue'
 
 const activePanel = ref<string | null>('workspace')
 const selectedTagId = ref<number | null>(null)
 const selectedSourcePath = ref<string | null>(null)
 const selectedComic = ref<Comic | null>(null)
+const selectedFolder = ref<Folder | null>(null)
 const allTags = ref<Tag[]>([])
 const galleryRef = ref<InstanceType<typeof ComicGallery> | null>(null)
 
@@ -72,6 +74,7 @@ onMounted(() => loadGlobalTags())
         :selectedTagId="selectedTagId"
         :sourcePath="selectedSourcePath"
         @showDetail="handleComicSelect"
+        @showFolderDetail="(f) => selectedFolder = f"
       />
     </main>
 
@@ -80,6 +83,14 @@ onMounted(() => loadGlobalTags())
       :allTags="allTags"
       @close="handleModalClose"
       @updated="handleComicUpdated"
+    />
+
+    <FolderDetailModal
+      :folder="selectedFolder"
+      :allTags="allTags"
+      @close="selectedFolder = null"
+      @updated="galleryRef?.refresh()"
+      @deleted="galleryRef?.refresh()"
     />
   </div>
 </template>

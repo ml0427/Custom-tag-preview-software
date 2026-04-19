@@ -21,7 +21,9 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('app',{}\\).get\\('windows',[{}]\\)[0].get\\('title',''\\)\\)\")",
       "Bash(node -e ' *)",
       "Bash(cargo build *)",
-      "Bash(npx vue-tsc *)"
+      "Bash(npx vue-tsc *)",
+      "Bash(echo \"\")",
+      "Bash(cat)"
     ]
   }
 }

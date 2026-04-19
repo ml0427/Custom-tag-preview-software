@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
-import { api, type Comic, type Page } from '../api';
+import { api, type Comic, type Folder, type Page } from '../api';
 import PreviewPane from './PreviewPane.vue';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 
 const props = defineProps<{
   selectedTagId: number | null
@@ -9,10 +10,12 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'showDetail', comic: Comic): void
+  (e: 'showDetail', comic: Comic): void;
+  (e: 'showFolderDetail', folder: Folder): void;
 }>();
 
 const comicsPage = ref<Page<Comic> | null>(null);
+const folders = ref<Folder[]>([]);
 const isLoading = ref(false);
 const gallerySearch = ref('');
 
@@ -22,6 +25,50 @@ const filteredComics = computed(() => {
   if (!q) return all;
   return all.filter(c => c.title.toLowerCase().includes(q));
 });
+
+const filteredFolders = computed(() => {
+  const q = gallerySearch.value.trim().toLowerCase();
+  if (!q) return folders.value;
+  return folders.value.filter(f => f.name.toLowerCase().includes(q));
+});
+
+// 新增資料夾 modal
+const showAddFolder = ref(false);
+const newFolder = ref({ path: '', name: '', folderType: 'default', note: '' });
+
+const openAddFolderDialog = async () => {
+  const path = await openDialog({ directory: true, multiple: false, title: '選擇資料夾' });
+  if (typeof path !== 'string') return;
+  newFolder.value.path = path;
+  newFolder.value.name = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+  showAddFolder.value = true;
+};
+
+const submitAddFolder = async () => {
+  const { path, name, folderType, note } = newFolder.value;
+  if (!path || !name) return;
+  try {
+    await api.createFolder(path, name.trim(), folderType, note.trim());
+    showAddFolder.value = false;
+    newFolder.value = { path: '', name: '', folderType: 'default', note: '' };
+    await loadFolders();
+  } catch (e) {
+    alert('新增資料夾失敗: ' + String(e));
+  }
+};
+
+const selectedFolder = ref<Folder | null>(null);
+
+const handleFolderClick = async (folder: Folder) => {
+  selectedFolder.value = folder;
+  if (folder.folderType !== 'comic') {
+    await api.openFile(folder.path);
+  }
+};
+
+const loadFolders = async () => {
+  folders.value = await api.getFolders(props.selectedTagId ?? undefined);
+};
 const selectedComic = ref<Comic | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 
@@ -257,10 +304,12 @@ const formatDate = (dateStr: string) => {
 watch(() => [props.selectedTagId, props.sourcePath], () => {
     selectedComic.value = null;
     loadComics();
+    loadFolders();
 });
 
 onMounted(() => {
     loadComics();
+    loadFolders();
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('click', closeContextMenu);
 });
@@ -273,7 +322,7 @@ onUnmounted(() => {
 
 
 defineExpose({
-    refresh: () => loadComics()
+    refresh: () => { loadComics(); loadFolders(); }
 });
 </script>
 
@@ -286,16 +335,17 @@ defineExpose({
           <input
             v-model="gallerySearch"
             class="gallery-search"
-            placeholder="搜尋檔案名稱..."
+            placeholder="搜尋名稱..."
           />
           <span class="search-count">
             <template v-if="gallerySearch.trim()">
-              {{ filteredComics.length }} / {{ comicsPage?.totalElements ?? 0 }} 項
+              {{ filteredComics.length + filteredFolders.length }} / {{ (comicsPage?.totalElements ?? 0) + folders.length }} 項
             </template>
             <template v-else>
-              {{ comicsPage?.totalElements ?? 0 }} 項
+              {{ (comicsPage?.totalElements ?? 0) + folders.length }} 項
             </template>
           </span>
+          <button class="add-folder-btn" @click="openAddFolderDialog" title="新增資料夾">＋ 資料夾</button>
         </div>
       </div>
       
@@ -305,12 +355,12 @@ defineExpose({
           <p>載入中...</p>
         </div>
         
-        <div v-else-if="filteredComics.length === 0" class="empty-state">
+        <div v-else-if="filteredComics.length === 0 && filteredFolders.length === 0" class="empty-state">
           <h3>沒有找到相關記錄 🥺</h3>
           <p>請嘗試切換標籤，或執行掃描功能。</p>
         </div>
         
-        <table v-else class="comic-table">
+        <table v-else-if="filteredComics.length > 0 || filteredFolders.length > 0" class="comic-table">
           <thead>
             <tr>
               <th class="col-name sortable" @click="toggleSort('title')">名稱 {{ sortIcon('title') }}</th>
@@ -356,10 +406,69 @@ defineExpose({
               </td>
             </tr>
           </tbody>
+          <tbody v-if="filteredFolders.length > 0">
+            <tr
+              v-for="folder in filteredFolders"
+              :key="'f-' + folder.id"
+              :class="{ 'selected': selectedFolder?.id === folder.id }"
+              @click="handleFolderClick(folder)"
+              @dblclick="$emit('showFolderDetail', folder)"
+            >
+              <td class="col-name">
+                <div class="file-info">
+                  <span class="folder-type-icon">{{ folder.folderType === 'comic' ? '📚' : '📁' }}</span>
+                  <span class="file-title" :title="folder.path">{{ folder.name }}</span>
+                </div>
+              </td>
+              <td class="col-size">-</td>
+              <td class="col-date">{{ folder.note || '-' }}</td>
+              <td class="col-tags">
+                <div class="tag-chips">
+                  <span v-for="tag in folder.tags.slice(0, 3)" :key="tag.id" class="mini-tag">
+                    {{ tag.name }}
+                  </span>
+                  <span v-if="folder.tags.length > 3" class="tag-more">+{{ folder.tags.length - 3 }}</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
         </table>
       </div>
       <div class="status-bar">
-        <span>{{ filteredComics.length }} 個項目</span>
+        <span>{{ filteredComics.length + filteredFolders.length }} 個項目</span>
+      </div>
+
+      <!-- 新增資料夾 Modal -->
+      <div v-if="showAddFolder" class="folder-modal-backdrop" @click.self="showAddFolder = false">
+        <div class="folder-modal glass-panel">
+          <h3>新增資料夾</h3>
+          <div class="folder-modal-field">
+            <label>路徑</label>
+            <div class="path-row">
+              <span class="path-text">{{ newFolder.path || '尚未選擇' }}</span>
+              <button class="btn-pick" @click="openAddFolderDialog">選擇…</button>
+            </div>
+          </div>
+          <div class="folder-modal-field">
+            <label>名稱</label>
+            <input v-model="newFolder.name" class="folder-input" placeholder="顯示名稱" />
+          </div>
+          <div class="folder-modal-field">
+            <label>類型</label>
+            <select v-model="newFolder.folderType" class="folder-input">
+              <option value="default">📁 一般資料夾</option>
+              <option value="comic">📚 漫畫</option>
+            </select>
+          </div>
+          <div class="folder-modal-field">
+            <label>備註</label>
+            <input v-model="newFolder.note" class="folder-input" placeholder="選填" />
+          </div>
+          <div class="folder-modal-actions">
+            <button class="btn-cancel" @click="showAddFolder = false">取消</button>
+            <button class="btn-confirm" @click="submitAddFolder" :disabled="!newFolder.path || !newFolder.name">確認新增</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -660,4 +769,130 @@ defineExpose({
     background: rgba(255,255,255,0.1);
     border-radius: 10px;
 }
+
+.add-folder-btn {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.add-folder-btn:hover { background: rgba(255,255,255,0.13); }
+
+.folder-type-icon { font-size: 1rem; flex-shrink: 0; }
+
+.folder-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.folder-modal {
+  width: 420px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-radius: 14px;
+}
+
+.folder-modal h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.folder-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.folder-modal-field label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.folder-input {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.folder-input:focus { border-color: var(--accent-color); }
+
+.path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.path-text {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-pick {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.btn-pick:hover { background: rgba(255,255,255,0.13); }
+
+.folder-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.btn-cancel:hover { color: var(--text-primary); }
+
+.btn-confirm {
+  background: var(--accent-color);
+  border: none;
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.btn-confirm:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
