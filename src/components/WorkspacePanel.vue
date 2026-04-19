@@ -1,11 +1,52 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { api, type Source } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import DirTreeNode from './DirTreeNode.vue';
 
 const props = defineProps<{ selectedPath: string | null }>();
-const emit = defineEmits<{ (e: 'select', path: string | null): void }>();
+const emit = defineEmits<{
+  (e: 'select', path: string | null): void;
+  (e: 'folderCreated'): void;
+}>();
+
+// 右鍵選單
+const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
+const showAddFolder = ref(false);
+const newFolder = ref({ path: '', name: '', folderType: 'default', note: '' });
+
+const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
+  ctxMenu.value = { visible: true, x: payload.x, y: payload.y, path: payload.path };
+};
+
+const closeCtxMenu = () => { ctxMenu.value.visible = false; };
+
+const openAddFolderFromCtx = () => {
+  const p = ctxMenu.value.path;
+  newFolder.value = {
+    path: p,
+    name: p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p,
+    folderType: 'default',
+    note: '',
+  };
+  closeCtxMenu();
+  showAddFolder.value = true;
+};
+
+const submitAddFolder = async () => {
+  const { path, name, folderType, note } = newFolder.value;
+  if (!path || !name) return;
+  try {
+    await api.createFolder(path, name.trim(), folderType, note.trim());
+    showAddFolder.value = false;
+    emit('folderCreated');
+  } catch (e) {
+    alert('新增失敗: ' + String(e));
+  }
+};
+
+onMounted(() => document.addEventListener('click', closeCtxMenu));
+onUnmounted(() => document.removeEventListener('click', closeCtxMenu));
 
 const sources = ref<Source[]>([]);
 const isSyncing = ref(false);
@@ -81,12 +122,53 @@ onMounted(loadSources);
             :selectedPath="selectedPath"
             :isRoot="true"
             @select="handleSelectPath"
+            @contextmenu="openCtxMenu"
           />
           <button
             class="remove-btn"
             :title="`移除 ${src.path}`"
             @click="handleRemoveSource(src, $event)"
           >✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右鍵選單 -->
+    <div
+      v-if="ctxMenu.visible"
+      class="ctx-menu"
+      :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
+      @click.stop
+    >
+      <div class="ctx-item" @click="openAddFolderFromCtx">📌 加入知識庫</div>
+    </div>
+
+    <!-- 加入知識庫 Modal -->
+    <div v-if="showAddFolder" class="folder-modal-backdrop" @click.self="showAddFolder = false">
+      <div class="folder-modal glass-panel">
+        <h3>加入知識庫</h3>
+        <div class="folder-field">
+          <label>路徑</label>
+          <span class="path-text">{{ newFolder.path }}</span>
+        </div>
+        <div class="folder-field">
+          <label>名稱</label>
+          <input v-model="newFolder.name" class="folder-input" placeholder="顯示名稱" />
+        </div>
+        <div class="folder-field">
+          <label>類型</label>
+          <select v-model="newFolder.folderType" class="folder-input">
+            <option value="default">📁 一般資料夾</option>
+            <option value="comic">📚 漫畫</option>
+          </select>
+        </div>
+        <div class="folder-field">
+          <label>備註</label>
+          <input v-model="newFolder.note" class="folder-input" placeholder="選填" />
+        </div>
+        <div class="folder-actions">
+          <button class="btn-cancel" @click="showAddFolder = false">取消</button>
+          <button class="btn-confirm" @click="submitAddFolder" :disabled="!newFolder.name">確認</button>
         </div>
       </div>
     </div>
@@ -254,4 +336,101 @@ onMounted(loadSources);
   background: rgba(255,255,255,0.1);
   border-radius: 10px;
 }
+
+.ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  background: #1e2230;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 4px 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  min-width: 140px;
+}
+
+.ctx-item {
+  padding: 9px 16px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+.ctx-item:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+
+.folder-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.folder-modal {
+  width: 400px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-radius: 14px;
+}
+
+.folder-modal h3 { font-size: 1rem; font-weight: 600; margin: 0; }
+
+.folder-field { display: flex; flex-direction: column; gap: 4px; }
+.folder-field label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.path-text {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.folder-input {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 7px 10px;
+  font-size: 0.88rem;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+.folder-input:focus { border-color: var(--accent-color); }
+
+.folder-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.btn-cancel:hover { color: var(--text-primary); }
+
+.btn-confirm {
+  background: var(--accent-color);
+  border: none;
+  color: #fff;
+  padding: 7px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.btn-confirm:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

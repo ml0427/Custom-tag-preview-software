@@ -10,7 +10,10 @@ const props = defineProps<{
   isRoot?: boolean;
 }>();
 
-const emit = defineEmits<{ (e: 'select', path: string): void }>();
+const emit = defineEmits<{
+  (e: 'select', path: string): void;
+  (e: 'contextmenu', payload: { path: string; x: number; y: number }): void;
+}>();
 
 const expanded = ref(false);
 const children = ref<string[]>([]);
@@ -44,6 +47,10 @@ const handleClick = () => {
   emit('select', props.path);
 };
 
+const onContextMenu = (e: MouseEvent) => {
+  emit('contextmenu', { path: props.path, x: e.clientX, y: e.clientY });
+};
+
 // 初始化：偷偷探測是否有子目錄（只做一次，不展開）
 const probe = async () => {
   if (hasChildren.value !== null) return;
@@ -65,6 +72,7 @@ probe();
       class="node-row"
       :class="{ active: selectedPath === path, root: isRoot }"
       @click="handleClick"
+      @contextmenu.prevent="onContextMenu"
     >
       <span
         class="arrow"
@@ -86,6 +94,7 @@ probe();
         :depth="depth + 1"
         :selectedPath="selectedPath"
         @select="(p) => emit('select', p)"
+        @contextmenu="(p) => emit('contextmenu', p)"
       />
     </div>
   </div>

@@ -64,6 +64,7 @@ onMounted(() => loadGlobalTags())
           v-else-if="activePanel === 'workspace'"
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"
+          @folderCreated="galleryRef?.refresh()"
         />
       </div>
     </transition>
