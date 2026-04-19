@@ -58,26 +58,24 @@ const getFolderForFile = (item: FileItem): Folder | undefined =>
   folderByPath.value.get(item.path);
 
 
+const selectedFileItemPath = ref<string | null>(null);
+
 const handleFileItemClick = (item: FileItem) => {
+  selectedFileItemPath.value = item.path;
+  const comic = getComicForFile(item);
+  if (comic) selectedComic.value = comic;
+};
+
+const handleFileItemDblClick = (item: FileItem) => {
   if (item.isDir) {
     emit('navigateDir', item.path);
   } else {
     const comic = getComicForFile(item);
     if (comic) {
-      selectedComic.value = comic;
+      emit('showDetail', comic);
     } else {
       api.openFile(item.path);
     }
-  }
-};
-
-const handleFileItemDblClick = (item: FileItem) => {
-  if (item.isDir) {
-    const folder = getFolderForFile(item);
-    if (folder) emit('showFolderDetail', folder);
-  } else {
-    const comic = getComicForFile(item);
-    if (comic) emit('showDetail', comic);
   }
 };
 
@@ -392,7 +390,7 @@ defineExpose({
           :items="filteredFileItems"
           :comicByPath="comicByPath"
           :folderByPath="folderByPath"
-          :selectedComicId="selectedComic?.id ?? null"
+          :selectedItemPath="selectedFileItemPath"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
         />

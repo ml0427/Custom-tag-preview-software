@@ -7,7 +7,7 @@ const props = defineProps<{
   items: FileItem[];
   comicByPath: Map<string, Comic>;
   folderByPath: Map<string, Folder>;
-  selectedComicId: number | null;
+  selectedItemPath: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -45,10 +45,7 @@ const getItemTags = (item: FileItem) => {
   return props.folderByPath.get(item.path)?.tags ?? [];
 };
 
-const isSelected = (item: FileItem): boolean => {
-  const comic = props.comicByPath.get(item.path);
-  return comic ? comic.id === props.selectedComicId : false;
-};
+const isSelected = (item: FileItem): boolean => item.path === props.selectedItemPath;
 
 // 本地排序狀態
 const sortBy = ref<'name' | 'size' | 'date'>('name');
