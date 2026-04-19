@@ -72,7 +72,6 @@ onMounted(() => loadGlobalTags())
     <main class="main-content">
       <ComicGallery
         ref="galleryRef"
-        :selectedTagId="selectedTagId"
         :sourcePath="selectedSourcePath"
         @showDetail="handleComicSelect"
         @showFolderDetail="(f) => selectedFolder = f"
