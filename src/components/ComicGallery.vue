@@ -170,14 +170,21 @@ const submitRename = async (comic: Comic) => {
 const sortBy = ref('import_time');
 const sortDir = ref<'asc' | 'desc'>('desc');
 
-const toggleSort = (col: string) => {
+const toggleSort = async (col: string) => {
     if (sortBy.value === col) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
     } else {
         sortBy.value = col;
         sortDir.value = 'desc';
     }
-    loadComics();
+    isLoading.value = true;
+    try {
+        await loadComics();
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
 };
 
 const sortIcon = (col: string) => {
@@ -284,17 +291,24 @@ const selectAndScroll = (comic: Comic) => {
 };
 
 const loadComics = async () => {
-    isLoading.value = true;
-    try {
-        const res = await api.getComics(0, 9999, props.selectedTagId ?? undefined, sortBy.value, sortDir.value, props.sourcePath ?? undefined);
-        comicsPage.value = res;
+    const res = await api.getComics(0, 9999, props.selectedTagId ?? undefined, sortBy.value, sortDir.value, props.sourcePath ?? undefined);
+    comicsPage.value = res;
+    if (res.content.length > 0 && !selectedComic.value) {
+        selectedComic.value = res.content[0];
+    } else if (selectedComic.value) {
+        const found = res.content.find(c => c.id === selectedComic.value?.id);
+        if (found) selectedComic.value = found;
+    }
+};
 
-        if (res.content.length > 0 && !selectedComic.value) {
-            selectedComic.value = res.content[0];
-        } else if (selectedComic.value) {
-            const found = res.content.find(c => c.id === selectedComic.value?.id);
-            if (found) selectedComic.value = found;
-        }
+const loadAll = async () => {
+    isLoading.value = true;
+    // 同步清空舊資料，避免切換路徑時短暫顯示舊內容
+    fileItems.value = [];
+    comicsPage.value = null;
+    folders.value = [];
+    try {
+        await Promise.all([loadComics(), loadFolders(), loadFileItems()]);
     } catch (e) {
         console.error(e);
     } finally {
@@ -323,15 +337,12 @@ const handleDblClick = (comic: Comic) => {
 
 watch(() => [props.selectedTagId, props.sourcePath], () => {
     selectedComic.value = null;
-    loadComics();
-    loadFolders();
-    loadFileItems();
+    selectedFileItemPath.value = null;
+    loadAll();
 });
 
 onMounted(() => {
-    loadComics();
-    loadFolders();
-    loadFileItems();
+    loadAll();
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('click', closeContextMenu);
 });
@@ -344,7 +355,7 @@ onUnmounted(() => {
 
 
 defineExpose({
-    refresh: () => { loadComics(); loadFolders(); loadFileItems(); }
+    refresh: () => loadAll()
 });
 </script>
 
