@@ -15,6 +15,7 @@ const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const showFolderModal = ref(false);
 const folderInDb = ref<{ id: number } | null>(null);
 const editFolder = ref({ path: '', name: '', folderType: 'default', note: '' });
+const applyToSubfolders = ref(false);
 
 const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
   ctxMenu.value = { visible: true, x: payload.x, y: payload.y, path: payload.path };
@@ -40,7 +41,24 @@ const openModifyTypeFromCtx = async () => {
       note: '',
     };
   }
+  applyToSubfolders.value = false;
   showFolderModal.value = true;
+};
+
+const collectAllSubdirs = async (path: string): Promise<string[]> => {
+  const result: string[] = [];
+  const queue = [path];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    try {
+      const subs = await api.listSubdirs(current);
+      for (const sub of subs) {
+        result.push(sub);
+        queue.push(sub);
+      }
+    } catch {}
+  }
+  return result;
 };
 
 const submitFolderModal = async () => {
@@ -51,6 +69,17 @@ const submitFolderModal = async () => {
       await api.updateFolder(folderInDb.value.id, name.trim(), folderType, note.trim());
     } else {
       await api.createFolder(path, name.trim(), folderType, note.trim());
+    }
+    if (applyToSubfolders.value) {
+      const currentMap = new Map(dbFolders.value.map(f => [f.path, f]));
+      const allSubs = await collectAllSubdirs(path);
+      await Promise.all(allSubs.map(subPath => {
+        const existing = currentMap.get(subPath);
+        const subName = subPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? subPath;
+        return existing
+          ? api.updateFolder(existing.id, existing.name, folderType, existing.note)
+          : api.createFolder(subPath, subName, folderType, '');
+      }));
     }
     showFolderModal.value = false;
     await loadDbFolders();
@@ -189,6 +218,10 @@ onMounted(() => { loadSources(); loadDbFolders(); });
           <label>備註</label>
           <input v-model="editFolder.note" class="folder-input" placeholder="選填" />
         </div>
+        <label class="apply-sub-check">
+          <input type="checkbox" v-model="applyToSubfolders" />
+          套用至所有子資料夾
+        </label>
         <div class="folder-actions">
           <button class="btn-cancel" @click="showFolderModal = false">取消</button>
           <button class="btn-confirm" @click="submitFolderModal" :disabled="!editFolder.name">確認</button>
@@ -430,7 +463,19 @@ onMounted(() => { loadSources(); loadDbFolders(); });
 }
 .folder-input:focus { border-color: var(--accent-color); }
 
-.folder-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.apply-sub-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-top: 4px;
+  user-select: none;
+}
+.apply-sub-check input[type="checkbox"] { cursor: pointer; accent-color: var(--accent-color); }
+
+.folder-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
 .btn-cancel {
   background: transparent;
