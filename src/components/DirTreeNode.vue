@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue';
+import { ref, computed, inject } from 'vue';
 import { api, type Folder } from '../api';
 
 const props = defineProps<{
@@ -58,23 +58,10 @@ const onContextMenu = (e: MouseEvent) => {
   emit('contextmenu', { path: props.path, x: e.clientX, y: e.clientY });
 };
 
-// 探測是否有子目錄（掛載後執行一次，不展開）
-const probe = async () => {
-  if (hasChildren.value !== null) return;
-  try {
-    const subs = await api.listSubdirs(props.path);
-    children.value = subs;
-    hasChildren.value = subs.length > 0;
-    loaded.value = true;
-  } catch {
-    hasChildren.value = false;
-  }
-};
-onMounted(probe);
 </script>
 
 <template>
-  <div v-if="isRoot || hasChildren !== false" class="tree-node" :style="{ '--depth': depth }">
+  <div class="tree-node" :style="{ '--depth': depth }">
     <div
       class="node-row"
       :class="{ active: selectedPath === path, root: isRoot }"

@@ -89,7 +89,6 @@ const submitFolderModal = async () => {
   }
 };
 
-onMounted(() => document.addEventListener('click', closeCtxMenu));
 onUnmounted(() => document.removeEventListener('click', closeCtxMenu));
 
 const dbFolders = ref<Folder[]>([]);
@@ -107,6 +106,16 @@ const loadSources = async () => {
   sources.value = await api.getSources();
   if (props.selectedPath === null && sources.value.length > 0) {
     emit('select', sources.value[0].path);
+  }
+};
+
+// 同時取得 sources 和 folders，寫入同一 tick 避免圖示閃爍
+const initWorkspace = async () => {
+  const [srcs, folders] = await Promise.all([api.getSources(), api.getFolders()]);
+  sources.value = srcs;
+  dbFolders.value = folders;
+  if (props.selectedPath === null && srcs.length > 0) {
+    emit('select', srcs[0].path);
   }
 };
 
@@ -149,7 +158,10 @@ const handleSyncSources = async () => {
   }
 };
 
-onMounted(() => { loadSources(); loadDbFolders(); });
+onMounted(() => {
+  initWorkspace();
+  document.addEventListener('click', closeCtxMenu);
+});
 </script>
 
 <template>
