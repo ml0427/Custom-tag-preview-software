@@ -22,16 +22,31 @@ const isLoading = ref(false);
 const gallerySearch = ref('');
 
 const filteredFileItems = computed(() => {
-  let items = fileItems.value;
+  // 全域標籤模式：無 sourcePath 但有 selectedTagId → 從 DB 結果合成 FileItem
+  const base: FileItem[] = (props.selectedTagId != null && !props.sourcePath)
+    ? comicsData.value.map(c => ({
+        name: c.title,
+        path: c.filePath,
+        isDir: false,
+        fileSize: c.fileSize,
+        modifiedTime: c.fileModifiedTime,
+        extension: c.filePath.split('.').pop()?.toLowerCase() ?? null,
+      }))
+    : fileItems.value;
+
+  let items = base;
   const q = gallerySearch.value.trim().toLowerCase();
   if (q) items = items.filter(item => item.name.toLowerCase().includes(q));
-  if (props.selectedTagId != null) {
+
+  // 有 sourcePath 時才做 client-side 標籤過濾（全域模式由 DB 已過濾）
+  if (props.selectedTagId != null && props.sourcePath) {
     const tid = props.selectedTagId;
     items = items.filter(item => {
       if (item.isDir) return folderByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
       return comicByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
     });
   }
+
   return items;
 });
 
@@ -97,7 +112,8 @@ const loadFileItems = async () => {
 
 const loadComicsBackground = async () => {
   try {
-    const res = await api.getComics(0, 9999, undefined, 'import_time', 'desc', props.sourcePath ?? undefined);
+    const tagId = (!props.sourcePath && props.selectedTagId != null) ? props.selectedTagId : undefined;
+    const res = await api.getComics(0, 9999, tagId, 'import_time', 'desc', props.sourcePath ?? undefined);
     comicsData.value = res.content;
   } catch {
     comicsData.value = [];
@@ -165,6 +181,16 @@ watch(() => props.sourcePath, () => {
   loadAll();
 });
 
+watch(() => props.selectedTagId, async () => {
+  if (!props.sourcePath) {
+    isLoading.value = true;
+    comicsData.value = [];
+    try { await loadComicsBackground(); }
+    catch (e) { console.error(e); }
+    finally { isLoading.value = false; }
+  }
+});
+
 onMounted(() => {
   loadAll();
 });
@@ -197,8 +223,8 @@ defineExpose({
       </div>
 
       <div class="table-wrapper" ref="tableWrapperRef">
-        <!-- 未選工作目錄 -->
-        <div v-if="!sourcePath" class="no-workspace-state">
+        <!-- 未選工作目錄且未選標籤 -->
+        <div v-if="!sourcePath && !selectedTagId" class="no-workspace-state">
           <div class="no-workspace-icon">📂</div>
           <p>請從左側選擇工作目錄</p>
         </div>
