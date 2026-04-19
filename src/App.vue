@@ -73,6 +73,7 @@ onMounted(() => loadGlobalTags())
       <ComicGallery
         ref="galleryRef"
         :sourcePath="selectedSourcePath"
+        :selectedTagId="selectedTagId"
         @showDetail="handleComicSelect"
         @showFolderDetail="(f) => selectedFolder = f"
         @navigateDir="(path) => { selectedSourcePath = path; }"

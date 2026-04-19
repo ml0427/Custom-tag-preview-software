@@ -5,7 +5,8 @@ import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
 
 const props = defineProps<{
-  sourcePath: string | null
+  sourcePath: string | null;
+  selectedTagId?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -21,9 +22,17 @@ const isLoading = ref(false);
 const gallerySearch = ref('');
 
 const filteredFileItems = computed(() => {
+  let items = fileItems.value;
   const q = gallerySearch.value.trim().toLowerCase();
-  if (!q) return fileItems.value;
-  return fileItems.value.filter(item => item.name.toLowerCase().includes(q));
+  if (q) items = items.filter(item => item.name.toLowerCase().includes(q));
+  if (props.selectedTagId != null) {
+    const tid = props.selectedTagId;
+    items = items.filter(item => {
+      if (item.isDir) return folderByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
+      return comicByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
+    });
+  }
+  return items;
 });
 
 const comicByPath = computed(() =>
