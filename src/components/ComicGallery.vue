@@ -41,33 +41,15 @@ const selectedComic = ref<Comic | null>(null);
 const selectedFolder = ref<Folder | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 
-const normPath = (p: string) => p.replace(/\\/g, '/').replace(/\/$/, '');
-
-// 目前瀏覽的目錄本身或其祖先是否為漫畫類型（處理路徑格式差異與深層瀏覽）
-const sourceFolderIsComic = computed(() => {
-  if (!props.sourcePath) return false;
-  const src = normPath(props.sourcePath);
-  for (const folder of folderByPath.value.values()) {
-    if (folder.folderType !== 'comic') continue;
-    const fp = normPath(folder.path);
-    if (src === fp || src.startsWith(fp + '/')) return true;
-  }
-  return false;
-});
-
 const handleFileItemClick = (item: FileItem) => {
   selectedFileItemPath.value = item.path;
   if (item.isDir) {
+    selectedComic.value = null;
     const folder = getFolderForFile(item);
-    const isComicDir = folder?.folderType === 'comic' || sourceFolderIsComic.value;
-    if (isComicDir) {
-      // 若子資料夾沒有個別登錄，建立一個暫時物件供預覽使用
-      selectedFolder.value = folder ?? {
-        id: -1, path: item.path, name: item.name,
-        folderType: 'comic', note: '', createdAt: '', tags: [],
-      } as Folder;
-      selectedComic.value = null;
-    }
+    selectedFolder.value = folder ?? {
+      id: -1, path: item.path, name: item.name,
+      folderType: 'default', note: '', createdAt: '', tags: [],
+    } as Folder;
   } else {
     selectedFolder.value = null;
     const comic = getComicForFile(item);
