@@ -41,12 +41,22 @@ const selectedComic = ref<Comic | null>(null);
 const selectedFolder = ref<Folder | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 
+// 目前瀏覽的目錄是否為漫畫類型
+const sourceFolderIsComic = computed(() =>
+  folderByPath.value.get(props.sourcePath ?? '')?.folderType === 'comic'
+);
+
 const handleFileItemClick = (item: FileItem) => {
   selectedFileItemPath.value = item.path;
   if (item.isDir) {
     const folder = getFolderForFile(item);
-    if (folder?.folderType === 'comic') {
-      selectedFolder.value = folder;
+    const isComicDir = folder?.folderType === 'comic' || sourceFolderIsComic.value;
+    if (isComicDir) {
+      // 若子資料夾沒有個別登錄，建立一個暫時物件供預覽使用
+      selectedFolder.value = folder ?? {
+        id: -1, path: item.path, name: item.name,
+        folderType: 'comic', note: '', createdAt: '', tags: [],
+      } as Folder;
       selectedComic.value = null;
     }
   } else {

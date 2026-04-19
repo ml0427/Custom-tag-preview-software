@@ -43,9 +43,19 @@ watch(() => props.folder?.path, async (folderPath) => {
     coverUrl.value = '';
     try {
         const files = await api.listDirFiles(folderPath);
-        const firstImage = files.find(f =>
+        let firstImage = files.find(f =>
             !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
         );
+        // 若根目錄沒有直接圖片，往第一個子資料夾再找一層
+        if (!firstImage) {
+            const firstDir = files.find(f => f.isDir);
+            if (firstDir) {
+                const subFiles = await api.listDirFiles(firstDir.path);
+                firstImage = subFiles.find(f =>
+                    !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
+                );
+            }
+        }
         if (firstImage) {
             coverUrl.value = await api.getImageBase64ByPath(firstImage.path);
         }
