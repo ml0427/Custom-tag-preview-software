@@ -41,10 +41,19 @@ const selectedComic = ref<Comic | null>(null);
 const selectedFolder = ref<Folder | null>(null);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 
-// 目前瀏覽的目錄是否為漫畫類型
-const sourceFolderIsComic = computed(() =>
-  folderByPath.value.get(props.sourcePath ?? '')?.folderType === 'comic'
-);
+const normPath = (p: string) => p.replace(/\\/g, '/').replace(/\/$/, '');
+
+// 目前瀏覽的目錄本身或其祖先是否為漫畫類型（處理路徑格式差異與深層瀏覽）
+const sourceFolderIsComic = computed(() => {
+  if (!props.sourcePath) return false;
+  const src = normPath(props.sourcePath);
+  for (const folder of folderByPath.value.values()) {
+    if (folder.folderType !== 'comic') continue;
+    const fp = normPath(folder.path);
+    if (src === fp || src.startsWith(fp + '/')) return true;
+  }
+  return false;
+});
 
 const handleFileItemClick = (item: FileItem) => {
   selectedFileItemPath.value = item.path;
