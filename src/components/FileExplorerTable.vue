@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { type Comic, type Folder, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 
@@ -49,22 +49,56 @@ const isSelected = (item: FileItem): boolean => {
   const comic = props.comicByPath.get(item.path);
   return comic ? comic.id === props.selectedComicId : false;
 };
+
+// 本地排序狀態
+const sortBy = ref<'name' | 'size' | 'date'>('name');
+const sortDir = ref<'asc' | 'desc'>('asc');
+
+const toggleSort = (col: 'name' | 'size' | 'date') => {
+  if (sortBy.value === col) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortBy.value = col;
+    sortDir.value = col === 'name' ? 'asc' : 'desc';
+  }
+};
+
+const sortIcon = (col: string) => {
+  if (sortBy.value !== col) return '↕';
+  return sortDir.value === 'asc' ? '↑' : '↓';
+};
+
+const sortedItems = computed(() => {
+  return [...props.items].sort((a, b) => {
+    // 目錄永遠排前面
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+    let cmp = 0;
+    if (sortBy.value === 'name') {
+      cmp = a.name.localeCompare(b.name, 'zh-TW', { sensitivity: 'base' });
+    } else if (sortBy.value === 'size') {
+      cmp = (a.fileSize ?? 0) - (b.fileSize ?? 0);
+    } else if (sortBy.value === 'date') {
+      cmp = (a.modifiedTime ?? '').localeCompare(b.modifiedTime ?? '');
+    }
+    return sortDir.value === 'asc' ? cmp : -cmp;
+  });
+});
 </script>
 
 <template>
   <table class="comic-table">
     <thead>
       <tr>
-        <th class="col-name">名稱</th>
-        <th class="col-size">大小</th>
-        <th class="col-date">修改日期</th>
+        <th class="col-name sortable" @click="toggleSort('name')">名稱 {{ sortIcon('name') }}</th>
+        <th class="col-size sortable" @click="toggleSort('size')">大小 {{ sortIcon('size') }}</th>
+        <th class="col-date sortable" @click="toggleSort('date')">修改日期 {{ sortIcon('date') }}</th>
         <th class="col-type">類型</th>
         <th class="col-tags">標籤</th>
       </tr>
     </thead>
     <tbody>
       <tr
-        v-for="item in items"
+        v-for="item in sortedItems"
         :key="item.path"
         :class="{ selected: isSelected(item) }"
         @click="emit('click', item)"
@@ -117,6 +151,8 @@ const isSelected = (item: FileItem): boolean => {
   border-bottom: 1px solid var(--panel-border);
   white-space: nowrap;
 }
+.comic-table th.sortable { cursor: pointer; user-select: none; }
+.comic-table th.sortable:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
 
 .comic-table td {
   padding: 10px 16px;
