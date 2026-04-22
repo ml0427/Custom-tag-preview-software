@@ -17,6 +17,9 @@ const allTags = ref<Tag[]>([])
 const galleryRef = ref<InstanceType<typeof ComicGallery> | null>(null)
 
 const handleActivitySelect = (id: string) => {
+  if (id === 'workspace' && activePanel.value !== 'workspace') {
+    selectedTagId.value = null
+  }
   activePanel.value = activePanel.value === id ? null : id
 }
 

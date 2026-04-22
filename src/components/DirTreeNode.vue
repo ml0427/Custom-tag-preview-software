@@ -35,7 +35,10 @@ const toggle = async () => {
     if (!loaded.value) {
       loading.value = true;
       try {
-        children.value = await api.listSubdirs(props.path);
+        const raw = await api.listSubdirs(props.path);
+        children.value = raw.slice().sort((a, b) =>
+          getLabel(a).localeCompare(getLabel(b), 'zh-TW', { sensitivity: 'base' })
+        );
         hasChildren.value = children.value.length > 0;
       } catch {
         hasChildren.value = false;
