@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { api, type Comic, type Folder, type Tag } from './api'
+import { api, type Item, type Folder, type Tag } from './api'
 import ActivityBar from './components/ActivityBar.vue'
 import TagSidebar from './components/TagSidebar.vue'
 import WorkspacePanel from './components/WorkspacePanel.vue'
@@ -11,8 +11,8 @@ import FolderDetailModal from './components/FolderDetailModal.vue'
 const activePanel = ref<string | null>('workspace')
 const selectedTagId = ref<number | null>(null)
 const selectedSourcePath = ref<string | null>(null)
-const selectedComic = ref<Comic | null>(null)
-const selectedFolder = ref<Folder | null>(null)
+const selectedFileItem = ref<Item | null>(null)
+const selectedFolderItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
 const galleryRef = ref<InstanceType<typeof ComicGallery> | null>(null)
 
@@ -24,19 +24,23 @@ const handleTagSelect = (tagId: number | null) => {
   selectedTagId.value = tagId
 }
 
-const handleComicSelect = (comic: Comic) => {
-  selectedComic.value = comic
+const handleFileItemSelect = (item: Item) => {
+  selectedFileItem.value = item
+}
+
+const handleFolderItemSelect = (item: Item) => {
+  selectedFolderItem.value = item
 }
 
 const handleModalClose = () => {
-  selectedComic.value = null
+  selectedFileItem.value = null
 }
 
-const handleComicUpdated = async () => {
-  if (selectedComic.value) {
+const handleFileItemUpdated = async () => {
+  if (selectedFileItem.value) {
     try {
-      selectedComic.value = await api.getComic(selectedComic.value.id)
-    } catch(e) { /* ignore */ }
+      selectedFileItem.value = await api.getItem(selectedFileItem.value.id)
+    } catch { /* ignore */ }
   }
   galleryRef.value?.refresh()
   loadGlobalTags()
@@ -74,23 +78,23 @@ onMounted(() => loadGlobalTags())
         ref="galleryRef"
         :sourcePath="selectedSourcePath"
         :selectedTagId="selectedTagId"
-        @showDetail="handleComicSelect"
-        @showFolderDetail="(f) => selectedFolder = f"
+        @showDetail="handleFileItemSelect"
+        @showFolderDetail="handleFolderItemSelect"
         @navigateDir="(path) => { selectedSourcePath = path; }"
       />
     </main>
 
     <ComicDetailModal
-      :comic="selectedComic"
+      :item="selectedFileItem"
       :allTags="allTags"
       @close="handleModalClose"
-      @updated="handleComicUpdated"
+      @updated="handleFileItemUpdated"
     />
 
     <FolderDetailModal
-      :folder="selectedFolder"
+      :item="selectedFolderItem"
       :allTags="allTags"
-      @close="selectedFolder = null"
+      @close="selectedFolderItem = null"
       @updated="galleryRef?.refresh()"
       @deleted="galleryRef?.refresh()"
     />

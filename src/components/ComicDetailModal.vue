@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { api, type Comic, type Tag } from '../api';
+import { api, type Item, type Tag } from '../api';
 import { useTagManager } from '../composables/useTagManager';
 
 const props = defineProps<{
-  comic: Comic | null;
+  item: Item | null;
   allTags: Tag[];
 }>();
 
@@ -13,7 +13,7 @@ const emit = defineEmits<{
   (e: 'updated'): void;
 }>();
 
-const isVisible = computed(() => props.comic !== null);
+const isVisible = computed(() => props.item !== null);
 const isLoadingImages = ref(false);
 const zipImages = ref<string[]>([]);
 const isSettingCover = ref(false);
@@ -24,9 +24,9 @@ const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: 
     initTags, onInputChange: onTagInputChange, submitInput: submitTagInput,
     selectSuggestion: selectTagSuggestion, removeTagById: removeTag, hideSuggestions: hideTagSuggestions,
 } = useTagManager({
-    getEntityId: () => props.comic?.id ?? null,
-    addTag: (id, tagId) => api.addTagToComic(id, tagId),
-    removeTag: (id, tagId) => api.removeTagFromComic(id, tagId),
+    getEntityId: () => props.item?.id ?? null,
+    addTag: (id, tagId) => api.tagItem(id, tagId),
+    removeTag: (id, tagId) => api.untagItem(id, tagId),
     onUpdated: () => emit('updated'),
 });
 
@@ -37,19 +37,19 @@ const availableTags = computed(() => {
 });
 
 const loadCover = async () => {
-    if (!props.comic) { coverUrl.value = ''; return; }
+    if (!props.item) { coverUrl.value = ''; return; }
     try {
-        coverUrl.value = await api.getCoverBase64(props.comic.id);
+        coverUrl.value = await api.getCoverBase64(props.item.id);
     } catch {
         coverUrl.value = '';
     }
 };
 
 const loadImages = async () => {
-    if (!props.comic) return;
+    if (!props.item) return;
     isLoadingImages.value = true;
     try {
-        zipImages.value = await api.getComicImages(props.comic.id);
+        zipImages.value = await api.getItemImages(props.item.id);
     } catch {
         alert('Failed to load images from ZIP');
     } finally {
@@ -58,10 +58,10 @@ const loadImages = async () => {
 };
 
 const handleSetCover = async (imagePath: string) => {
-    if (!props.comic) return;
+    if (!props.item) return;
     isSettingCover.value = true;
     try {
-        await api.setComicCover(props.comic.id, imagePath);
+        await api.setItemCover(props.item.id, imagePath);
         alert('Cover updated successfully!');
         await loadCover();
         emit('updated');
@@ -72,11 +72,11 @@ const handleSetCover = async (imagePath: string) => {
     }
 };
 
-watch(() => props.comic, (comic) => {
-    initTags(comic?.tags ?? []);
+watch(() => props.item, (item) => {
+    initTags(item?.tags ?? []);
     zipImages.value = [];
     zoomedCover.value = false;
-    if (comic) {
+    if (item) {
         loadCover();
         loadImages();
     }
@@ -88,18 +88,17 @@ watch(() => props.comic, (comic) => {
     <div class="modal-content glass-panel">
       <button class="close-btn" @click="emit('close')">✖</button>
 
-      <!-- 封面放大 overlay（定位在 modal 內） -->
       <transition name="zoom-fade">
         <div v-if="zoomedCover" class="cover-zoom-overlay" @click="zoomedCover = false">
           <img :src="coverUrl" class="cover-zoom-img" @click.stop />
           <button class="cover-zoom-close" @click="zoomedCover = false">✖</button>
         </div>
       </transition>
-      
-      <div v-if="comic" class="modal-body">
+
+      <div v-if="item" class="modal-body">
         <div class="modal-left">
           <img :src="coverUrl" alt="Cover" class="large-cover" @click="zoomedCover = true" />
-          
+
           <div class="tag-editor">
             <h3>目前標籤</h3>
             <div class="current-tags">
@@ -108,7 +107,7 @@ watch(() => props.comic, (comic) => {
                 <span class="remove" @click="removeTag(tag.id)">✖</span>
               </span>
             </div>
-            
+
             <div class="tag-input-wrapper">
               <input
                 v-model="tagInput"
@@ -130,19 +129,19 @@ watch(() => props.comic, (comic) => {
             </div>
           </div>
         </div>
-        
+
         <div class="modal-right">
-          <h2 class="title" :title="comic.title">{{ comic.title }}</h2>
-          <p class="file-path">{{ comic.filePath }}</p>
-          
+          <h2 class="title" :title="item.name">{{ item.name }}</h2>
+          <p class="file-path">{{ item.path }}</p>
+
           <div class="image-preview-section">
             <h3>內容預覽 & 自訂封面 <span class="loading" v-if="isLoadingImages">載入中...</span></h3>
-            
+
             <div class="image-list">
               <div v-for="img in zipImages" :key="img" class="image-item glass-panel">
                 <span class="img-name">{{ img }}</span>
-                <button 
-                  class="btn-primary cover-btn" 
+                <button
+                  class="btn-primary cover-btn"
                   :disabled="isSettingCover"
                   @click="handleSetCover(img)"
                 >
@@ -151,7 +150,6 @@ watch(() => props.comic, (comic) => {
               </div>
             </div>
           </div>
-          
         </div>
       </div>
     </div>
@@ -170,10 +168,7 @@ watch(() => props.comic, (comic) => {
   animation: fadeIn 0.3s ease;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal-content {
   width: 90%;
@@ -188,13 +183,12 @@ watch(() => props.comic, (comic) => {
 
 @keyframes slideUp {
   from { transform: translateY(30px) scale(0.98); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 .close-btn {
   position: absolute;
-  top: 15px;
-  right: 15px;
+  top: 15px; right: 15px;
   background: transparent;
   color: #fff;
   font-size: 1.5rem;
@@ -202,10 +196,7 @@ watch(() => props.comic, (comic) => {
   border-radius: 50%;
   z-index: 10;
 }
-.close-btn:hover {
-  background: rgba(255,255,255,0.1);
-  transform: rotate(90deg);
-}
+.close-btn:hover { background: rgba(255,255,255,0.1); transform: rotate(90deg); }
 
 .modal-body {
   display: flex;
@@ -240,7 +231,7 @@ watch(() => props.comic, (comic) => {
 .cover-zoom-overlay {
   position: absolute;
   inset: 24px;
-  background: rgba(0, 0, 0, 0.88);
+  background: rgba(0,0,0,0.88);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -259,14 +250,12 @@ watch(() => props.comic, (comic) => {
 
 .cover-zoom-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 12px; right: 12px;
   background: rgba(255,255,255,0.1);
   border: none;
   color: #fff;
   font-size: 1rem;
-  width: 32px;
-  height: 32px;
+  width: 32px; height: 32px;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
@@ -280,19 +269,10 @@ watch(() => props.comic, (comic) => {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .zoom-fade-enter-from, .zoom-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-.zoom-fade-enter-to, .zoom-fade-leave-from {
-  opacity: 1;
-  transform: scale(1);
+  opacity: 0; transform: scale(0.95);
 }
 
-.tag-editor h3 {
-  font-size: 1rem;
-  margin-bottom: 10px;
-  color: var(--accent-hover);
-}
+.tag-editor h3 { font-size: 1rem; margin-bottom: 10px; color: var(--accent-hover); }
 
 .current-tags {
   display: flex;
@@ -313,18 +293,10 @@ watch(() => props.comic, (comic) => {
   gap: 8px;
 }
 
-.edit-tag .remove {
-  cursor: pointer;
-  color: var(--danger-color);
-  font-weight: bold;
-}
-.edit-tag .remove:hover {
-  filter: brightness(1.2);
-}
+.edit-tag .remove { cursor: pointer; color: var(--danger-color); font-weight: bold; }
+.edit-tag .remove:hover { filter: brightness(1.2); }
 
-.tag-input-wrapper {
-  position: relative;
-}
+.tag-input-wrapper { position: relative; }
 
 .tag-text-input {
   width: 100%;
@@ -338,16 +310,12 @@ watch(() => props.comic, (comic) => {
   box-sizing: border-box;
   transition: border-color 0.2s;
 }
-
-.tag-text-input:focus {
-  border-color: var(--accent-color);
-}
+.tag-text-input:focus { border-color: var(--accent-color); }
 
 .tag-suggestions {
   position: absolute;
   top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  left: 0; right: 0;
   background: #1e2230;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -366,11 +334,7 @@ watch(() => props.comic, (comic) => {
   color: var(--text-secondary);
   transition: background 0.15s;
 }
-
-.tag-suggestions li:hover {
-  background: rgba(255,255,255,0.07);
-  color: var(--text-primary);
-}
+.tag-suggestions li:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
 
 .modal-right {
   flex-grow: 1;
@@ -379,17 +343,8 @@ watch(() => props.comic, (comic) => {
   overflow: hidden;
 }
 
-.title {
-  font-size: 1.8rem;
-  margin-bottom: 5px;
-  line-height: 1.3;
-}
-.file-path {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  word-break: break-all;
-  margin-bottom: 20px;
-}
+.title { font-size: 1.8rem; margin-bottom: 5px; line-height: 1.3; }
+.file-path { font-size: 0.8rem; color: var(--text-secondary); word-break: break-all; margin-bottom: 20px; }
 
 .image-preview-section {
   flex-grow: 1;
@@ -404,16 +359,8 @@ watch(() => props.comic, (comic) => {
   border-bottom: 1px solid var(--panel-border);
 }
 
-.loading {
-  font-size: 0.85rem;
-  color: var(--accent-color);
-  animation: pulse 1.5s infinite;
-}
-@keyframes pulse {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
-}
+.loading { font-size: 0.85rem; color: var(--accent-color); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 
 .image-list {
   flex-grow: 1;
@@ -431,15 +378,7 @@ watch(() => props.comic, (comic) => {
   padding: 12px 16px;
 }
 
-.img-name {
-  font-size: 0.9rem;
-  word-break: break-all;
-  margin-right: 15px;
-}
+.img-name { font-size: 0.9rem; word-break: break-all; margin-right: 15px; }
 
-.cover-btn {
-  flex-shrink: 0;
-  padding: 6px 12px;
-  font-size: 0.8rem;
-}
+.cover-btn { flex-shrink: 0; padding: 6px 12px; font-size: 0.8rem; }
 </style>

@@ -16,7 +16,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
 
     let pool = SqlitePool::connect_with(options).await?;
 
-    // Create tables
+    // ── Legacy tables (kept for migration source, no longer written to) ──────
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,12 +75,87 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
         );"
     ).execute(&pool).await?;
 
+    // ── New unified tables ───────────────────────────────────────────────────
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS items (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            path            TEXT NOT NULL UNIQUE,
+            item_type       TEXT NOT NULL DEFAULT 'file',
+            name            TEXT NOT NULL,
+            file_size       INTEGER,
+            file_modified_at INTEGER,
+            cover_cache_path TEXT,
+            fingerprint     TEXT,
+            note            TEXT DEFAULT '',
+            folder_type     TEXT DEFAULT 'default',
+            import_at       TEXT NOT NULL DEFAULT (datetime('now'))
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS item_tags (
+            item_id INTEGER NOT NULL,
+            tag_id  INTEGER NOT NULL,
+            source  TEXT NOT NULL DEFAULT 'direct',
+            rule_id INTEGER,
+            PRIMARY KEY (item_id, tag_id),
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id)  REFERENCES tags(id)  ON DELETE CASCADE
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS tag_rules (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            name              TEXT NOT NULL,
+            scope_path        TEXT,
+            match_type        TEXT NOT NULL DEFAULT 'prefix',
+            pattern           TEXT NOT NULL,
+            tag_prefix        TEXT,
+            tag_name          TEXT,
+            auto_apply_on_scan INTEGER NOT NULL DEFAULT 0
+        );"
+    ).execute(&pool).await?;
+
+    // ── One-time migration: comics + folders → items ─────────────────────────
+    // Idempotent via UNIQUE(path) + INSERT OR IGNORE
+    sqlx::query(
+        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, import_at)
+         SELECT file_path, 'file', title, file_size, CAST(import_time AS TEXT)
+         FROM comics"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source)
+         SELECT i.id, ct.tag_id, 'direct'
+         FROM comic_tags ct
+         JOIN comics c ON c.id = ct.comic_id
+         JOIN items i ON i.path = c.file_path"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO items (path, item_type, name, folder_type, note, import_at)
+         SELECT path, 'folder', name, folder_type, note, created_at
+         FROM folders"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source)
+         SELECT i.id, ft.tag_id, 'direct'
+         FROM folder_tags ft
+         JOIN folders f ON f.id = ft.folder_id
+         JOIN items i ON i.path = f.path"
+    ).execute(&pool).await?;
+
     Ok(pool)
 }
 
+// Clear file items only (used by full-scan)
 pub async fn clear_database(pool: &SqlitePool) -> Result<()> {
-    sqlx::query("DELETE FROM comic_tags").execute(pool).await?;
-    sqlx::query("DELETE FROM comics").execute(pool).await?;
+    sqlx::query(
+        "DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE item_type = 'file')"
+    ).execute(pool).await?;
+    sqlx::query("DELETE FROM items WHERE item_type = 'file'").execute(pool).await?;
     sqlx::query("DELETE FROM tags").execute(pool).await?;
     Ok(())
 }
@@ -106,7 +181,6 @@ pub async fn create_tag(pool: &SqlitePool, name: &str) -> Result<Tag> {
         .execute(pool)
         .await?
         .last_insert_rowid();
-    
     Ok(Tag { id, name: name.to_string() })
 }
 
@@ -120,13 +194,11 @@ pub async fn get_sources(pool: &SqlitePool) -> Result<Vec<Source>> {
 }
 
 pub async fn add_source(pool: &SqlitePool, path: &str) -> Result<Source> {
-    let id = sqlx::query("INSERT OR IGNORE INTO sources (path) VALUES (?)")
+    sqlx::query("INSERT OR IGNORE INTO sources (path) VALUES (?)")
         .bind(path)
         .execute(pool)
-        .await?
-        .last_insert_rowid();
+        .await?;
 
-    // 若 path 已存在，last_insert_rowid 為 0，改用查詢取得
     let source = sqlx::query_as::<_, Source>(
         "SELECT id, path, last_sync FROM sources WHERE path = ?"
     )
@@ -134,7 +206,6 @@ pub async fn add_source(pool: &SqlitePool, path: &str) -> Result<Source> {
     .fetch_one(pool)
     .await?;
 
-    let _ = id;
     Ok(source)
 }
 
@@ -154,11 +225,13 @@ pub async fn update_source_sync_time(pool: &SqlitePool, id: i64) -> Result<()> {
     Ok(())
 }
 
-pub async fn add_tag_to_comic(pool: &SqlitePool, comic_id: i64, tag_id: i64) -> Result<()> {
-    sqlx::query("INSERT OR IGNORE INTO comic_tags (comic_id, tag_id) VALUES (?, ?)")
-        .bind(comic_id)
-        .bind(tag_id)
-        .execute(pool)
-        .await?;
+pub async fn add_tag_to_item(pool: &SqlitePool, item_id: i64, tag_id: i64) -> Result<()> {
+    sqlx::query(
+        "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'direct')"
+    )
+    .bind(item_id)
+    .bind(tag_id)
+    .execute(pool)
+    .await?;
     Ok(())
 }

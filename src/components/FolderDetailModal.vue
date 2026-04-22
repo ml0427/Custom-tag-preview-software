@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { api, type Folder, type Tag } from '../api';
+import { api, type Item, type Tag } from '../api';
 import { useTagManager } from '../composables/useTagManager';
 
 const props = defineProps<{
-  folder: Folder | null;
+  item: Item | null;
   allTags: Tag[];
 }>();
 
@@ -14,7 +14,7 @@ const emit = defineEmits<{
   (e: 'deleted'): void;
 }>();
 
-const isVisible = computed(() => props.folder !== null);
+const isVisible = computed(() => props.item !== null);
 const editName = ref('');
 const editNote = ref('');
 const editType = ref('default');
@@ -24,26 +24,26 @@ const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: 
     initTags, onInputChange: onTagInputChange, submitInput: submitTagInput,
     selectSuggestion: selectTagSuggestion, removeTagById: removeTag, hideSuggestions: hideTagSuggestions,
 } = useTagManager({
-    getEntityId: () => props.folder?.id ?? null,
-    addTag: (id, tagId) => api.addTagToFolder(id, tagId),
-    removeTag: (id, tagId) => api.removeTagFromFolder(id, tagId),
+    getEntityId: () => props.item?.id ?? null,
+    addTag: (id, tagId) => api.tagItem(id, tagId),
+    removeTag: (id, tagId) => api.untagItem(id, tagId),
     onUpdated: () => emit('updated'),
 });
 
-watch(() => props.folder, (f) => {
-  if (f) {
-    initTags(f.tags);
-    editName.value = f.name;
-    editNote.value = f.note;
-    editType.value = f.folderType;
+watch(() => props.item, (item) => {
+  if (item) {
+    initTags(item.tags);
+    editName.value = item.name;
+    editNote.value = item.note ?? '';
+    editType.value = item.folderType ?? 'default';
   }
 }, { immediate: true });
 
 const saveChanges = async () => {
-  if (!props.folder || isSaving.value) return;
+  if (!props.item || isSaving.value) return;
   isSaving.value = true;
   try {
-    await api.updateFolder(props.folder.id, editName.value.trim(), editType.value, editNote.value.trim());
+    await api.updateFolder(props.item.id, editName.value.trim(), editType.value, editNote.value.trim());
     emit('updated');
   } catch (e) {
     alert('儲存失敗: ' + String(e));
@@ -53,10 +53,10 @@ const saveChanges = async () => {
 };
 
 const handleDelete = async () => {
-  if (!props.folder) return;
-  if (!confirm(`確定刪除「${props.folder.name}」？`)) return;
+  if (!props.item) return;
+  if (!confirm(`確定刪除「${props.item.name}」？`)) return;
   try {
-    await api.deleteFolder(props.folder.id);
+    await api.deleteFolder(props.item.id);
     emit('deleted');
     emit('close');
   } catch (e) {
@@ -65,8 +65,8 @@ const handleDelete = async () => {
 };
 
 const openFolder = async () => {
-  if (!props.folder) return;
-  await api.openFile(props.folder.path);
+  if (!props.item) return;
+  await api.openFile(props.item.path);
 };
 </script>
 
@@ -75,11 +75,10 @@ const openFolder = async () => {
     <div class="modal-content glass-panel">
       <button class="close-btn" @click="emit('close')">✖</button>
 
-      <div v-if="folder" class="modal-body">
-        <!-- 左欄：資訊 + 標籤 -->
+      <div v-if="item" class="modal-body">
         <div class="modal-left">
           <div class="folder-icon-area">
-            <span class="big-icon">{{ folder.folderType === 'comic' ? '📚' : '📁' }}</span>
+            <span class="big-icon">{{ item.folderType === 'comic' ? '📚' : '📁' }}</span>
           </div>
 
           <div class="info-block">
@@ -127,10 +126,9 @@ const openFolder = async () => {
           </div>
         </div>
 
-        <!-- 右欄：路徑 + 操作 -->
         <div class="modal-right">
-          <h2 class="title">{{ folder.name }}</h2>
-          <p class="file-path">{{ folder.path }}</p>
+          <h2 class="title">{{ item.name }}</h2>
+          <p class="file-path">{{ item.path }}</p>
 
           <div class="actions">
             <button class="btn-open" @click="openFolder">📂 用系統開啟</button>
@@ -209,11 +207,7 @@ const openFolder = async () => {
 }
 .big-icon { font-size: 4rem; line-height: 1; }
 
-.info-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+.info-block { display: flex; flex-direction: column; gap: 4px; }
 .info-block label {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -238,7 +232,6 @@ const openFolder = async () => {
 .edit-textarea { resize: vertical; }
 
 .tag-editor h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--accent-hover); }
-
 .current-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 
 .edit-tag {
@@ -292,20 +285,10 @@ const openFolder = async () => {
 }
 .tag-suggestions li:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
 
-.modal-right {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+.modal-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
 .title { font-size: 1.6rem; margin-bottom: 6px; line-height: 1.3; }
-.file-path {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  word-break: break-all;
-  margin-bottom: 24px;
-}
+.file-path { font-size: 0.78rem; color: var(--text-secondary); word-break: break-all; margin-bottom: 24px; }
 
 .actions { display: flex; flex-direction: column; gap: 10px; }
 

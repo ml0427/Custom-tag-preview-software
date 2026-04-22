@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
-import { api, type Comic, type Folder, type FileItem } from '../api';
+import { api, type Item, type FileItem } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
 
@@ -10,95 +10,72 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'showDetail', comic: Comic): void;
-  (e: 'showFolderDetail', folder: Folder): void;
+  (e: 'showDetail', item: Item): void;
+  (e: 'showFolderDetail', item: Item): void;
   (e: 'navigateDir', path: string): void;
 }>();
 
-const folders = ref<Folder[]>([]);
+const itemsData = ref<Item[]>([]);
 const fileItems = ref<FileItem[]>([]);
-const comicsData = ref<Comic[]>([]);
 const isLoading = ref(false);
 const gallerySearch = ref('');
 
+// O(1) lookup by path
+const itemByPath = computed(() =>
+  new Map(itemsData.value.map(i => [i.path, i]))
+);
+
 const filteredFileItems = computed(() => {
-  // 全域標籤模式：無 sourcePath 但有 selectedTagId → 從 DB 結果合成 FileItem
+  // Global tag mode (no sourcePath, has tagId): convert items to FileItem format
   const base: FileItem[] = (props.selectedTagId != null && !props.sourcePath)
-    ? comicsData.value.map(c => ({
-        name: c.title,
-        path: c.filePath,
-        isDir: false,
-        fileSize: c.fileSize,
-        modifiedTime: c.fileModifiedTime,
-        extension: c.filePath.split('.').pop()?.toLowerCase() ?? null,
+    ? itemsData.value.map(item => ({
+        name: item.name,
+        path: item.path,
+        isDir: item.itemType === 'folder',
+        fileSize: item.fileSize,
+        modifiedTime: item.fileModifiedAt
+          ? new Date(item.fileModifiedAt * 1000).toLocaleDateString('zh-TW')
+          : null,
+        extension: item.itemType === 'file'
+          ? item.path.split('.').pop()?.toLowerCase() ?? null
+          : null,
       }))
     : fileItems.value;
 
   let items = base;
   const q = gallerySearch.value.trim().toLowerCase();
-  if (q) items = items.filter(item => item.name.toLowerCase().includes(q));
+  if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
 
-  // 有 sourcePath 時才做 client-side 標籤過濾（全域模式由 DB 已過濾）
+  // Source mode: client-side tag filter
   if (props.selectedTagId != null && props.sourcePath) {
     const tid = props.selectedTagId;
     items = items.filter(item => {
-      if (item.isDir) return folderByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
-      return comicByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
+      return itemByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
     });
   }
 
   return items;
 });
 
-const comicByPath = computed(() =>
-  new Map(comicsData.value.map(c => [c.filePath, c]))
-);
-const folderByPath = computed(() =>
-  new Map(folders.value.map(f => [f.path, f]))
-);
-
-const getComicForFile = (item: FileItem): Comic | undefined =>
-  comicByPath.value.get(item.path);
-
-const getFolderForFile = (item: FileItem): Folder | undefined =>
-  folderByPath.value.get(item.path);
-
 const selectedFileItemPath = ref<string | null>(null);
-const selectedComic = ref<Comic | null>(null);
-const selectedFolder = ref<Folder | null>(null);
-const tableWrapperRef = ref<HTMLElement | null>(null);
+const selectedItem = ref<Item | null>(null);
 
 const handleFileItemClick = (item: FileItem) => {
   selectedFileItemPath.value = item.path;
-  if (item.isDir) {
-    selectedComic.value = null;
-    const folder = getFolderForFile(item);
-    selectedFolder.value = folder ?? {
-      id: -1, path: item.path, name: item.name,
-      folderType: 'default', note: '', createdAt: '', tags: [],
-    } as Folder;
-  } else {
-    selectedFolder.value = null;
-    const comic = getComicForFile(item);
-    selectedComic.value = comic ?? null;
-  }
+  selectedItem.value = itemByPath.value.get(item.path) ?? null;
 };
 
 const handleFileItemDblClick = (item: FileItem) => {
   if (item.isDir) {
     emit('navigateDir', item.path);
   } else {
-    const comic = getComicForFile(item);
-    if (comic) {
-      emit('showDetail', comic);
+    const dbItem = itemByPath.value.get(item.path);
+    if (dbItem) {
+      emit('showDetail', dbItem);
     } else {
       api.openFile(item.path);
     }
   }
-};
-
-const loadFolders = async () => {
-  folders.value = await api.getFolders();
 };
 
 const loadFileItems = async () => {
@@ -110,33 +87,33 @@ const loadFileItems = async () => {
   }
 };
 
-const loadComicsBackground = async () => {
+const loadItemsBackground = async () => {
   try {
-    const tagId = (!props.sourcePath && props.selectedTagId != null) ? props.selectedTagId : undefined;
-    const res = await api.getComics(0, 9999, tagId, 'import_time', 'desc', props.sourcePath ?? undefined);
-    comicsData.value = res.content;
+    const tagId = (!props.sourcePath && props.selectedTagId != null)
+      ? props.selectedTagId
+      : undefined;
+    const res = await api.getItems(0, 9999, tagId, 'importAt', 'desc', props.sourcePath ?? undefined);
+    itemsData.value = res.content;
   } catch {
-    comicsData.value = [];
+    itemsData.value = [];
   }
 };
 
-const handleRenamed = (updated: Comic) => {
-  selectedComic.value = updated;
-  const idx = comicsData.value.findIndex(c => c.id === updated.id);
-  if (idx !== -1) comicsData.value[idx] = updated;
+const handleRenamed = (updated: Item) => {
+  selectedItem.value = updated;
+  const idx = itemsData.value.findIndex(i => i.id === updated.id);
+  if (idx !== -1) itemsData.value[idx] = updated;
 };
 
 // Preview toggle
 const isPreviewOpen = ref(false);
 const togglePreview = () => { isPreviewOpen.value = !isPreviewOpen.value; };
 
-// Resizing logic
+// Resizing
 const previewWidth = ref(350);
 const isResizing = ref(false);
-const minWidth = 200;
-const maxWidth = 600;
 
-const startResizing = (e: MouseEvent) => {
+const startResizing = () => {
   isResizing.value = true;
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', stopResizing);
@@ -147,9 +124,7 @@ const startResizing = (e: MouseEvent) => {
 const handleMouseMove = (e: MouseEvent) => {
   if (!isResizing.value) return;
   const newWidth = window.innerWidth - e.clientX;
-  if (newWidth >= minWidth && newWidth <= maxWidth) {
-    previewWidth.value = newWidth;
-  }
+  if (newWidth >= 200 && newWidth <= 600) previewWidth.value = newWidth;
 };
 
 const stopResizing = () => {
@@ -163,11 +138,10 @@ const stopResizing = () => {
 const loadAll = async () => {
   isLoading.value = true;
   fileItems.value = [];
-  folders.value = [];
-  comicsData.value = [];
-  selectedFolder.value = null;
+  itemsData.value = [];
+  selectedItem.value = null;
   try {
-    await Promise.all([loadFolders(), loadFileItems(), loadComicsBackground()]);
+    await Promise.all([loadFileItems(), loadItemsBackground()]);
   } catch (e) {
     console.error(e);
   } finally {
@@ -176,7 +150,6 @@ const loadAll = async () => {
 };
 
 watch(() => props.sourcePath, () => {
-  selectedComic.value = null;
   selectedFileItemPath.value = null;
   loadAll();
 });
@@ -184,24 +157,17 @@ watch(() => props.sourcePath, () => {
 watch(() => props.selectedTagId, async () => {
   if (!props.sourcePath) {
     isLoading.value = true;
-    comicsData.value = [];
-    try { await loadComicsBackground(); }
+    itemsData.value = [];
+    try { await loadItemsBackground(); }
     catch (e) { console.error(e); }
     finally { isLoading.value = false; }
   }
 });
 
-onMounted(() => {
-  loadAll();
-});
+onMounted(() => loadAll());
+onUnmounted(() => stopResizing());
 
-onUnmounted(() => {
-  stopResizing();
-});
-
-defineExpose({
-  refresh: () => loadAll()
-});
+defineExpose({ refresh: () => loadAll() });
 </script>
 
 <template>
@@ -222,30 +188,26 @@ defineExpose({
         </div>
       </div>
 
-      <div class="table-wrapper" ref="tableWrapperRef">
-        <!-- 未選工作目錄且未選標籤 -->
+      <div class="table-wrapper">
         <div v-if="!sourcePath && !selectedTagId" class="no-workspace-state">
           <div class="no-workspace-icon">📂</div>
-          <p>請從左側選擇工作目錄</p>
+          <p>請從左側選擇工作目錄或標籤</p>
         </div>
 
-        <!-- 載入中 -->
         <div v-else-if="isLoading" class="loader">
           <div class="spinner"></div>
           <p>載入中...</p>
         </div>
 
-        <!-- 空目錄 -->
         <div v-else-if="filteredFileItems.length === 0" class="empty-state">
           <h3>此目錄沒有任何檔案</h3>
         </div>
 
-        <!-- 檔案列表 -->
         <FileExplorerTable
           v-else
           :items="filteredFileItems"
-          :comicByPath="comicByPath"
-          :folderByPath="folderByPath"
+          :comicByPath="new Map(itemsData.filter(i => i.itemType === 'file').map(i => [i.path, { id: i.id, title: i.name, filePath: i.path, fileSize: i.fileSize ?? 0, fileModifiedTime: '', importTime: i.importAt, customCoverPath: i.coverCachePath, tags: i.tags } as any]))"
+          :folderByPath="new Map(itemsData.filter(i => i.itemType === 'folder').map(i => [i.path, { id: i.id, path: i.path, name: i.name, folderType: i.folderType ?? 'default', note: i.note ?? '', createdAt: i.importAt, tags: i.tags } as any]))"
           :selectedItemPath="selectedFileItemPath"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
@@ -257,12 +219,10 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Preview Toggle Button -->
     <button class="preview-toggle-btn" @click="togglePreview" :title="isPreviewOpen ? '收起預覽' : '展開預覽'">
       {{ isPreviewOpen ? '›' : '‹' }}
     </button>
 
-    <!-- Draggable Resizer -->
     <div
       v-if="isPreviewOpen"
       class="resizer"
@@ -270,11 +230,9 @@ defineExpose({
       @mousedown="startResizing"
     ></div>
 
-    <!-- Preview Pane -->
     <PreviewPane
       v-if="isPreviewOpen"
-      :comic="selectedComic"
-      :folder="selectedFolder"
+      :item="selectedItem"
       :style="{ width: previewWidth + 'px', minWidth: previewWidth + 'px' }"
       @show-detail="emit('showDetail', $event)"
       @renamed="handleRenamed"
@@ -314,9 +272,7 @@ defineExpose({
   box-shadow: 0 0 10px var(--accent-color);
 }
 
-.header {
-  margin-bottom: 20px;
-}
+.header { margin-bottom: 20px; }
 
 .search-bar-wrap {
   display: flex;
@@ -422,9 +378,7 @@ defineExpose({
   margin-bottom: 15px;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .table-wrapper::-webkit-scrollbar { width: 10px; }
 .table-wrapper::-webkit-scrollbar-thumb {

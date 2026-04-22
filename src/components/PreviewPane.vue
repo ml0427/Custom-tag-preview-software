@@ -1,24 +1,25 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { api, type Comic, type Folder } from '../api';
+import { api, type Item } from '../api';
 
 const props = defineProps<{
-    comic: Comic | null;
-    folder?: Folder | null;
+    item: Item | null;
 }>();
 
 const emit = defineEmits<{
-    (e: 'showDetail', comic: Comic): void
-    (e: 'renamed', comic: Comic): void
+    (e: 'showDetail', item: Item): void
+    (e: 'renamed', item: Item): void
 }>();
 
 const isOpening = ref(false);
+const coverUrl = ref('');
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
 const handleOpenFile = async () => {
-    if (!props.comic || isOpening.value) return;
+    if (!props.item || isOpening.value) return;
     isOpening.value = true;
     try {
-        await api.openFile(props.comic.filePath);
+        await api.openFile(props.item.path);
     } catch (e: any) {
         alert('開啟失敗：' + (e?.message ?? e));
     } finally {
@@ -26,19 +27,21 @@ const handleOpenFile = async () => {
     }
 };
 
-const coverUrl = ref('');
-const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-
-watch(() => [props.comic?.id, props.comic?.customCoverPath], async ([id]) => {
-    if (!id) { coverUrl.value = ''; return; }
+// Load cover for file items (ZIP)
+watch(() => [props.item?.id, props.item?.coverCachePath], async () => {
+    const item = props.item;
+    if (!item || item.itemType !== 'file') return;
     try {
-        coverUrl.value = await api.getCoverBase64(id as number);
+        coverUrl.value = await api.getCoverBase64(item.id);
     } catch {
         coverUrl.value = '';
     }
 }, { immediate: true });
 
-watch(() => props.folder?.path, async (folderPath) => {
+// Load cover for folder items (first image in directory)
+watch(() => props.item?.path, async (folderPath) => {
+    const item = props.item;
+    if (!item || item.itemType !== 'folder') return;
     if (!folderPath) { coverUrl.value = ''; return; }
     coverUrl.value = '';
     try {
@@ -46,7 +49,6 @@ watch(() => props.folder?.path, async (folderPath) => {
         let firstImage = files.find(f =>
             !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
         );
-        // 若根目錄沒有直接圖片，往第一個子資料夾再找一層
         if (!firstImage) {
             const firstDir = files.find(f => f.isDir);
             if (firstDir) {
@@ -62,18 +64,23 @@ watch(() => props.folder?.path, async (folderPath) => {
     } catch { coverUrl.value = ''; }
 }, { immediate: true });
 
-const formatSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+// Also clear cover when switching item types
+watch(() => props.item, (newItem) => {
+    if (!newItem) coverUrl.value = '';
+});
+
+const formatSize = (bytes: number | null) => {
     if (!bytes) return '-';
+    if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString('zh-TW', {
+const formatDate = (unix: number | null) => {
+    if (!unix) return '-';
+    return new Date(unix * 1000).toLocaleString('zh-TW', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -84,49 +91,47 @@ const formatDate = (dateStr: string) => {
 </script>
 
 <template>
-    <div class="preview-pane" :class="{ 'empty': !comic && !folder }">
-        <div v-if="comic" class="content">
-            <div class="cover-wrapper" @click="emit('showDetail', comic)">
-                <img :src="coverUrl" :alt="comic.title" class="preview-cover" />
-                <div class="zoom-overlay">
-                    <span>點擊查看詳情</span>
-                </div>
+    <div class="preview-pane" :class="{ 'empty': !item }">
+        <!-- File item preview -->
+        <div v-if="item && item.itemType === 'file'" class="content">
+            <div class="cover-wrapper" @click="emit('showDetail', item)">
+                <img v-if="coverUrl" :src="coverUrl" :alt="item.name" class="preview-cover" />
+                <div v-else class="cover-placeholder">📄</div>
+                <div class="zoom-overlay"><span>點擊查看詳情</span></div>
             </div>
-            
+
             <div class="info-scroll">
                 <div class="title-container">
-                    <h3 class="comic-title">{{ comic.title }}</h3>
+                    <h3 class="item-title">{{ item.name }}</h3>
                 </div>
-                
+
                 <div class="meta-section">
                     <div class="meta-item">
                         <span class="label">檔案大小</span>
-                        <span class="value">{{ formatSize(comic.fileSize || 0) }}</span>
+                        <span class="value">{{ formatSize(item.fileSize) }}</span>
                     </div>
                     <div class="meta-item">
                         <span class="label">修改日期</span>
-                        <span class="value">{{ formatDate(comic.fileModifiedTime) }}</span>
+                        <span class="value">{{ formatDate(item.fileModifiedAt) }}</span>
                     </div>
                 </div>
 
                 <div class="tags-section">
                     <h4>標籤</h4>
                     <div class="tags-container">
-                        <span v-for="tag in comic.tags" :key="tag.id" class="tag">
-                            {{ tag.name }}
-                        </span>
-                        <span v-if="comic.tags.length === 0" class="no-tags">尚未添加標籤</span>
+                        <span v-for="tag in item.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
+                        <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>
 
                 <div class="path-section">
                     <h4>路徑</h4>
-                    <div class="path-box">{{ comic.filePath }}</div>
+                    <div class="path-box">{{ item.path }}</div>
                 </div>
             </div>
-            
+
             <div class="action-buttons">
-                <button class="btn-primary detail-btn" @click="emit('showDetail', comic)">
+                <button class="btn-primary detail-btn" @click="emit('showDetail', item)">
                     編輯詳情
                 </button>
                 <button class="btn-open" :disabled="isOpening" @click="handleOpenFile">
@@ -134,35 +139,35 @@ const formatDate = (dateStr: string) => {
                 </button>
             </div>
         </div>
-        
-        <!-- 資料夾預覽（漫畫類型資料夾） -->
-        <div v-else-if="folder" class="content">
+
+        <!-- Folder item preview -->
+        <div v-else-if="item && item.itemType === 'folder'" class="content">
             <div class="cover-wrapper">
-                <img v-if="coverUrl" :src="coverUrl" :alt="folder.name" class="preview-cover" />
-                <div v-else class="cover-placeholder">📚</div>
+                <img v-if="coverUrl" :src="coverUrl" :alt="item.name" class="preview-cover" />
+                <div v-else class="cover-placeholder">📁</div>
             </div>
 
             <div class="info-scroll">
                 <div class="title-container">
-                    <h3 class="comic-title">{{ folder.name }}</h3>
+                    <h3 class="item-title">{{ item.name }}</h3>
                 </div>
 
                 <div class="tags-section">
                     <h4>標籤</h4>
                     <div class="tags-container">
-                        <span v-for="tag in folder.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
-                        <span v-if="folder.tags.length === 0" class="no-tags">尚未添加標籤</span>
+                        <span v-for="tag in item.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
+                        <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>
 
                 <div class="path-section">
                     <h4>路徑</h4>
-                    <div class="path-box">{{ folder.path }}</div>
+                    <div class="path-box">{{ item.path }}</div>
                 </div>
             </div>
 
             <div class="action-buttons">
-                <button class="btn-open" @click="api.openFile(folder.path)">
+                <button class="btn-open" @click="api.openFile(item.path)">
                     📂 用預設程式開啟
                 </button>
             </div>
@@ -184,7 +189,6 @@ const formatDate = (dateStr: string) => {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    backdrop-filter: var(--glass-blur);
     transition: width 0.3s ease;
 }
 
@@ -198,10 +202,7 @@ const formatDate = (dateStr: string) => {
     opacity: 0.6;
 }
 
-.empty-icon {
-    font-size: 4rem;
-    margin-bottom: 20px;
-}
+.empty-icon { font-size: 4rem; margin-bottom: 20px; }
 
 .content {
     flex: 1;
@@ -230,9 +231,7 @@ const formatDate = (dateStr: string) => {
     transition: transform 0.5s ease;
 }
 
-.cover-wrapper:hover .preview-cover {
-    transform: scale(1.05);
-}
+.cover-wrapper:hover .preview-cover { transform: scale(1.05); }
 
 .cover-placeholder {
     width: 100%;
@@ -246,10 +245,7 @@ const formatDate = (dateStr: string) => {
 
 .zoom-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: rgba(0,0,0,0.4);
     display: flex;
     align-items: center;
@@ -257,10 +253,7 @@ const formatDate = (dateStr: string) => {
     opacity: 0;
     transition: opacity 0.3s ease;
 }
-
-.cover-wrapper:hover .zoom-overlay {
-    opacity: 1;
-}
+.cover-wrapper:hover .zoom-overlay { opacity: 1; }
 
 .info-scroll {
     flex: 1;
@@ -269,16 +262,13 @@ const formatDate = (dateStr: string) => {
     padding-right: 8px;
 }
 
-.title-container {
-    margin-bottom: 20px;
-}
+.title-container { margin-bottom: 20px; }
 
-.comic-title {
+.item-title {
     font-size: 1.4rem;
     color: var(--text-primary);
     line-height: 1.4;
     word-break: break-all;
-    flex: 1;
 }
 
 .meta-section {
@@ -291,11 +281,7 @@ const formatDate = (dateStr: string) => {
     border-radius: 8px;
 }
 
-.meta-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
+.meta-item { display: flex; flex-direction: column; gap: 4px; }
 
 .label {
     font-size: 0.8rem;
@@ -304,11 +290,7 @@ const formatDate = (dateStr: string) => {
     letter-spacing: 0.5px;
 }
 
-.value {
-    font-size: 0.95rem;
-    color: var(--text-primary);
-    font-weight: 500;
-}
+.value { font-size: 0.95rem; color: var(--text-primary); font-weight: 500; }
 
 .tags-section h4, .path-section h4 {
     font-size: 0.9rem;
@@ -332,10 +314,7 @@ const formatDate = (dateStr: string) => {
     border: 1px solid rgba(139, 92, 246, 0.3);
 }
 
-.no-tags {
-    font-style: italic;
-    color: var(--text-tertiary);
-}
+.no-tags { font-style: italic; color: var(--text-tertiary); }
 
 .path-box {
     background: rgba(0,0,0,0.2);
@@ -348,46 +327,24 @@ const formatDate = (dateStr: string) => {
     line-height: 1.4;
 }
 
-.action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
+.action-buttons { display: flex; flex-direction: column; gap: 8px; }
 
-.detail-btn {
-    width: 100%;
-    padding: 12px;
-    font-weight: 600;
-}
+.detail-btn { width: 100%; padding: 12px; font-weight: 600; }
 
 .btn-open {
     width: 100%;
     padding: 10px;
     font-weight: 500;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255,255,255,0.06);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s;
 }
+.btn-open:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+.btn-open:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.btn-open:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.12);
-    color: var(--text-primary);
-}
-
-.btn-open:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-/* Custom Scrollbar */
-.info-scroll::-webkit-scrollbar {
-    width: 4px;
-}
-.info-scroll::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-}
+.info-scroll::-webkit-scrollbar { width: 4px; }
+.info-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 </style>

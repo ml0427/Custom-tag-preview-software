@@ -6,6 +6,23 @@ export interface Tag {
     name: string;
 }
 
+// Unified Item — replaces Comic + Folder
+export interface Item {
+    id: number;
+    path: string;
+    itemType: 'file' | 'folder';
+    name: string;
+    fileSize: number | null;
+    fileModifiedAt: number | null;   // Unix timestamp (seconds)
+    coverCachePath: string | null;
+    fingerprint: string | null;
+    note: string | null;
+    folderType: string | null;
+    importAt: string;
+    tags: Tag[];
+}
+
+// Legacy Comic (kept for internal compat; maps to Item with itemType='file')
 export interface Comic {
     id: number;
     filePath: string;
@@ -17,6 +34,7 @@ export interface Comic {
     tags: Tag[];
 }
 
+// Legacy Folder (used by WorkspacePanel)
 export interface Folder {
     id: number;
     path: string;
@@ -51,20 +69,53 @@ export interface Page<T> {
 }
 
 export const api = {
-    async getComics(page = 0, size = 20, tagId?: number, sortBy?: string, sortDir?: string, sourcePath?: string): Promise<Page<Comic>> {
-        return await invoke<Page<Comic>>('get_comics', { page, size, tagId, sortBy, sortDir, sourcePath });
+    // ── Items (primary API) ───────────────────────────────────────────────────
+    async getItems(
+        page = 0,
+        size = 9999,
+        tagId?: number,
+        sortBy?: string,
+        sortDir?: string,
+        sourcePath?: string,
+        itemType?: string,
+    ): Promise<Page<Item>> {
+        return await invoke<Page<Item>>('get_items', { page, size, tagId, sortBy, sortDir, sourcePath, itemType });
     },
 
-    async getComic(id: number): Promise<Comic> {
-        return await invoke<Comic>('get_comic', { id });
+    async getItem(id: number): Promise<Item> {
+        return await invoke<Item>('get_item', { id });
     },
 
+    async tagItem(itemId: number, tagId: number): Promise<void> {
+        await invoke('tag_item', { itemId, tagId });
+    },
+
+    async untagItem(itemId: number, tagId: number): Promise<void> {
+        await invoke('untag_item', { itemId, tagId });
+    },
+
+    async renameItem(id: number, name: string): Promise<Item> {
+        return await invoke<Item>('rename_item', { id, name });
+    },
+
+    async getItemImages(id: number): Promise<string[]> {
+        return await invoke<string[]>('get_item_images', { id });
+    },
+
+    async setItemCover(id: number, imagePath: string): Promise<void> {
+        await invoke('set_item_cover', { id, imagePath });
+    },
+
+    async getCoverBase64(id: number): Promise<string> {
+        return await invoke<string>('get_cover_base64', { id });
+    },
+
+    // ── Tags ──────────────────────────────────────────────────────────────────
     async getTags(): Promise<Tag[]> {
         return await invoke<Tag[]>('get_tags');
     },
 
     async createTag(name: string): Promise<Tag> {
-        // Not implemented in Rust yet, but we can add it if needed
         return await invoke<Tag>('create_tag', { name });
     },
 
@@ -72,77 +123,72 @@ export const api = {
         await invoke('delete_tag', { id });
     },
 
-    async addTagToComic(comicId: number, tagId: number): Promise<void> {
-        await invoke('add_tag_to_comic', { comicId, tagId });
-    },
-
-    async removeTagFromComic(comicId: number, tagId: number): Promise<void> {
-        await invoke('remove_tag_from_comic', { comicId, tagId });
-    },
-
-    async getComicImages(comicId: number): Promise<string[]> {
-        return await invoke<string[]>('get_comic_images', { id: comicId });
-    },
-
-    async setComicCover(comicId: number, imagePath: string): Promise<void> {
-        await invoke('set_comic_cover', { id: comicId, imagePath });
-    },
-
-    async scanDirectory(path: string): Promise<{ message: string, addedCount: number }> {
-        return await invoke<{ message: string, addedCount: number }>('scan_directory', { path });
-    },
-
-    getCoverUrl(comicId: number): string {
-        // Using the custom protocol registered in main.rs
-        return `comic-cache://localhost/${comicId}.jpg?stamp=${Date.now()}`;
-    },
-
-    async getCoverBase64(comicId: number): Promise<string> {
-        // More reliable alternative: get cover as base64 data URL
-        return await invoke<string>('get_cover_base64', { id: comicId });
-    },
-    
-    async renameComic(id: number, title: string): Promise<Comic> {
-        return await invoke<Comic>('rename_comic', { id, title });
-    },
-
-    // MISSION 3：用系統預設程式開啟本地檔案
-    async openFile(path: string): Promise<void> {
-        await invoke('open_file', { path });
-    },
-
-    // MISSION 2：增量掃描
-    async incrementalScan(path: string): Promise<{ message: string; added: number; updated: number; removed: number }> {
-        return await invoke('incremental_scan', { path });
-    },
-
-    // MISSION 4：標籤重新命名
     async renameTag(id: number, name: string): Promise<Tag> {
         return await invoke<Tag>('rename_tag', { id, name });
     },
 
-    // MISSION 4：合併標籤（source 的所有漫畫移至 target，source 刪除）
     async mergeTags(sourceId: number, targetId: number): Promise<void> {
         await invoke('merge_tags', { sourceId, targetId });
     },
 
-    // MISSION 4：搜尋標籤（自動建議用）
     async searchTags(query: string): Promise<Tag[]> {
         return await invoke<Tag[]>('search_tags', { query });
     },
 
-    // MISSION 2：Workspace 來源管理
+    // ── Scan ──────────────────────────────────────────────────────────────────
+    async scanDirectory(path: string): Promise<{ message: string; addedCount: number }> {
+        return await invoke('scan_directory', { path });
+    },
+
+    async incrementalScan(path: string): Promise<{ message: string; added: number; updated: number; removed: number }> {
+        return await invoke('incremental_scan', { path });
+    },
+
+    // ── Sources ───────────────────────────────────────────────────────────────
     async getSources(): Promise<Source[]> {
         return await invoke<Source[]>('get_sources');
     },
+
     async addSource(path: string): Promise<Source> {
         return await invoke<Source>('add_source', { path });
     },
+
     async removeSource(id: number): Promise<void> {
         await invoke('remove_source', { id });
     },
+
     async syncSources(): Promise<{ added: number; updated: number; removed: number; sourceCount: number; errors: string[] }> {
         return await invoke('sync_sources');
+    },
+
+    // ── Folders (WorkspacePanel backward compat) ──────────────────────────────
+    async getFolders(tagId?: number, search?: string): Promise<Folder[]> {
+        return await invoke<Folder[]>('get_folders', { tagId, search });
+    },
+
+    async createFolder(path: string, name: string, folderType: string, note: string): Promise<Folder> {
+        return await invoke<Folder>('create_folder', { path, name, folderType, note });
+    },
+
+    async updateFolder(id: number, name: string, folderType: string, note: string): Promise<Folder> {
+        return await invoke<Folder>('update_folder', { id, name, folderType, note });
+    },
+
+    async deleteFolder(id: number): Promise<void> {
+        await invoke('delete_folder', { id });
+    },
+
+    async addTagToFolder(folderId: number, tagId: number): Promise<void> {
+        await invoke('add_tag_to_folder', { folderId, tagId });
+    },
+
+    async removeTagFromFolder(folderId: number, tagId: number): Promise<void> {
+        await invoke('remove_tag_from_folder', { folderId, tagId });
+    },
+
+    // ── File system ───────────────────────────────────────────────────────────
+    async openFile(path: string): Promise<void> {
+        await invoke('open_file', { path });
     },
 
     async listSubdirs(path: string): Promise<string[]> {
@@ -155,25 +201,5 @@ export const api = {
 
     async getImageBase64ByPath(path: string): Promise<string> {
         return await invoke<string>('get_image_base64_by_path', { path });
-    },
-
-    // 資料夾知識庫
-    async getFolders(tagId?: number, search?: string): Promise<Folder[]> {
-        return await invoke<Folder[]>('get_folders', { tagId, search });
-    },
-    async createFolder(path: string, name: string, folderType: string, note: string): Promise<Folder> {
-        return await invoke<Folder>('create_folder', { path, name, folderType, note });
-    },
-    async updateFolder(id: number, name: string, folderType: string, note: string): Promise<Folder> {
-        return await invoke<Folder>('update_folder', { id, name, folderType, note });
-    },
-    async deleteFolder(id: number): Promise<void> {
-        await invoke('delete_folder', { id });
-    },
-    async addTagToFolder(folderId: number, tagId: number): Promise<void> {
-        await invoke('add_tag_to_folder', { folderId, tagId });
-    },
-    async removeTagFromFolder(folderId: number, tagId: number): Promise<void> {
-        await invoke('remove_tag_from_folder', { folderId, tagId });
     },
 }
