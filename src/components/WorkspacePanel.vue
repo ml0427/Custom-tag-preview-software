@@ -308,14 +308,6 @@ onMounted(() => {
     <div class="panel-footer">
       <button class="btn-add" @click="handleAddSource">＋ 新增目錄</button>
       <button
-        class="btn-sync"
-        @click="handleSyncSources"
-        :disabled="isSyncing || sources.length === 0"
-        title="同步所有來源（更新檔案索引）"
-      >
-        {{ isSyncing ? '⏳ 同步中...' : '⟳ 同步' }}
-      </button>
-      <button
         class="btn-scan"
         @click="emit('openScanWizard')"
         :disabled="sources.length === 0"
@@ -438,7 +430,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.btn-add, .btn-sync, .btn-scan {
+.btn-add, .btn-scan {
   width: 100%;
   padding: 10px;
   border-radius: 8px;
@@ -464,21 +456,6 @@ onMounted(() => {
 
 .btn-add:hover { background: rgba(255,255,255,0.12); }
 
-.btn-sync {
-  background: var(--accent-color);
-  border: none;
-  color: #fff;
-}
-
-.btn-sync:hover:not(:disabled) {
-  background: var(--accent-hover);
-  box-shadow: 0 4px 12px rgba(47, 129, 247, 0.4);
-}
-
-.btn-sync:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
 
 .tree-area::-webkit-scrollbar { width: 4px; }
 .tree-area::-webkit-scrollbar-thumb {

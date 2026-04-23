@@ -536,7 +536,26 @@ pub async fn search_tags(query: String, pool: State<'_, SqlitePool>) -> Result<V
 fn apply_rules_to_name(name: &str, rules: &[crate::models::TagRuleInput]) -> Vec<String> {
     let mut tags: Vec<String> = Vec::new();
     for rule in rules {
-        if rule.pattern.is_empty() || rule.tag_name.is_empty() { continue; }
+        if rule.pattern.is_empty() { continue; }
+
+        // 正則擷取：把 (group1) 抓到的文字直接當標籤名（支援逗號分隔多個）
+        if rule.match_type == "regex_capture" {
+            if let Ok(re) = regex::Regex::new(&rule.pattern) {
+                if let Some(caps) = re.captures(name) {
+                    if let Some(m) = caps.get(1) {
+                        for part in m.as_str().split(|c: char| ",(）（、".contains(c)) {
+                            let t = part.trim().to_string();
+                            if !t.is_empty() && !tags.contains(&t) {
+                                tags.push(t);
+                            }
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        if rule.tag_name.is_empty() { continue; }
         let matched = match rule.match_type.as_str() {
             "prefix"   => name.starts_with(&rule.pattern),
             "suffix"   => name.ends_with(&rule.pattern),

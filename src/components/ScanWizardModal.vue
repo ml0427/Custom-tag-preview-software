@@ -17,10 +17,11 @@ const isLoading = ref(false);
 const errorMsg = ref('');
 
 const MATCH_TYPES = [
-  { value: 'prefix',   label: '前綴' },
-  { value: 'suffix',   label: '後綴' },
-  { value: 'contains', label: '包含' },
-  { value: 'regex',    label: '正則' },
+  { value: 'prefix',        label: '前綴' },
+  { value: 'suffix',        label: '後綴' },
+  { value: 'contains',      label: '包含' },
+  { value: 'regex',         label: '正則比對' },
+  { value: 'regex_capture', label: '正則擷取' },
 ];
 
 watch(() => props.visible, async (v) => {
@@ -129,18 +130,25 @@ const confirm = async () => {
           <div class="rules-table">
             <div class="rules-header">
               <span style="flex:2">說明</span>
-              <span style="flex:1.2">比對方式</span>
+              <span style="flex:1.5">比對方式</span>
               <span style="flex:2">比對字串</span>
               <span style="flex:2">套用標籤</span>
               <span style="width:32px"></span>
             </div>
             <div v-for="(rule, i) in rules" :key="i" class="rule-row">
               <input v-model="rule.name" placeholder="（選填）" class="rule-input" style="flex:2" />
-              <select v-model="rule.matchType" class="rule-select" style="flex:1.2">
+              <select v-model="rule.matchType" class="rule-select" style="flex:1.5">
                 <option v-for="t in MATCH_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
               </select>
               <input v-model="rule.pattern" placeholder="輸入字串或正則" class="rule-input" style="flex:2" />
-              <input v-model="rule.tagName" placeholder="標籤名稱" class="rule-input" style="flex:2" />
+              <input
+                v-if="rule.matchType !== 'regex_capture'"
+                v-model="rule.tagName"
+                placeholder="標籤名稱"
+                class="rule-input"
+                style="flex:2"
+              />
+              <span v-else class="capture-hint" style="flex:2">← 自動取括號內文字</span>
               <button class="btn-del" @click="removeRule(i)">✕</button>
             </div>
           </div>
@@ -319,6 +327,15 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
   outline: none;
   min-width: 0;
 }
+.capture-hint {
+  font-size: 0.82rem;
+  color: var(--accent-color);
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
 .btn-del {
   width: 28px;
   height: 28px;
