@@ -7,6 +7,7 @@ import WorkspacePanel from './components/WorkspacePanel.vue'
 import ComicGallery from './components/ComicGallery.vue'
 import ComicDetailModal from './components/ComicDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
+import ScanWizardModal from './components/ScanWizardModal.vue'
 
 const activePanel = ref<string | null>('workspace')
 const selectedTagId = ref<number | null>(null)
@@ -15,6 +16,7 @@ const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
 const galleryRef = ref<InstanceType<typeof ComicGallery> | null>(null)
+const showScanWizard = ref(false)
 
 const handleActivitySelect = (id: string) => {
   if (id === 'workspace' && activePanel.value !== 'workspace') {
@@ -77,6 +79,7 @@ onMounted(() => loadGlobalTags())
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"
           @folderCreated="galleryRef?.refresh()"
+          @openScanWizard="showScanWizard = true"
         />
       </div>
     </transition>
@@ -106,6 +109,12 @@ onMounted(() => loadGlobalTags())
       @close="selectedFolderItem = null"
       @updated="galleryRef?.refresh()"
       @deleted="galleryRef?.refresh()"
+    />
+
+    <ScanWizardModal
+      :visible="showScanWizard"
+      @close="showScanWizard = false"
+      @completed="galleryRef?.refresh(); loadGlobalTags()"
     />
   </div>
 </template>

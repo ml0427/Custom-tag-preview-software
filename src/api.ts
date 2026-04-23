@@ -68,6 +68,28 @@ export interface Page<T> {
     size: number;
 }
 
+export interface TagRule {
+    id: number;
+    name: string;
+    matchType: string;
+    pattern: string;
+    tagName: string;
+}
+
+export interface TagRuleInput {
+    name: string;
+    matchType: string;
+    pattern: string;
+    tagName: string;
+}
+
+export interface ScanPreviewItem {
+    path: string;
+    name: string;
+    isDir: boolean;
+    proposedTags: string[];
+}
+
 export const api = {
     // ── Items (primary API) ───────────────────────────────────────────────────
     async getItems(
@@ -201,5 +223,19 @@ export const api = {
 
     async getImageBase64ByPath(path: string): Promise<string> {
         return await invoke<string>('get_image_base64_by_path', { path });
+    },
+
+    // ── Tag rules & scan wizard ───────────────────────────────────────────────
+    async getTagRules(): Promise<TagRule[]> {
+        return await invoke<TagRule[]>('get_tag_rules');
+    },
+    async saveTagRules(rules: TagRuleInput[]): Promise<void> {
+        return await invoke('save_tag_rules', { rules });
+    },
+    async previewTagScan(scopePath: string, rules: TagRuleInput[]): Promise<ScanPreviewItem[]> {
+        return await invoke<ScanPreviewItem[]>('preview_tag_scan', { scopePath, rules });
+    },
+    async applyTagScan(scopePath: string, rules: TagRuleInput[]): Promise<{ added: number; updated: number; removed: number; tagged: number }> {
+        return await invoke('apply_tag_scan', { scopePath, rules });
     },
 }

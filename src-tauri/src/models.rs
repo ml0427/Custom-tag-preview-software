@@ -67,3 +67,31 @@ pub struct Page<T> {
     pub number: i64,
     pub size: i64,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TagRule {
+    pub id: i64,
+    pub name: String,
+    pub match_type: String,  // 'prefix' | 'suffix' | 'contains' | 'regex'
+    pub pattern: String,
+    pub tag_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TagRuleInput {
+    pub name: String,
+    pub match_type: String,
+    pub pattern: String,
+    pub tag_name: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanPreviewItem {
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub proposed_tags: Vec<String>,
+}

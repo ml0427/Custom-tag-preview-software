@@ -9,6 +9,7 @@ const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
   (e: 'select', path: string | null): void;
   (e: 'folderCreated'): void;
+  (e: 'openScanWizard'): void;
 }>();
 
 // 右鍵選單
@@ -310,8 +311,17 @@ onMounted(() => {
         class="btn-sync"
         @click="handleSyncSources"
         :disabled="isSyncing || sources.length === 0"
+        title="同步所有來源（更新檔案索引）"
       >
-        {{ isSyncing ? '⏳ 同步中...' : '⟳ 同步所有' }}
+        {{ isSyncing ? '⏳ 同步中...' : '⟳ 同步' }}
+      </button>
+      <button
+        class="btn-scan"
+        @click="emit('openScanWizard')"
+        :disabled="sources.length === 0"
+        title="掃描標籤 wizard"
+      >
+        🏷 掃描標籤
       </button>
     </div>
   </div>
@@ -428,7 +438,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.btn-add, .btn-sync {
+.btn-add, .btn-sync, .btn-scan {
   width: 100%;
   padding: 10px;
   border-radius: 8px;
@@ -437,6 +447,14 @@ onMounted(() => {
   transition: all 0.15s;
   cursor: pointer;
 }
+
+.btn-scan {
+  background: rgba(34,197,94,0.15);
+  border: 1px solid rgba(34,197,94,0.4);
+  color: #4ade80;
+}
+.btn-scan:hover:not(:disabled) { background: rgba(34,197,94,0.25); }
+.btn-scan:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .btn-add {
   background: rgba(255,255,255,0.06);

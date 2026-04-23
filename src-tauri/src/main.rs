@@ -89,6 +89,11 @@ fn main() {
             commands::rename_tag,
             commands::merge_tags,
             commands::search_tags,
+            // Tag rules & scan wizard
+            commands::get_tag_rules,
+            commands::save_tag_rules,
+            commands::preview_tag_scan,
+            commands::apply_tag_scan,
             // Sources
             commands::get_sources,
             commands::add_source,
