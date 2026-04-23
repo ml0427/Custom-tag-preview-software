@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { type Comic, type Folder, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 
@@ -13,7 +13,47 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click', item: FileItem): void;
   (e: 'dblclick', item: FileItem): void;
+  (e: 'detail', item: FileItem): void;
+  (e: 'rename', item: FileItem, newName: string): void;
 }>();
+
+// Context menu
+const contextMenu = ref<{ visible: boolean; x: number; y: number; item: FileItem | null }>({
+  visible: false, x: 0, y: 0, item: null,
+});
+
+const showContextMenu = (e: MouseEvent, item: FileItem) => {
+  contextMenu.value = { visible: true, x: e.clientX, y: e.clientY, item };
+};
+
+const hideContextMenu = () => { contextMenu.value.visible = false; };
+
+// Inline rename
+const editingPath = ref<string | null>(null);
+const editName = ref('');
+
+const startRename = () => {
+  if (!contextMenu.value.item) return;
+  editingPath.value = contextMenu.value.item.path;
+  editName.value = contextMenu.value.item.name;
+  hideContextMenu();
+  nextTick(() => {
+    const input = document.querySelector<HTMLInputElement>('.rename-input');
+    input?.focus();
+    input?.select();
+  });
+};
+
+const commitRename = (item: FileItem) => {
+  const newName = editName.value.trim();
+  if (newName && newName !== item.name) emit('rename', item, newName);
+  editingPath.value = null;
+};
+
+const cancelRename = () => { editingPath.value = null; };
+
+onMounted(() => document.addEventListener('click', hideContextMenu));
+onUnmounted(() => document.removeEventListener('click', hideContextMenu));
 
 const getFileIcon = (item: FileItem): string => {
   if (item.isDir) {
@@ -67,8 +107,6 @@ const sortIcon = (col: string) => {
 
 const sortedItems = computed(() => {
   return [...props.items].sort((a, b) => {
-    // 目錄永遠排前面
-    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
     let cmp = 0;
     if (sortBy.value === 'name') {
       cmp = a.name.localeCompare(b.name, 'zh-TW', { sensitivity: 'base' });
@@ -100,11 +138,21 @@ const sortedItems = computed(() => {
         :class="{ selected: isSelected(item) }"
         @click="emit('click', item)"
         @dblclick="emit('dblclick', item)"
+        @contextmenu.prevent="showContextMenu($event, item)"
       >
         <td class="col-name">
           <div class="file-info">
             <span class="file-icon">{{ getFileIcon(item) }}</span>
-            <span class="file-title" :title="item.path">{{ item.name }}</span>
+            <input
+              v-if="editingPath === item.path"
+              v-model="editName"
+              class="rename-input"
+              @keyup.enter="commitRename(item)"
+              @keyup.escape="cancelRename"
+              @blur="cancelRename"
+              @click.stop
+            />
+            <span v-else class="file-title" :title="item.path">{{ item.name }}</span>
           </div>
         </td>
         <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
@@ -125,6 +173,18 @@ const sortedItems = computed(() => {
       </tr>
     </tbody>
   </table>
+
+  <Teleport to="body">
+    <div
+      v-if="contextMenu.visible"
+      class="context-menu"
+      :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+      @click.stop
+    >
+      <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
+      <button class="ctx-item" @click="startRename">修改檔名</button>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -183,4 +243,41 @@ const sortedItems = computed(() => {
   color: var(--text-secondary);
 }
 .tag-more { font-size: 0.75rem; color: var(--accent-color); }
+
+.rename-input {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--accent-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  padding: 2px 6px;
+  outline: none;
+  width: 100%;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: #1e2130;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 150px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.ctx-item:hover { background: rgba(255,255,255,0.08); }
 </style>

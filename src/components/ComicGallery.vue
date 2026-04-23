@@ -13,6 +13,7 @@ const emit = defineEmits<{
   (e: 'showDetail', item: Item): void;
   (e: 'showFolderDetail', item: Item): void;
   (e: 'navigateDir', path: string): void;
+  (e: 'jumpToTag', tagId: number): void;
 }>();
 
 const itemsData = ref<Item[]>([]);
@@ -65,16 +66,35 @@ const handleFileItemClick = (item: FileItem) => {
   selectedItem.value = itemByPath.value.get(item.path) ?? null;
 };
 
+const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'cbz', 'cbr'];
+
 const handleFileItemDblClick = (item: FileItem) => {
   if (item.isDir) {
     emit('navigateDir', item.path);
+  } else if (ARCHIVE_EXTS.includes(item.extension?.toLowerCase() ?? '')) {
+    api.openFile(item.path);
   } else {
     const dbItem = itemByPath.value.get(item.path);
-    if (dbItem) {
-      emit('showDetail', dbItem);
-    } else {
-      api.openFile(item.path);
-    }
+    if (dbItem) emit('showDetail', dbItem);
+    else api.openFile(item.path);
+  }
+};
+
+const handleContextDetail = (fileItem: FileItem) => {
+  const dbItem = itemByPath.value.get(fileItem.path);
+  if (!dbItem) return;
+  if (fileItem.isDir) emit('showFolderDetail', dbItem);
+  else emit('showDetail', dbItem);
+};
+
+const handleContextRename = async (fileItem: FileItem, newName: string) => {
+  const dbItem = itemByPath.value.get(fileItem.path);
+  if (!dbItem) return;
+  try {
+    const updated = await api.renameItem(dbItem.id, newName);
+    handleRenamed(updated);
+  } catch (e: any) {
+    alert('重新命名失敗：' + (e?.message ?? e));
   }
 };
 
@@ -211,6 +231,8 @@ defineExpose({ refresh: () => loadAll() });
           :selectedItemPath="selectedFileItemPath"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
+          @detail="handleContextDetail"
+          @rename="handleContextRename"
         />
       </div>
 
@@ -235,6 +257,8 @@ defineExpose({ refresh: () => loadAll() });
       :item="selectedItem"
       :style="{ width: previewWidth + 'px', minWidth: previewWidth + 'px' }"
       @show-detail="emit('showDetail', $event)"
+      @show-folder-detail="emit('showFolderDetail', $event)"
+      @tag-click="emit('jumpToTag', $event.id)"
       @renamed="handleRenamed"
     />
   </div>

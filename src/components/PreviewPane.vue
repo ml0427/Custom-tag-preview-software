@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { api, type Item } from '../api';
+import { api, type Item, type Tag } from '../api';
 
 const props = defineProps<{
     item: Item | null;
@@ -8,24 +8,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'showDetail', item: Item): void
+    (e: 'showFolderDetail', item: Item): void
     (e: 'renamed', item: Item): void
+    (e: 'tagClick', tag: Tag): void
 }>();
 
-const isOpening = ref(false);
 const coverUrl = ref('');
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-
-const handleOpenFile = async () => {
-    if (!props.item || isOpening.value) return;
-    isOpening.value = true;
-    try {
-        await api.openFile(props.item.path);
-    } catch (e: any) {
-        alert('開啟失敗：' + (e?.message ?? e));
-    } finally {
-        isOpening.value = false;
-    }
-};
 
 // Load cover for file items (ZIP)
 watch(() => [props.item?.id, props.item?.coverCachePath], async () => {
@@ -119,7 +108,7 @@ const formatDate = (unix: number | null) => {
                 <div class="tags-section">
                     <h4>標籤</h4>
                     <div class="tags-container">
-                        <span v-for="tag in item.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
+                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" @click="emit('tagClick', tag)">{{ tag.name }}</span>
                         <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>
@@ -129,22 +118,14 @@ const formatDate = (unix: number | null) => {
                     <div class="path-box">{{ item.path }}</div>
                 </div>
             </div>
-
-            <div class="action-buttons">
-                <button class="btn-primary detail-btn" @click="emit('showDetail', item)">
-                    編輯詳情
-                </button>
-                <button class="btn-open" :disabled="isOpening" @click="handleOpenFile">
-                    {{ isOpening ? '開啟中...' : '📂 用預設程式開啟' }}
-                </button>
-            </div>
         </div>
 
         <!-- Folder item preview -->
         <div v-else-if="item && item.itemType === 'folder'" class="content">
-            <div class="cover-wrapper">
+            <div class="cover-wrapper" @click="emit('showFolderDetail', item)">
                 <img v-if="coverUrl" :src="coverUrl" :alt="item.name" class="preview-cover" />
                 <div v-else class="cover-placeholder">📁</div>
+                <div class="zoom-overlay"><span>點擊查看詳情</span></div>
             </div>
 
             <div class="info-scroll">
@@ -155,7 +136,7 @@ const formatDate = (unix: number | null) => {
                 <div class="tags-section">
                     <h4>標籤</h4>
                     <div class="tags-container">
-                        <span v-for="tag in item.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
+                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" @click="emit('tagClick', tag)">{{ tag.name }}</span>
                         <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>
@@ -164,12 +145,6 @@ const formatDate = (unix: number | null) => {
                     <h4>路徑</h4>
                     <div class="path-box">{{ item.path }}</div>
                 </div>
-            </div>
-
-            <div class="action-buttons">
-                <button class="btn-open" @click="api.openFile(item.path)">
-                    📂 用預設程式開啟
-                </button>
             </div>
         </div>
 
@@ -312,6 +287,15 @@ const formatDate = (unix: number | null) => {
     border-radius: 100px;
     font-size: 0.85rem;
     border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.clickable-tag {
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.clickable-tag:hover {
+    background: rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.6);
 }
 
 .no-tags { font-style: italic; color: var(--text-tertiary); }

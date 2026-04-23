@@ -27,6 +27,11 @@ const handleTagSelect = (tagId: number | null) => {
   selectedTagId.value = tagId
 }
 
+const handleJumpToTag = (tagId: number) => {
+  selectedTagId.value = tagId
+  activePanel.value = 'tags'
+}
+
 const handleFileItemSelect = (item: Item) => {
   selectedFileItem.value = item
 }
@@ -84,6 +89,7 @@ onMounted(() => loadGlobalTags())
         @showDetail="handleFileItemSelect"
         @showFolderDetail="handleFolderItemSelect"
         @navigateDir="(path) => { selectedSourcePath = path; }"
+        @jumpToTag="handleJumpToTag"
       />
     </main>
 
