@@ -55,7 +55,7 @@ const goToPreview = async () => {
   isLoading.value = true;
   step.value = 3;
   try {
-    const validRules = rules.value.filter(r => r.pattern && r.tagName);
+    const validRules = rules.value.filter(r => r.pattern && (r.matchType === 'regex_capture' || r.tagName));
     previewItems.value = await api.previewTagScan(selectedPath.value, validRules);
   } catch (e) {
     errorMsg.value = String(e);
@@ -68,7 +68,7 @@ const confirm = async () => {
   isLoading.value = true;
   errorMsg.value = '';
   try {
-    const validRules = rules.value.filter(r => r.pattern && r.tagName);
+    const validRules = rules.value.filter(r => r.pattern && (r.matchType === 'regex_capture' || r.tagName));
     await api.saveTagRules(validRules);
     const result = await api.applyTagScan(selectedPath.value, validRules);
     alert(`完成！掃描：新增 ${result.added}、更新 ${result.updated}、移除 ${result.removed}\n標籤套用：${result.tagged} 次`);

@@ -24,7 +24,21 @@
       "Bash(npx vue-tsc *)",
       "Bash(echo \"\")",
       "Bash(cat)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(node ~/.claude/statusline.js)",
+      "Bash(node -e \"const f='src-tauri/tauri.conf.json'; const c=JSON.parse\\(require\\('fs'\\).readFileSync\\(f\\)\\); console.log\\(c.app.windows[0].title\\);\")",
+      "Bash(git *)",
+      "Bash(gh issue *)",
+      "Bash(where gh *)",
+      "Bash(winget list *)",
+      "Bash(gh auth *)",
+      "Bash(/c/Program Files/GitHub CLI/gh.exe auth *)",
+      "Bash(APPDATA=\"C:/Users/ml042/AppData/Roaming\" /c/Program Files/GitHub CLI/gh.exe auth *)",
+      "Bash(C:/Program Files/GitHub CLI/gh.exe auth *)",
+      "Bash(GH_CONFIG_DIR=\"/c/Users/ml042/AppData/Local/GitHub CLI\" C:/Program Files/GitHub CLI/gh.exe auth *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" auth status)",
+      "Bash(xargs grep *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" issue list --repo ml0427/Custom-tag-preview-software --state open)"
     ]
   }
 }

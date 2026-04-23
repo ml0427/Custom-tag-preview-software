@@ -74,6 +74,37 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
     Ok(true)
 }
 
+async fn process_folder(pool: &SqlitePool, path: &Path) -> Result<bool> {
+    let file_path = path.to_string_lossy().to_string();
+    let title = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let metadata = fs::metadata(path)?;
+    let mtime_unix = metadata.modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let import_at = Local::now().to_rfc3339();
+
+    let result = sqlx::query(
+        "INSERT OR IGNORE INTO items (path, item_type, name, file_modified_at, import_at)
+         VALUES (?, 'folder', ?, ?, ?)"
+    )
+    .bind(&file_path)
+    .bind(&title)
+    .bind(mtime_unix)
+    .bind(&import_at)
+    .execute(pool)
+    .await?;
+
+    let id = result.last_insert_rowid();
+    if id == 0 {
+        return Ok(false);
+    }
+
+    extract_and_apply_tags(pool, id, &title).await?;
+    Ok(true)
+}
+
 pub async fn incremental_scan_directory(
     pool: &SqlitePool,
     path_str: &str,
@@ -82,7 +113,7 @@ pub async fn incremental_scan_directory(
     fs::create_dir_all(cache_dir)?;
 
     let rows = sqlx::query(
-        "SELECT id, path, file_modified_at FROM items WHERE item_type = 'file'"
+        "SELECT id, path, file_modified_at FROM items"
     )
     .fetch_all(pool)
     .await?;
@@ -107,8 +138,8 @@ pub async fn incremental_scan_directory(
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| {
-            e.file_type().is_file()
-                && e.path().extension().map_or(false, |ext| ext == "zip")
+            // 索引所有資料夾，或者副檔名為 zip 的檔案
+            e.file_type().is_dir() || (e.file_type().is_file() && e.path().extension().map_or(false, |ext| ext == "zip"))
         })
         .collect();
 
@@ -117,7 +148,8 @@ pub async fn incremental_scan_directory(
         found_paths.insert(file_path.clone());
 
         let metadata = fs::metadata(entry.path())?;
-        let file_size = metadata.len() as i64;
+        let is_dir = entry.file_type().is_dir();
+        let file_size = if is_dir { None } else { Some(metadata.len() as i64) };
         let mtime_unix = metadata.modified()
             .ok()
             .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
@@ -137,8 +169,14 @@ pub async fn incremental_scan_directory(
                 updated += 1;
             }
         } else {
-            if process_zip_file(pool, entry.path(), cache_dir).await? {
-                added += 1;
+            if is_dir {
+                if process_folder(pool, entry.path()).await? {
+                    added += 1;
+                }
+            } else {
+                if process_zip_file(pool, entry.path(), cache_dir).await? {
+                    added += 1;
+                }
             }
         }
     }
@@ -163,7 +201,7 @@ pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str
     if let Some(caps) = re.captures(title) {
         let content = &caps[1];
         let segments: Vec<&str> = content
-            .split(|c| c == '(' || c == ')' || c == ',' || c == '（' || c == '）')
+            .split(|c| c == '(' || c == ')' || c == ',' || c == '（' || c == '）' || c == '、')
             .collect();
 
         for segment in segments {

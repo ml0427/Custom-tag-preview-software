@@ -22,6 +22,9 @@ const handleActivitySelect = (id: string) => {
   if (id === 'workspace' && activePanel.value !== 'workspace') {
     selectedTagId.value = null
   }
+  if (id === 'tags' && activePanel.value !== 'tags') {
+    selectedSourcePath.value = null
+  }
   activePanel.value = activePanel.value === id ? null : id
 }
 

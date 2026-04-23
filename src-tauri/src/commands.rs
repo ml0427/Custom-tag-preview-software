@@ -543,7 +543,7 @@ fn apply_rules_to_name(name: &str, rules: &[crate::models::TagRuleInput]) -> Vec
             if let Ok(re) = regex::Regex::new(&rule.pattern) {
                 if let Some(caps) = re.captures(name) {
                     if let Some(m) = caps.get(1) {
-                        for part in m.as_str().split(|c: char| ",(）（、".contains(c)) {
+                        for part in m.as_str().split(|c: char| ",()（）、".contains(c)) {
                             let t = part.trim().to_string();
                             if !t.is_empty() && !tags.contains(&t) {
                                 tags.push(t);
