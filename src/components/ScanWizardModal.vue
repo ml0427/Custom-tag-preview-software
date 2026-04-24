@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { api, type Source, type TagRuleInput, type ScanPreviewItem } from '../api';
 import { useToast } from '../composables/useToast';
 
@@ -12,7 +12,10 @@ const emit = defineEmits<{
 const { show: showToast } = useToast();
 const step = ref<1 | 2 | 3>(1);
 const sources = ref<Source[]>([]);
+const selectedSourceRoot = ref<string>('');
 const selectedPath = ref<string>('');
+const subdirs = ref<string[]>([]);
+const subdirsLoading = ref(false);
 const rules = ref<TagRuleInput[]>([]);
 const previewItems = ref<ScanPreviewItem[]>([]);
 const isLoading = ref(false);
@@ -26,18 +29,62 @@ const MATCH_TYPES = [
   { value: 'regex_capture', label: '正則擷取' },
 ];
 
+const getLabel = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
+
+const loadSubdirs = async (path: string) => {
+  subdirsLoading.value = true;
+  subdirs.value = [];
+  try {
+    const raw = await api.listSubdirs(path);
+    subdirs.value = raw.slice().sort((a, b) =>
+      getLabel(a).localeCompare(getLabel(b), 'zh-TW', { sensitivity: 'base' })
+    );
+  } catch {
+    subdirs.value = [];
+  } finally {
+    subdirsLoading.value = false;
+  }
+};
+
+const selectSource = async (path: string) => {
+  selectedSourceRoot.value = path;
+  selectedPath.value = path;
+  await loadSubdirs(path);
+};
+
+const navigateInto = async (path: string) => {
+  selectedPath.value = path;
+  await loadSubdirs(path);
+};
+
+const goUpBrowser = async () => {
+  if (!selectedPath.value || selectedPath.value === selectedSourceRoot.value) return;
+  const norm = selectedPath.value.replace(/\\/g, '/').replace(/\/$/, '');
+  const parent = norm.split('/').slice(0, -1).join('/') || selectedSourceRoot.value;
+  selectedPath.value = parent;
+  await loadSubdirs(parent);
+};
+
+const relPath = computed(() => {
+  if (!selectedPath.value || !selectedSourceRoot.value) return '';
+  const norm = selectedPath.value.replace(/\\/g, '/');
+  const root = selectedSourceRoot.value.replace(/\\/g, '/');
+  return norm === root ? '/（根目錄）' : norm.slice(root.length);
+});
+
 watch(() => props.visible, async (v) => {
   if (!v) return;
   step.value = 1;
   errorMsg.value = '';
   previewItems.value = [];
+  subdirs.value = [];
   try {
     const [srcs, savedRules] = await Promise.all([api.getSources(), api.getTagRules()]);
     sources.value = srcs;
-    selectedPath.value = srcs[0]?.path ?? '';
     rules.value = savedRules.length > 0
       ? savedRules.map(r => ({ name: r.name, matchType: r.matchType, pattern: r.pattern, tagName: r.tagName }))
       : [{ name: '', matchType: 'prefix', pattern: '', tagName: '' }];
+    if (srcs.length > 0) await selectSource(srcs[0].path);
   } catch (e) {
     errorMsg.value = String(e);
   }
@@ -104,19 +151,52 @@ const applyAndClose = async () => {
         <!-- Step 1: 選來源 -->
         <div v-if="step === 1" class="step-body">
           <h2>選擇掃描目錄</h2>
-          <p class="sub">從已登記的來源中選一個</p>
+          <p class="sub">選擇來源後可進入子目錄精準掃描</p>
           <div v-if="sources.length === 0" class="empty-hint">尚未新增任何來源目錄</div>
+
+          <!-- Source roots -->
           <div class="source-list">
             <label
               v-for="s in sources"
               :key="s.id"
-              :class="['source-item', { selected: selectedPath === s.path }]"
-              @click="selectedPath = s.path"
+              :class="['source-item', { selected: selectedSourceRoot === s.path }]"
+              @click="selectSource(s.path)"
             >
-              <span class="source-radio">{{ selectedPath === s.path ? '◉' : '○' }}</span>
+              <span class="source-radio">{{ selectedSourceRoot === s.path ? '◉' : '○' }}</span>
               <span class="source-path">{{ s.path }}</span>
             </label>
           </div>
+
+          <!-- Subdirectory browser -->
+          <div v-if="selectedSourceRoot" class="subdir-browser">
+            <div class="subdir-nav-bar">
+              <button
+                class="nav-up-btn"
+                :disabled="selectedPath === selectedSourceRoot"
+                @click="goUpBrowser"
+                title="上一層"
+              >↑</button>
+              <span class="current-rel-path" :title="selectedPath">{{ relPath }}</span>
+            </div>
+            <div v-if="subdirsLoading" class="empty-hint small">載入子目錄中...</div>
+            <div v-else-if="subdirs.length === 0" class="empty-hint small">（無子目錄）</div>
+            <div v-else class="subdir-list">
+              <button
+                v-for="sub in subdirs"
+                :key="sub"
+                :class="['subdir-item', { 'is-selected': selectedPath === sub }]"
+                @click="navigateInto(sub)"
+              >
+                <span class="subdir-icon">📁</span>
+                <span class="subdir-name">{{ getLabel(sub) }}</span>
+                <span class="subdir-arrow">›</span>
+              </button>
+            </div>
+            <div v-if="selectedPath !== selectedSourceRoot" class="scope-badge">
+              掃描範圍：{{ getLabel(selectedPath) }}
+            </div>
+          </div>
+
           <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
           <div class="footer-btns">
             <button class="btn-ghost" @click="emit('close')">取消</button>
@@ -288,6 +368,90 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 .source-item.selected { border-color: var(--accent-color); background: var(--accent-color-transparent); }
 .source-radio { font-size: 1.1rem; color: var(--accent-color); }
 .source-path { font-family: monospace; font-size: 0.9rem; color: var(--text-primary); word-break: break-all; }
+
+/* Subdirectory browser */
+.subdir-browser {
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.subdir-nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.nav-up-btn {
+  background: rgba(255,255,255,0.06);
+  border: none;
+  color: var(--text-secondary);
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-up-btn:disabled { opacity: 0.3; cursor: default; }
+.nav-up-btn:not(:disabled):hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+
+.current-rel-path {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.subdir-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.subdir-list::-webkit-scrollbar { width: 4px; }
+.subdir-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+.subdir-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.subdir-item:last-child { border-bottom: none; }
+.subdir-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+.subdir-item.is-selected { background: var(--accent-color-transparent); color: var(--accent-hover); }
+.subdir-icon { flex-shrink: 0; }
+.subdir-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subdir-arrow { flex-shrink: 0; opacity: 0.35; font-size: 1rem; }
+
+.scope-badge {
+  padding: 5px 12px;
+  background: rgba(47,129,247,0.08);
+  border-top: 1px solid rgba(47,129,247,0.15);
+  font-size: 0.78rem;
+  color: var(--accent-hover);
+}
+
+.empty-hint.small { padding: 10px 12px; font-size: 0.82rem; text-align: left; }
 
 /* Rules table */
 .rules-table { display: flex; flex-direction: column; gap: 6px; }
