@@ -198,9 +198,10 @@ defineExpose({ refresh: () => loadAll() });
 
 const parentPath = computed(() => {
   if (!props.sourcePath) return null;
-  const norm = props.sourcePath.replace(/\\/g, '/').replace(/\/$/, '');
-  const parts = norm.split('/');
-  return parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+  // Preserve original separator — normalizing to '/' breaks DB LIKE queries on Windows
+  const p = props.sourcePath.replace(/[/\\]+$/, '');
+  const lastSep = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  return lastSep > 0 ? p.slice(0, lastSep) : null;
 });
 
 const currentDirName = computed(() => {

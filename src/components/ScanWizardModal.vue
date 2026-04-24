@@ -59,8 +59,9 @@ const navigateInto = async (path: string) => {
 
 const goUpBrowser = async () => {
   if (!selectedPath.value || selectedPath.value === selectedSourceRoot.value) return;
-  const norm = selectedPath.value.replace(/\\/g, '/').replace(/\/$/, '');
-  const parent = norm.split('/').slice(0, -1).join('/') || selectedSourceRoot.value;
+  const p = selectedPath.value.replace(/[/\\]+$/, '');
+  const lastSep = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  const parent = lastSep > 0 ? p.slice(0, lastSep) : selectedSourceRoot.value;
   selectedPath.value = parent;
   await loadSubdirs(parent);
 };
