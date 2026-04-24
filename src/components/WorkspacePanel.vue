@@ -154,7 +154,7 @@ const initWorkspace = async () => {
 };
 
 const handleSelectPath = (path: string) => {
-  emit('select', props.selectedPath === path ? null : path);
+  emit('select', path);
 };
 
 const handleAddSource = async () => {
