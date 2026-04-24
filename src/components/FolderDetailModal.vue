@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import { api, type Item, type Tag } from '../api';
 import { useTagManager } from '../composables/useTagManager';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{
   item: Item | null;
@@ -14,6 +15,7 @@ const emit = defineEmits<{
   (e: 'deleted'): void;
 }>();
 
+const { show: showToast, confirm: confirmDialog } = useToast();
 const isVisible = computed(() => props.item !== null);
 const editName = ref('');
 const editNote = ref('');
@@ -46,7 +48,7 @@ const saveChanges = async () => {
     await api.updateFolder(props.item.id, editName.value.trim(), editType.value, editNote.value.trim());
     emit('updated');
   } catch (e) {
-    alert('儲存失敗: ' + String(e));
+    showToast('儲存失敗: ' + String(e), 'error');
   } finally {
     isSaving.value = false;
   }
@@ -54,13 +56,13 @@ const saveChanges = async () => {
 
 const handleDelete = async () => {
   if (!props.item) return;
-  if (!confirm(`確定刪除「${props.item.name}」？`)) return;
+  if (!await confirmDialog(`確定刪除「${props.item.name}」？`)) return;
   try {
     await api.deleteFolder(props.item.id);
     emit('deleted');
     emit('close');
   } catch (e) {
-    alert('刪除失敗: ' + String(e));
+    showToast('刪除失敗: ' + String(e), 'error');
   }
 };
 

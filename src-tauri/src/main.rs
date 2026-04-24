@@ -84,6 +84,7 @@ fn main() {
             commands::sync_sources,
             // Tags
             commands::get_tags,
+            commands::get_tag_counts,
             commands::create_tag,
             commands::delete_tag,
             commands::rename_tag,

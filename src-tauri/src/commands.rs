@@ -531,6 +531,25 @@ pub async fn search_tags(query: String, pool: State<'_, SqlitePool>) -> Result<V
     .map_err(|e| e.to_string())
 }
 
+// ── Tag counts ────────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct TagCount {
+    pub id: i64,
+    pub count: i64,
+}
+
+#[tauri::command]
+pub async fn get_tag_counts(pool: State<'_, SqlitePool>) -> Result<Vec<TagCount>, String> {
+    let rows = sqlx::query(
+        "SELECT tag_id AS id, COUNT(DISTINCT item_id) AS count FROM item_tags GROUP BY tag_id"
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows.iter().map(|r| TagCount { id: r.get("id"), count: r.get("count") }).collect())
+}
+
 // ── Tag rules & scan wizard ───────────────────────────────────────────────────
 
 fn apply_rules_to_name(name: &str, rules: &[crate::models::TagRuleInput]) -> Vec<String> {

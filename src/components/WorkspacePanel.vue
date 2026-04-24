@@ -4,6 +4,7 @@ import { api, type Source, type Folder, type Tag } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import DirTreeNode from './DirTreeNode.vue';
 import { useTagManager } from '../composables/useTagManager';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
@@ -11,6 +12,8 @@ const emit = defineEmits<{
   (e: 'folderCreated'): void;
   (e: 'openScanWizard'): void;
 }>();
+
+const { show: showToast, confirm: confirmDialog } = useToast();
 
 // 右鍵選單
 const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
@@ -103,7 +106,7 @@ const submitFolderModal = async () => {
     emit('folderCreated');
     modalPhase.value = 'tags';
   } catch (e) {
-    alert('操作失敗: ' + String(e));
+    showToast('操作失敗: ' + String(e), 'error');
   }
 };
 
@@ -148,29 +151,29 @@ const handleAddSource = async () => {
     await api.addSource(path);
     await loadSources();
   } catch (e) {
-    alert('新增來源失敗: ' + String(e));
+    showToast('新增來源失敗: ' + String(e), 'error');
   }
 };
 
 const handleRemoveSource = async (source: Source, e: MouseEvent) => {
   e.stopPropagation();
-  if (!confirm(`確定移除「${source.path}」？\n（不影響已掃描的漫畫資料）`)) return;
+  if (!await confirmDialog(`確定移除「${source.path}」？\n（不影響已掃描的漫畫資料）`)) return;
   await api.removeSource(source.id);
   if (props.selectedPath?.startsWith(source.path)) emit('select', null);
   await loadSources();
 };
 
 const handleSyncSources = async () => {
-  if (sources.value.length === 0) { alert('尚未新增任何來源目錄'); return; }
+  if (sources.value.length === 0) { showToast('尚未新增任何來源目錄', 'info'); return; }
   isSyncing.value = true;
   try {
     const res = await api.syncSources();
     const errMsg = res.errors.length ? `\n\n失敗：${res.errors.join('\n')}` : '';
-    alert(`同步完成（${res.sourceCount} 個來源）\n新增 ${res.added}、更新 ${res.updated}、移除 ${res.removed} 本${errMsg}`);
+    showToast(`同步完成（${res.sourceCount} 個來源）　新增 ${res.added}、更新 ${res.updated}、移除 ${res.removed} 本${errMsg}`, 'success');
     await loadSources();
     emit('folderCreated'); // 通知父元件刷新 gallery，不需重載整頁
   } catch (e) {
-    alert('同步失敗: ' + String(e));
+    showToast('同步失敗: ' + String(e), 'error');
   } finally {
     isSyncing.value = false;
   }

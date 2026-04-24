@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { api, type Source, type TagRuleInput, type ScanPreviewItem } from '../api';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{
@@ -8,6 +9,7 @@ const emit = defineEmits<{
   (e: 'completed'): void;
 }>();
 
+const { show: showToast } = useToast();
 const step = ref<1 | 2 | 3>(1);
 const sources = ref<Source[]>([]);
 const selectedPath = ref<string>('');
@@ -64,14 +66,14 @@ const goToPreview = async () => {
   }
 };
 
-const confirm = async () => {
+const applyAndClose = async () => {
   isLoading.value = true;
   errorMsg.value = '';
   try {
     const validRules = rules.value.filter(r => r.pattern && (r.matchType === 'regex_capture' || r.tagName));
     await api.saveTagRules(validRules);
     const result = await api.applyTagScan(selectedPath.value, validRules);
-    alert(`完成！掃描：新增 ${result.added}、更新 ${result.updated}、移除 ${result.removed}\n標籤套用：${result.tagged} 次`);
+    showToast(`完成！新增 ${result.added}、更新 ${result.updated}、移除 ${result.removed}，標籤套用 ${result.tagged} 次`, 'success', 5000);
     emit('completed');
     emit('close');
   } catch (e) {
@@ -181,7 +183,7 @@ const confirm = async () => {
           <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
           <div class="footer-btns">
             <button class="btn-ghost" :disabled="isLoading" @click="step = 2">← 上一步</button>
-            <button class="btn-confirm" :disabled="isLoading || previewItems.length === 0" @click="confirm">
+            <button class="btn-confirm" :disabled="isLoading || previewItems.length === 0" @click="applyAndClose">
               {{ isLoading ? '處理中...' : '確認存入' }}
             </button>
           </div>

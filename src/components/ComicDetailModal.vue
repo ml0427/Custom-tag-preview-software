@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { api, type Item, type Tag } from '../api';
 import { useTagManager } from '../composables/useTagManager';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{
   item: Item | null;
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (e: 'updated'): void;
 }>();
 
+const { show: showToast } = useToast();
 const isVisible = computed(() => props.item !== null);
 const isLoadingImages = ref(false);
 const zipImages = ref<string[]>([]);
@@ -51,7 +53,7 @@ const loadImages = async () => {
     try {
         zipImages.value = await api.getItemImages(props.item.id);
     } catch {
-        alert('Failed to load images from ZIP');
+        showToast('圖片載入失敗', 'error');
     } finally {
         isLoadingImages.value = false;
     }
@@ -62,11 +64,11 @@ const handleSetCover = async (imagePath: string) => {
     isSettingCover.value = true;
     try {
         await api.setItemCover(props.item.id, imagePath);
-        alert('Cover updated successfully!');
+        showToast('封面已更新', 'success');
         await loadCover();
         emit('updated');
     } catch {
-        alert('Failed to update cover');
+        showToast('封面更新失敗', 'error');
     } finally {
         isSettingCover.value = false;
     }

@@ -2,13 +2,16 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { api, type Tag } from '../api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{ selectedTagId: number | null }>();
 const emit = defineEmits<{ (e: 'select', tagId: number | null): void }>();
 
+const { show: showToast, confirm: confirmDialog } = useToast();
 const searchQuery = ref('');
 
 const tags = ref<Tag[]>([]);
+const tagCounts = ref<Map<number, number>>(new Map());
 
 // ─── 標籤操作 ────────────────────────────────────────────────────────────────
 const editingTagId = ref<number | null>(null);
@@ -28,13 +31,17 @@ const submitAddTag = async () => {
   try {
     await api.createTag(name);
     await loadTags();
-  } catch { alert('建立標籤失敗'); }
+  } catch { showToast('建立標籤失敗', 'error'); }
   finally { cancelAddTag(); }
 };
 
 const cancelAddTag = () => { isAddingTag.value = false; newTagName.value = ''; };
 
-const loadTags = async () => { tags.value = await api.getTags(); };
+const loadTags = async () => {
+  const [tagList, counts] = await Promise.all([api.getTags(), api.getTagCounts()]);
+  tags.value = tagList;
+  tagCounts.value = new Map(counts.map(c => [c.id, c.count]));
+};
 
 const handleSelect = (id: number | null) => emit('select', id);
 
@@ -56,17 +63,17 @@ const submitRenameTag = async (tag: Tag) => {
   try {
     await api.renameTag(tag.id, trimmed);
     await loadTags();
-  } catch { alert('重新命名失敗'); }
+  } catch { showToast('重新命名失敗', 'error'); }
   finally { cancelTagEdit(); }
 };
 
 const handleDeleteTag = async (tag: Tag) => {
-  if (!confirm(`確定刪除標籤「${tag.name}」？`)) return;
+  if (!await confirmDialog(`確定刪除標籤「${tag.name}」？`)) return;
   try {
     await api.deleteTag(tag.id);
     if (props.selectedTagId === tag.id) emit('select', null);
     await loadTags();
-  } catch { alert('刪除標籤失敗'); }
+  } catch { showToast('刪除標籤失敗', 'error'); }
 };
 
 const cancelTagEdit = () => {
@@ -86,7 +93,7 @@ onMounted(async () => {
     const name = prompt('請輸入新標籤名稱：');
     if (!name?.trim()) return;
     try { await api.createTag(name.trim()); await loadTags(); }
-    catch { alert('建立標籤失敗'); }
+    catch { showToast('建立標籤失敗', 'error'); }
   }));
 });
 
@@ -131,7 +138,10 @@ onUnmounted(() => {
         </template>
 
         <template v-else>
-          <span class="tag-name" @click="handleSelect(tag.id)"># {{ tag.name }}</span>
+          <span class="tag-name" @click="handleSelect(tag.id)">
+            # {{ tag.name }}
+            <span v-if="tagCounts.get(tag.id)" class="tag-count">({{ tagCounts.get(tag.id) }})</span>
+          </span>
           <div class="tag-actions">
             <button class="icon-btn" title="重新命名" @click.stop="startRenameTag(tag)">✏️</button>
             <button class="icon-btn danger" title="刪除" @click.stop="handleDeleteTag(tag)">🗑️</button>
@@ -254,7 +264,8 @@ onUnmounted(() => {
   padding-left: 7px;
 }
 
-.tag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+.tag-count { font-size: 0.78rem; color: var(--text-tertiary); flex-shrink: 0; }
 
 .tag-actions { display: none; gap: 2px; flex-shrink: 0; }
 .tag-list > li:hover .tag-actions { display: flex; }

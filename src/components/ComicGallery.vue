@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   (e: 'jumpToTag', tagId: number): void;
 }>();
 
+const { show: showToast } = useToast();
 const itemsData = ref<Item[]>([]);
 const fileItems = ref<FileItem[]>([]);
 const isLoading = ref(false);
@@ -27,8 +29,9 @@ const itemByPath = computed(() =>
 );
 
 const filteredFileItems = computed(() => {
-  // Global tag mode (no sourcePath, has tagId): convert items to FileItem format
-  const base: FileItem[] = (props.selectedTagId != null && !props.sourcePath)
+  // Tag mode (any): use backend-filtered itemsData converted to FileItem
+  // No-tag source mode: use raw filesystem listing
+  const base: FileItem[] = (props.selectedTagId != null)
     ? itemsData.value.map(item => ({
         name: item.name,
         path: item.path,
@@ -46,15 +49,6 @@ const filteredFileItems = computed(() => {
   let items = base;
   const q = gallerySearch.value.trim().toLowerCase();
   if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
-
-  // Source mode: client-side tag filter
-  if (props.selectedTagId != null && props.sourcePath) {
-    const tid = props.selectedTagId;
-    items = items.filter(item => {
-      return itemByPath.value.get(item.path)?.tags.some(t => t.id === tid) ?? false;
-    });
-  }
-
   return items;
 });
 
@@ -94,7 +88,7 @@ const handleContextRename = async (fileItem: FileItem, newName: string) => {
     const updated = await api.renameItem(dbItem.id, newName);
     handleRenamed(updated);
   } catch (e: any) {
-    alert('重新命名失敗：' + (e?.message ?? e));
+    showToast('重新命名失敗：' + (e?.message ?? e), 'error');
   }
 };
 
@@ -109,9 +103,7 @@ const loadFileItems = async () => {
 
 const loadItemsBackground = async () => {
   try {
-    const tagId = (!props.sourcePath && props.selectedTagId != null)
-      ? props.selectedTagId
-      : undefined;
+    const tagId = props.selectedTagId ?? undefined;
     const res = await api.getItems(0, 9999, tagId, 'importAt', 'desc', props.sourcePath ?? undefined);
     itemsData.value = res.content;
   } catch {
@@ -175,13 +167,11 @@ watch(() => props.sourcePath, () => {
 });
 
 watch(() => props.selectedTagId, async () => {
-  if (!props.sourcePath) {
-    isLoading.value = true;
-    itemsData.value = [];
-    try { await loadItemsBackground(); }
-    catch (e) { console.error(e); }
-    finally { isLoading.value = false; }
-  }
+  isLoading.value = true;
+  itemsData.value = [];
+  try { await loadItemsBackground(); }
+  catch (e) { console.error(e); }
+  finally { isLoading.value = false; }
 });
 
 onMounted(() => loadAll());

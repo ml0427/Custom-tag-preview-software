@@ -8,6 +8,7 @@ import ComicGallery from './components/ComicGallery.vue'
 import ComicDetailModal from './components/ComicDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
 import ScanWizardModal from './components/ScanWizardModal.vue'
+import ToastContainer from './components/ToastContainer.vue'
 
 const activePanel = ref<string | null>('workspace')
 const selectedTagId = ref<number | null>(null)
@@ -119,6 +120,8 @@ onMounted(() => loadGlobalTags())
       @close="showScanWizard = false"
       @completed="galleryRef?.refresh(); loadGlobalTags()"
     />
+
+    <ToastContainer />
   </div>
 </template>
 

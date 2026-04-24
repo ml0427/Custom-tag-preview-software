@@ -68,6 +68,11 @@ export interface Page<T> {
     size: number;
 }
 
+export interface TagCount {
+    id: number;
+    count: number;
+}
+
 export interface TagRule {
     id: number;
     name: string;
@@ -155,6 +160,10 @@ export const api = {
 
     async searchTags(query: string): Promise<Tag[]> {
         return await invoke<Tag[]>('search_tags', { query });
+    },
+
+    async getTagCounts(): Promise<TagCount[]> {
+        return await invoke<TagCount[]>('get_tag_counts');
     },
 
     // ── Scan ──────────────────────────────────────────────────────────────────
