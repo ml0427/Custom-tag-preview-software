@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, watch } from 'vue';
 import { api, type Folder } from '../api';
 
 const props = defineProps<{
@@ -53,8 +53,19 @@ const toggle = async () => {
   }
 };
 
+// Auto-expand when selectedPath is a descendant of this node
+watch(() => props.selectedPath, async (newPath) => {
+  if (!newPath || expanded.value) return;
+  const selfNorm = props.path.replace(/\\/g, '/');
+  const newNorm = newPath.replace(/\\/g, '/');
+  if (newNorm.startsWith(selfNorm + '/')) {
+    await toggle();
+  }
+}, { immediate: true });
+
 const handleClick = () => {
   emit('select', props.path);
+  if (!expanded.value) void toggle();
 };
 
 const onContextMenu = (e: MouseEvent) => {
