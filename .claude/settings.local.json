@@ -23,7 +23,8 @@
       "Bash(cargo build *)",
       "Bash(npx vue-tsc *)",
       "Bash(echo \"\")",
-      "Bash(cat)"
+      "Bash(cat)",
+      "WebSearch"
     ]
   }
 }
