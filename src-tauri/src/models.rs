@@ -87,6 +87,26 @@ pub struct TagRuleInput {
     pub tag_name: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemType {
+    pub id: i64,
+    pub name: String,
+    pub icon: String,
+    pub display_name: String,
+    pub is_builtin: bool,
+    pub extensions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemTypeInput {
+    pub name: String,
+    pub icon: String,
+    pub display_name: String,
+    pub extensions: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanPreviewItem {

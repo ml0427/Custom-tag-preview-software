@@ -95,6 +95,22 @@ export interface ScanPreviewItem {
     proposedTags: string[];
 }
 
+export interface ItemType {
+    id: number;
+    name: string;
+    icon: string;
+    displayName: string;
+    isBuiltin: boolean;
+    extensions: string[];
+}
+
+export interface ItemTypeInput {
+    name: string;
+    icon: string;
+    displayName: string;
+    extensions: string[];
+}
+
 export const api = {
     // ── Items (primary API) ───────────────────────────────────────────────────
     async getItems(
@@ -254,5 +270,22 @@ export const api = {
     },
     async applyTagScan(scopePath: string, rules: TagRuleInput[]): Promise<{ added: number; updated: number; removed: number; tagged: number }> {
         return await invoke('apply_tag_scan', { scopePath, rules });
+    },
+
+    // ── Item Types ────────────────────────────────────────────────────────────
+    async getItemTypes(): Promise<ItemType[]> {
+        return await invoke<ItemType[]>('get_item_types');
+    },
+
+    async createItemType(input: ItemTypeInput): Promise<ItemType> {
+        return await invoke<ItemType>('create_item_type', { input });
+    },
+
+    async updateItemType(id: number, input: ItemTypeInput): Promise<ItemType> {
+        return await invoke<ItemType>('update_item_type', { id, input });
+    },
+
+    async deleteItemType(id: number): Promise<void> {
+        await invoke('delete_item_type', { id });
     },
 }

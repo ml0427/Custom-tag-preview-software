@@ -108,6 +108,11 @@ fn main() {
             commands::untrack_item,
             commands::add_tag_to_folder,
             commands::remove_tag_from_folder,
+            // Item types
+            commands::get_item_types,
+            commands::create_item_type,
+            commands::update_item_type,
+            commands::delete_item_type,
             // File system
             commands::open_file,
             commands::list_subdirs,

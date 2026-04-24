@@ -2,6 +2,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
+import { useItemTypes } from '../composables/useItemTypes';
 
 const props = defineProps<{
   items: FileItem[];
@@ -55,9 +56,12 @@ const cancelRename = () => { editingPath.value = null; };
 onMounted(() => document.addEventListener('click', hideContextMenu));
 onUnmounted(() => document.removeEventListener('click', hideContextMenu));
 
+const { getTypeConfig } = useItemTypes();
+
 const getFileIcon = (item: FileItem): string => {
   if (item.isDir) {
-    return props.itemByPath.get(item.path)?.folderType === 'comic' ? '📚' : '📁';
+    const ft = props.itemByPath.get(item.path)?.folderType;
+    return getTypeConfig(ft).icon;
   }
   const ext = item.extension?.toLowerCase() ?? '';
   if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return '🖼️';
@@ -73,7 +77,7 @@ const getFileIcon = (item: FileItem): string => {
 const getItemType = (item: FileItem): string => {
   if (item.isDir) {
     const dbItem = props.itemByPath.get(item.path);
-    if (dbItem) return dbItem.folderType === 'comic' ? '漫畫' : '一般';
+    if (dbItem) return getTypeConfig(dbItem.folderType).displayName;
     return '目錄';
   }
   return item.extension?.toUpperCase() ?? '—';

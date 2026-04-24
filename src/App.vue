@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { api, type Item, type Folder, type Tag } from './api'
+import { useItemTypes } from './composables/useItemTypes'
 import ActivityBar from './components/ActivityBar.vue'
 import TagSidebar from './components/TagSidebar.vue'
 import WorkspacePanel from './components/WorkspacePanel.vue'
@@ -64,7 +65,12 @@ const loadGlobalTags = async () => {
   allTags.value = await api.getTags()
 }
 
-onMounted(() => loadGlobalTags())
+const { load: loadItemTypes } = useItemTypes()
+
+onMounted(() => {
+  loadGlobalTags()
+  loadItemTypes()
+})
 </script>
 
 <template>

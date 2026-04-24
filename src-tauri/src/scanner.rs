@@ -16,11 +16,23 @@ pub async fn scan_directory(pool: &SqlitePool, path_str: &str, cache_dir: &Path)
     }
     fs::create_dir_all(cache_dir)?;
 
+    let scannable_exts: HashSet<String> = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT extension FROM type_extensions"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .collect();
+
     let mut added_count = 0;
     let entries = WalkDir::new(path_str)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file() && e.path().extension().map_or(false, |ext| ext == "zip"));
+        .filter(|e| e.file_type().is_file() && e.path().extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
+            .unwrap_or(false));
 
     for entry in entries {
         if process_zip_file(pool, entry.path(), cache_dir).await? {
@@ -134,12 +146,23 @@ pub async fn incremental_scan_directory(
     let mut added = 0i32;
     let mut updated = 0i32;
 
+    let scannable_exts: HashSet<String> = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT extension FROM type_extensions"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .collect();
+
     let entries: Vec<_> = WalkDir::new(path_str)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| {
-            // 索引所有資料夾，或者副檔名為 zip 的檔案
-            e.file_type().is_dir() || (e.file_type().is_file() && e.path().extension().map_or(false, |ext| ext == "zip"))
+            e.file_type().is_dir() || (e.file_type().is_file() && e.path().extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
+                .unwrap_or(false))
         })
         .collect();
 

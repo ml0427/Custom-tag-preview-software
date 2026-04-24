@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { type Comic, type Folder } from '../api';
 import { formatSize, formatDate } from '../utils/format';
+import { useItemTypes } from '../composables/useItemTypes';
+
+const { getTypeConfig } = useItemTypes();
 
 const props = defineProps<{
   comics: Comic[];
@@ -92,13 +95,13 @@ const sortIcon = (col: string): string => {
       >
         <td class="col-name">
           <div class="file-info">
-            <span class="file-icon">{{ folder.folderType === 'comic' ? '📚' : '📁' }}</span>
+            <span class="file-icon">{{ getTypeConfig(folder.folderType).icon }}</span>
             <span class="file-title" :title="folder.path">{{ folder.name }}</span>
           </div>
         </td>
         <td class="col-size">—</td>
         <td class="col-date">{{ folder.note || '—' }}</td>
-        <td class="col-type">{{ folder.folderType === 'comic' ? '漫畫' : '一般' }}</td>
+        <td class="col-type">{{ getTypeConfig(folder.folderType).displayName }}</td>
         <td class="col-tags">
           <div class="tag-chips">
             <span v-for="tag in folder.tags.slice(0, 3)" :key="tag.id" class="mini-tag">{{ tag.name }}</span>

@@ -117,6 +117,39 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
         );"
     ).execute(&pool).await?;
 
+    // ── Custom item types ────────────────────────────────────────────────────
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS item_types (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            name         TEXT NOT NULL UNIQUE,
+            icon         TEXT NOT NULL DEFAULT '📁',
+            display_name TEXT NOT NULL,
+            is_builtin   INTEGER NOT NULL DEFAULT 0
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS type_extensions (
+            type_id   INTEGER NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
+            extension TEXT NOT NULL,
+            PRIMARY KEY (type_id, extension)
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO item_types (name, icon, display_name, is_builtin)
+         VALUES ('default','📁','一般資料夾',1), ('comic','📚','漫畫',1)"
+    ).execute(&pool).await?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO type_extensions (type_id, extension)
+         SELECT id,'zip' FROM item_types WHERE name='comic'
+         UNION ALL SELECT id,'rar' FROM item_types WHERE name='comic'
+         UNION ALL SELECT id,'7z'  FROM item_types WHERE name='comic'
+         UNION ALL SELECT id,'cbz' FROM item_types WHERE name='comic'
+         UNION ALL SELECT id,'cbr' FROM item_types WHERE name='comic'"
+    ).execute(&pool).await?;
+
     // ── One-time migration: comics + folders → items ─────────────────────────
     // Idempotent via UNIQUE(path) + INSERT OR IGNORE
     sqlx::query(

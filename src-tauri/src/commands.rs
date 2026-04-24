@@ -1,6 +1,6 @@
 use tauri::{AppHandle, Manager, State};
 use sqlx::{SqlitePool, Row};
-use crate::models::{Item, Tag, Page, Source, Folder};
+use crate::models::{Item, Tag, Page, Source, Folder, ItemType, ItemTypeInput};
 use crate::db;
 use crate::scanner;
 use crate::zip_utils;
@@ -858,4 +858,168 @@ pub async fn get_image_base64_by_path(path: String) -> Result<String, String> {
         _      => "image/jpeg",
     };
     Ok(format!("data:{};base64,{}", mime, general_purpose::STANDARD.encode(&bytes)))
+}
+
+// ── Item Type management ──────────────────────────────────────────────────────
+
+async fn fetch_type_extensions(pool: &SqlitePool, type_id: i64) -> Result<Vec<String>, String> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT extension FROM type_extensions WHERE type_id = ? ORDER BY extension ASC"
+    )
+    .bind(type_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_item_types(pool: State<'_, SqlitePool>) -> Result<Vec<ItemType>, String> {
+    let rows = sqlx::query(
+        "SELECT id, name, icon, display_name, is_builtin FROM item_types ORDER BY id ASC"
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut types = Vec::new();
+    for row in rows {
+        let id: i64 = row.get("id");
+        let is_builtin_int: i64 = row.get("is_builtin");
+        let extensions = fetch_type_extensions(&pool, id).await?;
+        types.push(ItemType {
+            id,
+            name: row.get("name"),
+            icon: row.get("icon"),
+            display_name: row.get("display_name"),
+            is_builtin: is_builtin_int != 0,
+            extensions,
+        });
+    }
+    Ok(types)
+}
+
+#[tauri::command]
+pub async fn create_item_type(
+    input: ItemTypeInput,
+    pool: State<'_, SqlitePool>,
+) -> Result<ItemType, String> {
+    let id = sqlx::query(
+        "INSERT INTO item_types (name, icon, display_name) VALUES (?, ?, ?)"
+    )
+    .bind(&input.name)
+    .bind(&input.icon)
+    .bind(&input.display_name)
+    .execute(&*pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .last_insert_rowid();
+
+    for ext in &input.extensions {
+        sqlx::query(
+            "INSERT OR IGNORE INTO type_extensions (type_id, extension) VALUES (?, ?)"
+        )
+        .bind(id)
+        .bind(ext.to_lowercase())
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(ItemType {
+        id,
+        name: input.name,
+        icon: input.icon,
+        display_name: input.display_name,
+        is_builtin: false,
+        extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
+    })
+}
+
+#[tauri::command]
+pub async fn update_item_type(
+    id: i64,
+    input: ItemTypeInput,
+    pool: State<'_, SqlitePool>,
+) -> Result<ItemType, String> {
+    let row = sqlx::query("SELECT name, is_builtin FROM item_types WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "找不到指定類型".to_string())?;
+
+    let existing_name: String = row.get("name");
+    let is_builtin_int: i64 = row.get("is_builtin");
+
+    if is_builtin_int != 0 && input.name != existing_name {
+        return Err("內建類型的識別名稱不可修改".to_string());
+    }
+
+    sqlx::query(
+        "UPDATE item_types SET name = ?, icon = ?, display_name = ? WHERE id = ?"
+    )
+    .bind(&input.name)
+    .bind(&input.icon)
+    .bind(&input.display_name)
+    .bind(id)
+    .execute(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    sqlx::query("DELETE FROM type_extensions WHERE type_id = ?")
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    for ext in &input.extensions {
+        sqlx::query(
+            "INSERT OR IGNORE INTO type_extensions (type_id, extension) VALUES (?, ?)"
+        )
+        .bind(id)
+        .bind(ext.to_lowercase())
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(ItemType {
+        id,
+        name: input.name,
+        icon: input.icon,
+        display_name: input.display_name,
+        is_builtin: is_builtin_int != 0,
+        extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
+    })
+}
+
+#[tauri::command]
+pub async fn delete_item_type(id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    let row = sqlx::query("SELECT name, is_builtin FROM item_types WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "找不到指定類型".to_string())?;
+
+    let is_builtin_int: i64 = row.get("is_builtin");
+    if is_builtin_int != 0 {
+        return Err("內建類型不可刪除".to_string());
+    }
+
+    let type_name: String = row.get("name");
+
+    sqlx::query("UPDATE items SET folder_type = 'default' WHERE folder_type = ?")
+        .bind(&type_name)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query("DELETE FROM item_types WHERE id = ?")
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }

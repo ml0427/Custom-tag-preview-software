@@ -3,6 +3,7 @@ import { ref, watch, computed } from 'vue';
 import { api, type Item, type Tag } from '../api';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
+import { useItemTypes } from '../composables/useItemTypes';
 
 const props = defineProps<{
   item: Item | null;
@@ -16,6 +17,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
+const { itemTypes, getTypeConfig } = useItemTypes();
 const isVisible = computed(() => props.item !== null);
 const editName = ref('');
 const editNote = ref('');
@@ -80,7 +82,7 @@ const openFolder = async () => {
       <div v-if="item" class="modal-body">
         <div class="modal-left">
           <div class="folder-icon-area">
-            <span class="big-icon">{{ item.folderType === 'comic' ? '📚' : '📁' }}</span>
+            <span class="big-icon">{{ getTypeConfig(item.folderType).icon }}</span>
           </div>
 
           <div class="info-block">
@@ -91,8 +93,9 @@ const openFolder = async () => {
           <div class="info-block">
             <label>類型</label>
             <select v-model="editType" class="edit-input" @change="saveChanges">
-              <option value="default">📁 一般資料夾</option>
-              <option value="comic">📚 漫畫</option>
+              <option v-for="t in itemTypes" :key="t.name" :value="t.name">
+                {{ t.icon }} {{ t.displayName }}
+              </option>
             </select>
           </div>
 

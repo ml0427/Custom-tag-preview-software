@@ -3,8 +3,10 @@ import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
 import { api, type Source, type Folder, type Tag } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import DirTreeNode from './DirTreeNode.vue';
+import TypeManageModal from './TypeManageModal.vue';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
+import { useItemTypes } from '../composables/useItemTypes';
 
 const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
@@ -14,6 +16,8 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
+const { itemTypes, load: loadItemTypes } = useItemTypes();
+const showTypeManage = ref(false);
 
 // 右鍵選單
 const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
@@ -194,6 +198,7 @@ const handleSyncSources = async () => {
 
 onMounted(() => {
   initWorkspace();
+  loadItemTypes();
   document.addEventListener('click', closeCtxMenu);
 });
 </script>
@@ -260,10 +265,14 @@ onMounted(() => {
           </div>
           <div class="folder-field">
             <label>類型</label>
-            <select v-model="editFolder.folderType" class="folder-input">
-              <option value="default">📁 一般資料夾</option>
-              <option value="comic">📚 漫畫</option>
-            </select>
+            <div class="type-select-row">
+              <select v-model="editFolder.folderType" class="folder-input">
+                <option v-for="t in itemTypes" :key="t.name" :value="t.name">
+                  {{ t.icon }} {{ t.displayName }}
+                </option>
+              </select>
+              <button class="manage-type-btn" type="button" @click="showTypeManage = true" title="管理類型">⚙</button>
+            </div>
           </div>
           <label class="apply-sub-check">
             <input type="checkbox" v-model="applyToSubfolders" />
@@ -335,6 +344,8 @@ onMounted(() => {
       </button>
     </div>
   </div>
+
+  <TypeManageModal :visible="showTypeManage" @close="showTypeManage = false; loadItemTypes(true)" />
 </template>
 
 <style scoped>
@@ -553,6 +564,20 @@ onMounted(() => {
   font-family: inherit;
 }
 .folder-input:focus { border-color: var(--accent-color); }
+.type-select-row { display: flex; gap: 6px; align-items: center; }
+.type-select-row .folder-input { flex: 1; }
+.manage-type-btn {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 6px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.manage-type-btn:hover { color: var(--text-primary); border-color: var(--accent-color); }
 
 .apply-sub-check {
   display: flex;

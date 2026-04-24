@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, inject, watch } from 'vue';
 import { api, type Folder } from '../api';
+import { useItemTypes } from '../composables/useItemTypes';
 
 const props = defineProps<{
   path: string;
@@ -22,10 +23,12 @@ const loading = ref(false);
 const hasChildren = ref<boolean | null>(null); // null = 未知
 
 const folderByPath = inject<{ value: Map<string, Folder> }>('folderByPath', { value: new Map() });
+const { getTypeConfig } = useItemTypes();
 
 const nodeIcon = computed(() => {
   if (props.isRoot) return '📂';
-  return folderByPath.value.get(props.path)?.folderType === 'comic' ? '📚' : '📁';
+  const ft = folderByPath.value.get(props.path)?.folderType;
+  return getTypeConfig(ft).icon;
 });
 
 const getLabel = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
