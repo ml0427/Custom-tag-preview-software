@@ -13,6 +13,26 @@ const tags = ref<Tag[]>([]);
 // ─── 標籤操作 ────────────────────────────────────────────────────────────────
 const editingTagId = ref<number | null>(null);
 const editTagName = ref('');
+const mergingTagId = ref<number | null>(null);
+const showSuggestions = ref(false);
+
+// ─── 新增標籤 ─────────────────────────────────────────────────────────────────
+const isAddingTag = ref(false);
+const newTagName = ref('');
+
+const startAddTag = () => { isAddingTag.value = true; newTagName.value = ''; };
+
+const submitAddTag = async () => {
+  const name = newTagName.value.trim();
+  if (!name) { cancelAddTag(); return; }
+  try {
+    await api.createTag(name);
+    await loadTags();
+  } catch { alert('建立標籤失敗'); }
+  finally { cancelAddTag(); }
+};
+
+const cancelAddTag = () => { isAddingTag.value = false; newTagName.value = ''; };
 
 const loadTags = async () => { tags.value = await api.getTags(); };
 
@@ -97,7 +117,7 @@ onUnmounted(() => {
     </div>
 
     <!-- 標籤清單 -->
-    <ul class="tag-list">
+    <ul class="tag-list" @click.stop>
       <li v-for="tag in filteredTags" :key="tag.id" :class="{ active: selectedTagId === tag.id }">
 
         <template v-if="editingTagId === tag.id">
@@ -119,6 +139,23 @@ onUnmounted(() => {
         </template>
       </li>
     </ul>
+
+    <!-- 新增標籤 footer -->
+    <div class="panel-footer">
+      <div v-if="isAddingTag" class="add-tag-row">
+        <input
+          v-model="newTagName"
+          class="tag-rename-input"
+          placeholder="新標籤名稱"
+          @keydown.enter="submitAddTag"
+          @keydown.esc="cancelAddTag"
+          @blur="cancelAddTag"
+          autofocus
+        />
+        <button class="icon-btn confirm" @mousedown.prevent="submitAddTag">✓</button>
+      </div>
+      <button v-else class="btn-add-tag" @click="startAddTag">＋ 新增標籤</button>
+    </div>
   </div>
 </template>
 
@@ -260,4 +297,34 @@ onUnmounted(() => {
 
 .tag-list::-webkit-scrollbar { width: 8px; }
 .tag-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+.panel-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.btn-add-tag {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(255,255,255,0.15);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-add-tag:hover {
+  background: rgba(47,129,247,0.1);
+  border-color: var(--accent-color);
+  color: var(--accent-hover);
+}
+
+.add-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 </style>

@@ -344,13 +344,13 @@ defineExpose({ refresh: () => loadAll() });
 }
 
 .preview-toggle-btn {
-  width: 20px;
+  width: 28px;
   flex-shrink: 0;
   background: var(--panel-bg);
   border: none;
   border-left: 1px solid var(--panel-border);
   color: var(--text-secondary);
-  font-size: 1.2rem;
+  font-size: 1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
