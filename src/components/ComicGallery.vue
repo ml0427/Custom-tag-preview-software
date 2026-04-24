@@ -178,6 +178,22 @@ onMounted(() => loadAll());
 onUnmounted(() => stopResizing());
 
 defineExpose({ refresh: () => loadAll() });
+
+// ── Toolbar ───────────────────────────────────────────────────────────────────
+
+const parentPath = computed(() => {
+  if (!props.sourcePath) return null;
+  const norm = props.sourcePath.replace(/\\/g, '/').replace(/\/$/, '');
+  const parts = norm.split('/');
+  return parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+});
+
+const currentDirName = computed(() => {
+  if (!props.sourcePath) return '';
+  return props.sourcePath.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() ?? '';
+});
+
+const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value); };
 </script>
 
 <template>
@@ -185,12 +201,19 @@ defineExpose({ refresh: () => loadAll() });
     <div class="gallery-container">
       <div class="header">
         <div class="search-bar-wrap">
+          <template v-if="sourcePath">
+            <button class="nav-btn" :disabled="!parentPath" @click="goUp" title="上一層">↑</button>
+            <button class="nav-btn" @click="loadAll" :class="{ spinning: isLoading }" title="重新整理">↺</button>
+            <span class="dir-name">{{ currentDirName }}</span>
+            <span class="divider"></span>
+          </template>
           <span class="search-icon">🔍</span>
           <input
             v-model="gallerySearch"
             class="gallery-search"
             placeholder="搜尋名稱..."
           />
+          <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
           <span class="search-count" v-if="sourcePath">
             <template v-if="gallerySearch.trim()">{{ filteredFileItems.length }} / {{ fileItems.length }} 項</template>
             <template v-else>{{ fileItems.length }} 項</template>
@@ -296,6 +319,54 @@ defineExpose({ refresh: () => loadAll() });
   border-radius: 12px;
   border: 1px solid var(--panel-border);
 }
+
+.nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-btn:hover:not(:disabled) { color: var(--text-primary); background: rgba(255,255,255,0.07); }
+.nav-btn:disabled { opacity: 0.3; cursor: default; }
+.nav-btn.spinning { animation: spin 0.5s linear; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.dir-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.divider {
+  width: 1px;
+  height: 16px;
+  background: var(--panel-border);
+  flex-shrink: 0;
+}
+
+.clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.clear-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
 
 .search-icon { font-size: 0.95rem; flex-shrink: 0; }
 
