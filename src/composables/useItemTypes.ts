@@ -9,6 +9,7 @@ const DEFAULT_TYPE: ItemType = {
     name: 'default',
     icon: '📁',
     displayName: '一般資料夾',
+    color: null,
     isBuiltin: true,
     extensions: [],
 };

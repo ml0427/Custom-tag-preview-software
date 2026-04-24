@@ -94,6 +94,7 @@ pub struct ItemType {
     pub name: String,
     pub icon: String,
     pub display_name: String,
+    pub color: Option<String>,
     pub is_builtin: bool,
     pub extensions: Vec<String>,
 }
@@ -104,6 +105,7 @@ pub struct ItemTypeInput {
     pub name: String,
     pub icon: String,
     pub display_name: String,
+    pub color: Option<String>,
     pub extensions: Vec<String>,
 }
 

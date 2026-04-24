@@ -100,6 +100,7 @@ export interface ItemType {
     name: string;
     icon: string;
     displayName: string;
+    color: string | null;
     isBuiltin: boolean;
     extensions: string[];
 }
@@ -108,6 +109,7 @@ export interface ItemTypeInput {
     name: string;
     icon: string;
     displayName: string;
+    color: string | null;
     extensions: string[];
 }
 

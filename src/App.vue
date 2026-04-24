@@ -5,8 +5,8 @@ import { useItemTypes } from './composables/useItemTypes'
 import ActivityBar from './components/ActivityBar.vue'
 import TagSidebar from './components/TagSidebar.vue'
 import WorkspacePanel from './components/WorkspacePanel.vue'
-import ComicGallery from './components/ComicGallery.vue'
-import ComicDetailModal from './components/ComicDetailModal.vue'
+import ItemGallery from './components/ItemGallery.vue'
+import ItemDetailModal from './components/ItemDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
 import ScanWizardModal from './components/ScanWizardModal.vue'
 import ToastContainer from './components/ToastContainer.vue'
@@ -17,7 +17,7 @@ const selectedSourcePath = ref<string | null>(null)
 const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
-const galleryRef = ref<InstanceType<typeof ComicGallery> | null>(null)
+const galleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const showScanWizard = ref(false)
 
 const handleActivitySelect = (id: string) => {
@@ -95,7 +95,7 @@ onMounted(() => {
     </transition>
 
     <main class="main-content">
-      <ComicGallery
+      <ItemGallery
         ref="galleryRef"
         :sourcePath="selectedSourcePath"
         :selectedTagId="selectedTagId"
@@ -106,7 +106,7 @@ onMounted(() => {
       />
     </main>
 
-    <ComicDetailModal
+    <ItemDetailModal
       :item="selectedFileItem"
       :allTags="allTags"
       @close="handleModalClose"

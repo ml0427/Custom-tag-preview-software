@@ -875,7 +875,7 @@ async fn fetch_type_extensions(pool: &SqlitePool, type_id: i64) -> Result<Vec<St
 #[tauri::command]
 pub async fn get_item_types(pool: State<'_, SqlitePool>) -> Result<Vec<ItemType>, String> {
     let rows = sqlx::query(
-        "SELECT id, name, icon, display_name, is_builtin FROM item_types ORDER BY id ASC"
+        "SELECT id, name, icon, display_name, color, is_builtin FROM item_types ORDER BY id ASC"
     )
     .fetch_all(&*pool)
     .await
@@ -891,6 +891,7 @@ pub async fn get_item_types(pool: State<'_, SqlitePool>) -> Result<Vec<ItemType>
             name: row.get("name"),
             icon: row.get("icon"),
             display_name: row.get("display_name"),
+            color: row.get("color"),
             is_builtin: is_builtin_int != 0,
             extensions,
         });
@@ -904,11 +905,12 @@ pub async fn create_item_type(
     pool: State<'_, SqlitePool>,
 ) -> Result<ItemType, String> {
     let id = sqlx::query(
-        "INSERT INTO item_types (name, icon, display_name) VALUES (?, ?, ?)"
+        "INSERT INTO item_types (name, icon, display_name, color) VALUES (?, ?, ?, ?)"
     )
     .bind(&input.name)
     .bind(&input.icon)
     .bind(&input.display_name)
+    .bind(&input.color)
     .execute(&*pool)
     .await
     .map_err(|e| e.to_string())?
@@ -930,6 +932,7 @@ pub async fn create_item_type(
         name: input.name,
         icon: input.icon,
         display_name: input.display_name,
+        color: input.color,
         is_builtin: false,
         extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
     })
@@ -956,11 +959,12 @@ pub async fn update_item_type(
     }
 
     sqlx::query(
-        "UPDATE item_types SET name = ?, icon = ?, display_name = ? WHERE id = ?"
+        "UPDATE item_types SET name = ?, icon = ?, display_name = ?, color = ? WHERE id = ?"
     )
     .bind(&input.name)
     .bind(&input.icon)
     .bind(&input.display_name)
+    .bind(&input.color)
     .bind(id)
     .execute(&*pool)
     .await
@@ -988,6 +992,7 @@ pub async fn update_item_type(
         name: input.name,
         icon: input.icon,
         display_name: input.display_name,
+        color: input.color,
         is_builtin: is_builtin_int != 0,
         extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
     })

@@ -14,8 +14,8 @@ const selected = ref<ItemType | null>(null);
 const isNew = ref(false);
 const saving = ref(false);
 
-const form = ref<{ name: string; icon: string; displayName: string; extensions: string[] }>({
-    name: '', icon: '📁', displayName: '', extensions: [],
+const form = ref<{ name: string; icon: string; displayName: string; color: string; extensions: string[] }>({
+    name: '', icon: '📁', displayName: '', color: '', extensions: [],
 });
 const extInput = ref('');
 
@@ -34,14 +34,14 @@ const selectFirst = () => {
 const selectType = (t: ItemType) => {
     selected.value = t;
     isNew.value = false;
-    form.value = { name: t.name, icon: t.icon, displayName: t.displayName, extensions: [...t.extensions] };
+    form.value = { name: t.name, icon: t.icon, displayName: t.displayName, color: t.color ?? '', extensions: [...t.extensions] };
     extInput.value = '';
 };
 
 const startNew = () => {
     selected.value = null;
     isNew.value = true;
-    form.value = { name: '', icon: '📁', displayName: '', extensions: [] };
+    form.value = { name: '', icon: '📁', displayName: '', color: '', extensions: [] };
     extInput.value = '';
 };
 
@@ -68,6 +68,7 @@ const save = async () => {
             name: form.value.name,
             icon: form.value.icon || '📁',
             displayName: form.value.displayName,
+            color: form.value.color || null,
             extensions: form.value.extensions,
         };
         if (isNew.value) {
@@ -163,6 +164,13 @@ const deleteType = async (t: ItemType) => {
                             placeholder="📁"
                             maxlength="4"
                         />
+
+                        <label class="field-label">標記顏色（選填）</label>
+                        <div class="color-row">
+                            <input type="color" v-model="form.color" class="color-picker" />
+                            <input v-model="form.color" class="field-input color-text" placeholder="#ffffff（留空表示無顏色）" />
+                            <button v-if="form.color" class="clear-color-btn" @click="form.color = ''" title="清除顏色">✕</button>
+                        </div>
 
                         <label class="field-label">允許的副檔名</label>
                         <div class="ext-tags">
@@ -398,4 +406,9 @@ const deleteType = async (t: ItemType) => {
 }
 .save-btn:hover:not(:disabled) { opacity: 0.85; }
 .save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.color-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.color-picker { width: 36px; height: 32px; border: 1px solid var(--panel-border); border-radius: 6px; padding: 2px; background: transparent; cursor: pointer; flex-shrink: 0; }
+.color-text { flex: 1; }
+.clear-color-btn { background: transparent; border: 1px solid var(--panel-border); border-radius: 4px; color: var(--text-secondary); font-size: 0.75rem; padding: 4px 6px; cursor: pointer; flex-shrink: 0; }
+.clear-color-btn:hover { color: #f87171; }
 </style>

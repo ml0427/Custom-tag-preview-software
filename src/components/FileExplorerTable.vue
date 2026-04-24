@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 import { useItemTypes } from '../composables/useItemTypes';
@@ -8,6 +8,7 @@ const props = defineProps<{
   items: FileItem[];
   itemByPath: Map<string, Item>;
   selectedItemPath: string | null;
+  searchQuery?: string;
 }>();
 
 const emit = defineEmits<{
@@ -45,6 +46,16 @@ const startRename = () => {
   });
 };
 
+const startRenameForItem = (item: FileItem) => {
+  editingPath.value = item.path;
+  editName.value = item.name;
+  nextTick(() => {
+    const input = document.querySelector<HTMLInputElement>('.rename-input');
+    input?.focus();
+    input?.select();
+  });
+};
+
 const commitRename = (item: FileItem) => {
   const newName = editName.value.trim();
   if (newName && newName !== item.name) emit('rename', item, newName);
@@ -53,8 +64,71 @@ const commitRename = (item: FileItem) => {
 
 const cancelRename = () => { editingPath.value = null; };
 
-onMounted(() => document.addEventListener('click', hideContextMenu));
-onUnmounted(() => document.removeEventListener('click', hideContextMenu));
+// Keyboard navigation
+const tableRef = ref<HTMLTableElement | null>(null);
+
+const currentIndex = computed(() => {
+  if (!props.selectedItemPath) return -1;
+  return sortedItems.value.findIndex(i => i.path === props.selectedItemPath);
+});
+
+const navigateTo = (idx: number) => {
+  const item = sortedItems.value[idx];
+  if (!item) return;
+  emit('click', item);
+  nextTick(() => {
+    const rows = tableRef.value?.querySelectorAll('tbody tr');
+    rows?.[idx]?.scrollIntoView({ block: 'nearest' });
+  });
+};
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (editingPath.value) return;
+  const len = sortedItems.value.length;
+  if (!len) return;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    navigateTo(Math.min(currentIndex.value + 1, len - 1));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    navigateTo(Math.max(currentIndex.value - 1, 0));
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const item = sortedItems.value[currentIndex.value];
+    if (item) emit('dblclick', item);
+  } else if (e.key === 'Delete') {
+    e.preventDefault();
+    const item = sortedItems.value[currentIndex.value];
+    if (item) emit('delete', item);
+  } else if (e.key === 'F2') {
+    e.preventDefault();
+    const item = sortedItems.value[currentIndex.value];
+    if (item) startRenameForItem(item);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    hideContextMenu();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', hideContextMenu);
+  tableRef.value?.addEventListener('keydown', handleKeydown);
+});
+onUnmounted(() => {
+  document.removeEventListener('click', hideContextMenu);
+  tableRef.value?.removeEventListener('keydown', handleKeydown);
+});
+
+// Scroll selected into view when changed externally
+watch(() => props.selectedItemPath, () => {
+  const idx = currentIndex.value;
+  if (idx < 0) return;
+  nextTick(() => {
+    const rows = tableRef.value?.querySelectorAll('tbody tr');
+    rows?.[idx]?.scrollIntoView({ block: 'nearest' });
+  });
+});
 
 const { getTypeConfig } = useItemTypes();
 
@@ -83,13 +157,27 @@ const getItemType = (item: FileItem): string => {
   return item.extension?.toUpperCase() ?? '—';
 };
 
+const getTypeColor = (item: FileItem): string | null => {
+  if (!item.isDir) return null;
+  const dbItem = props.itemByPath.get(item.path);
+  return getTypeConfig(dbItem?.folderType).color ?? null;
+};
+
 const getItemTags = (item: FileItem) => {
   return props.itemByPath.get(item.path)?.tags ?? [];
 };
 
 const isSelected = (item: FileItem): boolean => item.path === props.selectedItemPath;
 
-// 本地排序狀態
+// Search highlight
+const highlightText = (text: string): string => {
+  const q = props.searchQuery?.trim();
+  if (!q) return text;
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
+};
+
+// Sort
 const sortBy = ref<'name' | 'size' | 'date'>('name');
 const sortDir = ref<'asc' | 'desc'>('asc');
 
@@ -120,10 +208,16 @@ const sortedItems = computed(() => {
     return sortDir.value === 'asc' ? cmp : -cmp;
   });
 });
+
+// Context menu helpers
+const isZip = (item: FileItem) => {
+  const ext = item.extension?.toLowerCase() ?? '';
+  return ['zip','rar','7z','cbz','cbr'].includes(ext);
+};
 </script>
 
 <template>
-  <table class="comic-table">
+  <table class="comic-table" ref="tableRef" tabindex="0">
     <thead>
       <tr>
         <th class="col-name sortable" @click="toggleSort('name')">名稱 {{ sortIcon('name') }}</th>
@@ -154,12 +248,20 @@ const sortedItems = computed(() => {
               @blur="cancelRename"
               @click.stop
             />
-            <span v-else class="file-title" :title="item.path">{{ item.name }}</span>
+            <span
+              v-else
+              class="file-title"
+              :title="item.path"
+              v-html="highlightText(item.name)"
+            ></span>
           </div>
         </td>
         <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
         <td class="col-date">{{ item.modifiedTime ?? '—' }}</td>
-        <td class="col-type">{{ getItemType(item) }}</td>
+        <td class="col-type">
+          <span v-if="getTypeColor(item)" class="type-color-dot" :style="{ background: getTypeColor(item)! }"></span>
+          {{ getItemType(item) }}
+        </td>
         <td class="col-tags">
           <div class="tag-chips">
             <span
@@ -183,10 +285,19 @@ const sortedItems = computed(() => {
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop
     >
-      <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
-      <button class="ctx-item" @click="startRename">修改檔名</button>
-      <div class="ctx-divider"></div>
-      <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
+      <template v-if="contextMenu.item?.isDir">
+        <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">📂 進入資料夾</button>
+        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
+        <button class="ctx-item" @click="startRename">修改檔名</button>
+        <div class="ctx-divider"></div>
+        <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
+      </template>
+      <template v-else>
+        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
+        <button class="ctx-item" @click="startRename">修改檔名</button>
+        <div class="ctx-divider"></div>
+        <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
+      </template>
     </div>
   </Teleport>
 </template>
@@ -197,6 +308,7 @@ const sortedItems = computed(() => {
   border-collapse: collapse;
   text-align: left;
   table-layout: fixed;
+  outline: none;
 }
 
 .comic-table th {
@@ -271,7 +383,7 @@ const sortedItems = computed(() => {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 4px;
-  min-width: 150px;
+  min-width: 160px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
 
@@ -292,4 +404,21 @@ const sortedItems = computed(() => {
 .ctx-divider { height: 1px; background: var(--panel-border); margin: 3px 4px; }
 .ctx-danger { color: #f87171; }
 .ctx-danger:hover { background: rgba(248,65,65,0.12); color: #f87171; }
+
+.type-color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+:deep(mark) {
+  background: rgba(255, 200, 0, 0.3);
+  color: var(--text-primary);
+  border-radius: 2px;
+  padding: 0 1px;
+}
 </style>
