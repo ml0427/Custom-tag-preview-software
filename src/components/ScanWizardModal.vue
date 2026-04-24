@@ -320,14 +320,25 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 }
 .rule-input:focus { border-color: var(--accent-color); }
 .rule-select {
-  background: rgba(255,255,255,0.06);
+  background-color: rgba(30, 35, 50, 0.95);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237d8590'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  -webkit-appearance: none;
+  appearance: none;
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 0.88rem;
-  padding: 6px 8px;
+  padding: 6px 28px 6px 8px;
   outline: none;
   min-width: 0;
+  cursor: pointer;
+}
+.rule-select:focus { border-color: var(--accent-color); }
+.rule-select option {
+  background: #1a1f2e;
+  color: var(--text-primary);
 }
 .capture-hint {
   font-size: 0.82rem;

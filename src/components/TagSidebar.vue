@@ -226,11 +226,12 @@ onUnmounted(() => {
 
 .all-item:hover { background: rgba(255,255,255,0.05); }
 .all-item.active {
-  background: var(--tag-bg);
+  background: rgba(47, 129, 247, 0.18);
   color: var(--accent-hover);
   border-left: 3px solid var(--accent-color);
   padding-left: 7px;
 }
+.all-item.active:hover { background: rgba(47, 129, 247, 0.26); }
 
 .tag-list {
   list-style: none;
@@ -258,11 +259,13 @@ onUnmounted(() => {
 
 .tag-list > li:hover { background: rgba(255,255,255,0.05); }
 .tag-list > li.active {
-  background: var(--tag-bg);
+  background: rgba(47, 129, 247, 0.18);
   color: var(--accent-hover);
   border-left: 3px solid var(--accent-color);
   padding-left: 7px;
 }
+.tag-list > li.active:hover { background: rgba(47, 129, 247, 0.26); }
+.tag-list > li.active .tag-count { color: rgba(56, 189, 248, 0.6); }
 
 .tag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
 .tag-count { font-size: 0.78rem; color: var(--text-tertiary); flex-shrink: 0; }

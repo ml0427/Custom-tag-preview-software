@@ -234,15 +234,20 @@ const sortedItems = computed(() => {
 .file-icon { font-size: 1rem; flex-shrink: 0; }
 .file-title { font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
 
-.tag-chips { display: flex; gap: 6px; align-items: center; }
+.tag-chips { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; }
 .mini-tag {
-  background: rgba(255,255,255,0.08);
-  padding: 2px 8px;
+  background: rgba(47, 129, 247, 0.12);
+  border: 1px solid rgba(47, 129, 247, 0.25);
+  padding: 1px 7px;
   border-radius: 4px;
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: var(--accent-hover);
+  white-space: nowrap;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.tag-more { font-size: 0.75rem; color: var(--accent-color); }
+.tag-more { font-size: 0.75rem; color: var(--text-tertiary); flex-shrink: 0; }
 
 .rename-input {
   background: rgba(255,255,255,0.08);
