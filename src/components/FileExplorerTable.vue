@@ -14,6 +14,7 @@ const emit = defineEmits<{
   (e: 'dblclick', item: FileItem): void;
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
+  (e: 'delete', item: FileItem): void;
 }>();
 
 // Context menu
@@ -180,6 +181,8 @@ const sortedItems = computed(() => {
     >
       <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
       <button class="ctx-item" @click="startRename">修改檔名</button>
+      <div class="ctx-divider"></div>
+      <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
     </div>
   </Teleport>
 </template>
@@ -282,4 +285,7 @@ const sortedItems = computed(() => {
   transition: background 0.15s;
 }
 .ctx-item:hover { background: rgba(255,255,255,0.08); }
+.ctx-divider { height: 1px; background: var(--panel-border); margin: 3px 4px; }
+.ctx-danger { color: #f87171; }
+.ctx-danger:hover { background: rgba(248,65,65,0.12); color: #f87171; }
 </style>

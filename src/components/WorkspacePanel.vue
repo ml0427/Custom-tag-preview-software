@@ -40,6 +40,19 @@ const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
 
 const closeCtxMenu = () => { ctxMenu.value.visible = false; };
 
+const untrackFromCtx = async () => {
+  const p = ctxMenu.value.path;
+  closeCtxMenu();
+  if (!await confirmDialog(`確定移除「${p.replace(/\\/g, '/').split('/').pop()}」的追蹤記錄？\n（不刪除實際檔案）`)) return;
+  try {
+    await api.untrackItem(p);
+    await loadDbFolders();
+    emit('folderCreated');
+  } catch (e) {
+    showToast('移除追蹤失敗: ' + String(e), 'error');
+  }
+};
+
 const openModifyTypeFromCtx = async () => {
   const p = ctxMenu.value.path;
   closeCtxMenu();
@@ -226,6 +239,8 @@ onMounted(() => {
       @click.stop
     >
       <div class="ctx-item" @click="openModifyTypeFromCtx">✏️ 修改類型</div>
+      <div class="ctx-divider"></div>
+      <div class="ctx-item ctx-danger" @click="untrackFromCtx">🗑 移除追蹤記錄</div>
     </div>
 
     <!-- 修改類型 / 加入知識庫 Modal -->
@@ -485,6 +500,9 @@ onMounted(() => {
   transition: background 0.15s, color 0.15s;
 }
 .ctx-item:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+.ctx-divider { height: 1px; background: var(--panel-border); margin: 3px 0; }
+.ctx-danger { color: #f87171; }
+.ctx-danger:hover { background: rgba(248,65,65,0.12) !important; color: #f87171 !important; }
 
 .folder-modal-backdrop {
   position: fixed;

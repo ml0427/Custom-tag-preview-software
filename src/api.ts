@@ -209,6 +209,14 @@ export const api = {
         await invoke('delete_folder', { id });
     },
 
+    async trashItem(path: string): Promise<void> {
+        await invoke('trash_item', { path });
+    },
+
+    async untrackItem(path: string): Promise<void> {
+        await invoke('untrack_item', { path });
+    },
+
     async addTagToFolder(folderId: number, tagId: number): Promise<void> {
         await invoke('add_tag_to_folder', { folderId, tagId });
     },

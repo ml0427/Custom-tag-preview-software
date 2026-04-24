@@ -104,6 +104,8 @@ fn main() {
             commands::create_folder,
             commands::update_folder,
             commands::delete_folder,
+            commands::trash_item,
+            commands::untrack_item,
             commands::add_tag_to_folder,
             commands::remove_tag_from_folder,
             // File system

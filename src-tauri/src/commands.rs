@@ -7,6 +7,7 @@ use crate::zip_utils;
 use anyhow::Result;
 use std::fs;
 use base64::{Engine as _, engine::general_purpose};
+use std::path::Path;
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -434,6 +435,31 @@ pub async fn update_folder(
 pub async fn delete_folder(id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
     sqlx::query("DELETE FROM items WHERE id = ? AND item_type = 'folder'")
         .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Move file/folder to system Recycle Bin, then remove its DB record.
+#[tauri::command]
+pub async fn trash_item(path: String, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    if Path::new(&path).exists() {
+        trash::delete(&path).map_err(|e| e.to_string())?;
+    }
+    sqlx::query("DELETE FROM items WHERE path = ?")
+        .bind(&path)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Remove an item from the DB without touching the filesystem (un-track).
+#[tauri::command]
+pub async fn untrack_item(path: String, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    sqlx::query("DELETE FROM items WHERE path = ?")
+        .bind(&path)
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;

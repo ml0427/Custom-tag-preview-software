@@ -17,7 +17,7 @@ const emit = defineEmits<{
   (e: 'jumpToTag', tagId: number): void;
 }>();
 
-const { show: showToast } = useToast();
+const { show: showToast, confirm: confirmDialog } = useToast();
 const itemsData = ref<Item[]>([]);
 const fileItems = ref<FileItem[]>([]);
 const isLoading = ref(false);
@@ -108,6 +108,21 @@ const loadItemsBackground = async () => {
     itemsData.value = res.content;
   } catch {
     itemsData.value = [];
+  }
+};
+
+const handleDelete = async (fileItem: FileItem) => {
+  const label = fileItem.isDir ? `資料夾「${fileItem.name}」` : `檔案「${fileItem.name}」`;
+  if (!await confirmDialog(`確定將 ${label} 移至資源回收筒？`)) return;
+  try {
+    await api.trashItem(fileItem.path);
+    if (selectedFileItemPath.value === fileItem.path) {
+      selectedFileItemPath.value = null;
+      selectedItem.value = null;
+    }
+    await loadAll();
+  } catch (e: any) {
+    showToast('刪除失敗：' + (e?.message ?? e), 'error');
   }
 };
 
@@ -245,6 +260,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @dblclick="handleFileItemDblClick"
           @detail="handleContextDetail"
           @rename="handleContextRename"
+          @delete="handleDelete"
         />
       </div>
 
