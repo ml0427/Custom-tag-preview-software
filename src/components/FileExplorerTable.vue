@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
-import { type Comic, type Folder, type FileItem } from '../api';
+import { type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 
 const props = defineProps<{
   items: FileItem[];
-  comicByPath: Map<string, Comic>;
-  folderByPath: Map<string, Folder>;
+  itemByPath: Map<string, Item>;
   selectedItemPath: string | null;
 }>();
 
@@ -57,7 +56,7 @@ onUnmounted(() => document.removeEventListener('click', hideContextMenu));
 
 const getFileIcon = (item: FileItem): string => {
   if (item.isDir) {
-    return props.folderByPath.get(item.path)?.folderType === 'comic' ? '📚' : '📁';
+    return props.itemByPath.get(item.path)?.folderType === 'comic' ? '📚' : '📁';
   }
   const ext = item.extension?.toLowerCase() ?? '';
   if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return '🖼️';
@@ -72,17 +71,15 @@ const getFileIcon = (item: FileItem): string => {
 
 const getItemType = (item: FileItem): string => {
   if (item.isDir) {
-    const folder = props.folderByPath.get(item.path);
-    if (folder) return folder.folderType === 'comic' ? '漫畫' : '一般';
+    const dbItem = props.itemByPath.get(item.path);
+    if (dbItem) return dbItem.folderType === 'comic' ? '漫畫' : '一般';
     return '目錄';
   }
   return item.extension?.toUpperCase() ?? '—';
 };
 
 const getItemTags = (item: FileItem) => {
-  const comic = props.comicByPath.get(item.path);
-  if (comic) return comic.tags;
-  return props.folderByPath.get(item.path)?.tags ?? [];
+  return props.itemByPath.get(item.path)?.tags ?? [];
 };
 
 const isSelected = (item: FileItem): boolean => item.path === props.selectedItemPath;

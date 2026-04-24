@@ -216,8 +216,7 @@ defineExpose({ refresh: () => loadAll() });
         <FileExplorerTable
           v-else
           :items="filteredFileItems"
-          :comicByPath="new Map(itemsData.filter(i => i.itemType === 'file').map(i => [i.path, { id: i.id, title: i.name, filePath: i.path, fileSize: i.fileSize ?? 0, fileModifiedTime: '', importTime: i.importAt, customCoverPath: i.coverCachePath, tags: i.tags } as any]))"
-          :folderByPath="new Map(itemsData.filter(i => i.itemType === 'folder').map(i => [i.path, { id: i.id, path: i.path, name: i.name, folderType: i.folderType ?? 'default', note: i.note ?? '', createdAt: i.importAt, tags: i.tags } as any]))"
+          :itemByPath="itemByPath"
           :selectedItemPath="selectedFileItemPath"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
