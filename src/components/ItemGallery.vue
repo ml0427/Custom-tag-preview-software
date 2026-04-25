@@ -417,8 +417,9 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   background: var(--panel-bg);
   border-radius: 12px;
   border: 1px solid var(--panel-border);
-  overflow-y: auto;
-  scroll-behavior: smooth;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .preview-toggle-btn {
@@ -446,7 +447,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300px;
+  flex: 1;
+  min-height: 200px;
   color: var(--text-secondary);
 }
 
@@ -482,9 +484,4 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.table-wrapper::-webkit-scrollbar { width: 10px; }
-.table-wrapper::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
-  border-radius: 10px;
-}
 </style>

@@ -62,6 +62,9 @@ const save = async () => {
     if (isNew.value && !form.value.name.trim()) { showToast('請填寫識別名稱', 'error'); return; }
     if (isNew.value && !/^[a-z0-9_]+$/.test(form.value.name)) { showToast('識別名稱只能使用小寫英數字與底線', 'error'); return; }
 
+    const extChanged = !isNew.value && selected.value &&
+        JSON.stringify([...selected.value.extensions].sort()) !== JSON.stringify([...form.value.extensions].sort());
+
     saving.value = true;
     try {
         const input: ItemTypeInput = {
@@ -77,14 +80,23 @@ const save = async () => {
             await load(true);
             const t = itemTypes.value.find(x => x.id === created.id);
             if (t) selectType(t);
+            if (form.value.extensions.length > 0) {
+                showToast('已儲存。請重新掃描來源資料夾，讓新副檔名生效。', 'success');
+            } else {
+                showToast('已儲存', 'success');
+            }
         } else if (selected.value) {
             const updated = await api.updateItemType(selected.value.id, input);
             invalidate();
             await load(true);
             const t = itemTypes.value.find(x => x.id === updated.id);
             if (t) selectType(t);
+            if (extChanged) {
+                showToast('已儲存。副檔名已變更，請重新掃描來源資料夾讓更動生效。', 'success');
+            } else {
+                showToast('已儲存', 'success');
+            }
         }
-        showToast('已儲存', 'success');
     } catch (e: any) {
         showToast('儲存失敗：' + (e?.message ?? e), 'error');
     } finally {

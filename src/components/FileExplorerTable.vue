@@ -19,6 +19,10 @@ const emit = defineEmits<{
   (e: 'delete', item: FileItem): void;
 }>();
 
+// Virtual scroll constants
+const ROW_HEIGHT = 44;
+const BUFFER = 15;
+
 // Context menu
 const contextMenu = ref<{ visible: boolean; x: number; y: number; item: FileItem | null }>({
   visible: false, x: 0, y: 0, item: null,
@@ -65,21 +69,29 @@ const commitRename = (item: FileItem) => {
 const cancelRename = () => { editingPath.value = null; };
 
 // Keyboard navigation
-const tableRef = ref<HTMLTableElement | null>(null);
+const outerRef = ref<HTMLDivElement | null>(null);
+const scrollTop = ref(0);
+const containerHeight = ref(0);
 
 const currentIndex = computed(() => {
   if (!props.selectedItemPath) return -1;
   return sortedItems.value.findIndex(i => i.path === props.selectedItemPath);
 });
 
+const scrollToIndex = (idx: number) => {
+  if (!outerRef.value) return;
+  const rowTop = idx * ROW_HEIGHT;
+  const rowBottom = rowTop + ROW_HEIGHT;
+  const { scrollTop: st, clientHeight: ch } = outerRef.value;
+  if (rowTop < st) outerRef.value.scrollTop = rowTop;
+  else if (rowBottom > st + ch) outerRef.value.scrollTop = rowBottom - ch;
+};
+
 const navigateTo = (idx: number) => {
   const item = sortedItems.value[idx];
   if (!item) return;
   emit('click', item);
-  nextTick(() => {
-    const rows = tableRef.value?.querySelectorAll('tbody tr');
-    rows?.[idx]?.scrollIntoView({ block: 'nearest' });
-  });
+  nextTick(() => scrollToIndex(idx));
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -111,24 +123,48 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
+const onOuterScroll = (e: Event) => {
+  scrollTop.value = (e.target as HTMLDivElement).scrollTop;
+};
+
+let resizeObserver: ResizeObserver | null = null;
+
 onMounted(() => {
   document.addEventListener('click', hideContextMenu);
-  tableRef.value?.addEventListener('keydown', handleKeydown);
+  if (outerRef.value) {
+    containerHeight.value = outerRef.value.clientHeight;
+    outerRef.value.addEventListener('scroll', onOuterScroll, { passive: true });
+    outerRef.value.addEventListener('keydown', handleKeydown);
+    resizeObserver = new ResizeObserver(entries => {
+      containerHeight.value = entries[0].contentRect.height;
+    });
+    resizeObserver.observe(outerRef.value);
+  }
 });
+
 onUnmounted(() => {
   document.removeEventListener('click', hideContextMenu);
-  tableRef.value?.removeEventListener('keydown', handleKeydown);
+  outerRef.value?.removeEventListener('scroll', onOuterScroll);
+  outerRef.value?.removeEventListener('keydown', handleKeydown);
+  resizeObserver?.disconnect();
 });
 
 // Scroll selected into view when changed externally
 watch(() => props.selectedItemPath, () => {
   const idx = currentIndex.value;
   if (idx < 0) return;
-  nextTick(() => {
-    const rows = tableRef.value?.querySelectorAll('tbody tr');
-    rows?.[idx]?.scrollIntoView({ block: 'nearest' });
-  });
+  nextTick(() => scrollToIndex(idx));
 });
+
+// Virtual scroll window
+const visibleStart = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - BUFFER));
+const visibleEnd = computed(() => Math.min(
+  sortedItems.value.length,
+  Math.ceil((scrollTop.value + containerHeight.value) / ROW_HEIGHT) + BUFFER
+));
+const visibleItems = computed(() => sortedItems.value.slice(visibleStart.value, visibleEnd.value));
+const topSpacerHeight = computed(() => visibleStart.value * ROW_HEIGHT);
+const bottomSpacerHeight = computed(() => (sortedItems.value.length - visibleEnd.value) * ROW_HEIGHT);
 
 const { getTypeConfig } = useItemTypes();
 
@@ -208,75 +244,77 @@ const sortedItems = computed(() => {
     return sortDir.value === 'asc' ? cmp : -cmp;
   });
 });
-
-// Context menu helpers
-const isZip = (item: FileItem) => {
-  const ext = item.extension?.toLowerCase() ?? '';
-  return ['zip','rar','7z','cbz','cbr'].includes(ext);
-};
 </script>
 
 <template>
-  <table class="comic-table" ref="tableRef" tabindex="0">
-    <thead>
-      <tr>
-        <th class="col-name sortable" @click="toggleSort('name')">名稱 {{ sortIcon('name') }}</th>
-        <th class="col-size sortable" @click="toggleSort('size')">大小 {{ sortIcon('size') }}</th>
-        <th class="col-date sortable" @click="toggleSort('date')">修改日期 {{ sortIcon('date') }}</th>
-        <th class="col-type">類型</th>
-        <th class="col-tags">標籤</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr
-        v-for="item in sortedItems"
-        :key="item.path"
-        :class="{ selected: isSelected(item) }"
-        @click="emit('click', item)"
-        @dblclick="emit('dblclick', item)"
-        @contextmenu.prevent="showContextMenu($event, item)"
-      >
-        <td class="col-name">
-          <div class="file-info">
-            <span class="file-icon">{{ getFileIcon(item) }}</span>
-            <input
-              v-if="editingPath === item.path"
-              v-model="editName"
-              class="rename-input"
-              @keyup.enter="commitRename(item)"
-              @keyup.escape="cancelRename"
-              @blur="cancelRename"
-              @click.stop
-            />
-            <span
-              v-else
-              class="file-title"
-              :title="item.path"
-              v-html="highlightText(item.name)"
-            ></span>
-          </div>
-        </td>
-        <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
-        <td class="col-date">{{ item.modifiedTime ?? '—' }}</td>
-        <td class="col-type">
-          <span v-if="getTypeColor(item)" class="type-color-dot" :style="{ background: getTypeColor(item)! }"></span>
-          {{ getItemType(item) }}
-        </td>
-        <td class="col-tags">
-          <div class="tag-chips">
-            <span
-              v-for="tag in getItemTags(item).slice(0, 3)"
-              :key="tag.id"
-              class="mini-tag"
-            >{{ tag.name }}</span>
-            <span v-if="getItemTags(item).length > 3" class="tag-more">
-              +{{ getItemTags(item).length - 3 }}
-            </span>
-          </div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="vscroll-outer" ref="outerRef" tabindex="0">
+    <table class="comic-table">
+      <thead>
+        <tr>
+          <th class="col-name sortable" @click="toggleSort('name')">名稱 {{ sortIcon('name') }}</th>
+          <th class="col-size sortable" @click="toggleSort('size')">大小 {{ sortIcon('size') }}</th>
+          <th class="col-date sortable" @click="toggleSort('date')">修改日期 {{ sortIcon('date') }}</th>
+          <th class="col-type">類型</th>
+          <th class="col-tags">標籤</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-if="topSpacerHeight > 0" class="spacer-row" :style="{ height: topSpacerHeight + 'px' }">
+          <td colspan="5"></td>
+        </tr>
+        <tr
+          v-for="item in visibleItems"
+          :key="item.path"
+          :class="{ selected: isSelected(item) }"
+          @click="emit('click', item)"
+          @dblclick="emit('dblclick', item)"
+          @contextmenu.prevent="showContextMenu($event, item)"
+        >
+          <td class="col-name">
+            <div class="file-info">
+              <span class="file-icon">{{ getFileIcon(item) }}</span>
+              <input
+                v-if="editingPath === item.path"
+                v-model="editName"
+                class="rename-input"
+                @keyup.enter="commitRename(item)"
+                @keyup.escape="cancelRename"
+                @blur="cancelRename"
+                @click.stop
+              />
+              <span
+                v-else
+                class="file-title"
+                :title="item.path"
+                v-html="highlightText(item.name)"
+              ></span>
+            </div>
+          </td>
+          <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
+          <td class="col-date">{{ item.modifiedTime ?? '—' }}</td>
+          <td class="col-type">
+            <span v-if="getTypeColor(item)" class="type-color-dot" :style="{ background: getTypeColor(item)! }"></span>
+            {{ getItemType(item) }}
+          </td>
+          <td class="col-tags">
+            <div class="tag-chips">
+              <span
+                v-for="tag in getItemTags(item).slice(0, 3)"
+                :key="tag.id"
+                class="mini-tag"
+              >{{ tag.name }}</span>
+              <span v-if="getItemTags(item).length > 3" class="tag-more">
+                +{{ getItemTags(item).length - 3 }}
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr v-if="bottomSpacerHeight > 0" class="spacer-row" :style="{ height: bottomSpacerHeight + 'px' }">
+          <td colspan="5"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
   <Teleport to="body">
     <div
@@ -303,12 +341,25 @@ const isZip = (item: FileItem) => {
 </template>
 
 <style scoped>
+.vscroll-outer {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  outline: none;
+}
+
+.vscroll-outer::-webkit-scrollbar { width: 10px; }
+.vscroll-outer::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+}
+
 .comic-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
   table-layout: fixed;
-  outline: none;
 }
 
 .comic-table th {
@@ -339,6 +390,7 @@ const isZip = (item: FileItem) => {
 .comic-table tr { cursor: default; transition: background 0.2s; }
 .comic-table tr:hover { background: rgba(255,255,255,0.03); }
 .comic-table tr.selected { background: var(--accent-color-transparent) !important; }
+.spacer-row td { padding: 0; border: none; }
 
 .col-name  { width: 38%; }
 .col-size  { width: 10%; }

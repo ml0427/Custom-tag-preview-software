@@ -443,7 +443,13 @@ pub async fn delete_folder(id: i64, pool: State<'_, SqlitePool>) -> Result<(), S
 
 /// Move file/folder to system Recycle Bin, then remove its DB record.
 #[tauri::command]
-pub async fn trash_item(path: String, pool: State<'_, SqlitePool>) -> Result<(), String> {
+pub async fn trash_item(path: String, pool: State<'_, SqlitePool>, app: AppHandle) -> Result<(), String> {
+    let id: Option<i64> = sqlx::query_scalar("SELECT id FROM items WHERE path = ?")
+        .bind(&path)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     if Path::new(&path).exists() {
         trash::delete(&path).map_err(|e| e.to_string())?;
     }
@@ -452,17 +458,33 @@ pub async fn trash_item(path: String, pool: State<'_, SqlitePool>) -> Result<(),
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    if let Some(item_id) = id {
+        let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+        let _ = fs::remove_file(cache_dir.join(format!("{}.jpg", item_id)));
+    }
     Ok(())
 }
 
 /// Remove an item from the DB without touching the filesystem (un-track).
 #[tauri::command]
-pub async fn untrack_item(path: String, pool: State<'_, SqlitePool>) -> Result<(), String> {
+pub async fn untrack_item(path: String, pool: State<'_, SqlitePool>, app: AppHandle) -> Result<(), String> {
+    let id: Option<i64> = sqlx::query_scalar("SELECT id FROM items WHERE path = ?")
+        .bind(&path)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     sqlx::query("DELETE FROM items WHERE path = ?")
         .bind(&path)
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    if let Some(item_id) = id {
+        let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+        let _ = fs::remove_file(cache_dir.join(format!("{}.jpg", item_id)));
+    }
     Ok(())
 }
 

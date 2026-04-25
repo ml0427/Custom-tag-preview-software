@@ -26,12 +26,19 @@ export function useItemTypes() {
         return found ?? DEFAULT_TYPE;
     };
 
+    const getTypeByExtension = (ext: string | null | undefined): ItemType | null => {
+        if (!ext) return null;
+        const lower = ext.toLowerCase();
+        return itemTypes.value.find(t => t.extensions.includes(lower)) ?? null;
+    };
+
     const invalidate = () => { loaded = false; };
 
     return {
         itemTypes: readonly(itemTypes),
         load,
         getTypeConfig,
+        getTypeByExtension,
         invalidate,
     };
 }

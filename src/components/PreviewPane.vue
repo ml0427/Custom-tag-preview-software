@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { api, type Item, type Tag } from '../api';
+import { useItemTypes } from '../composables/useItemTypes';
 
 const props = defineProps<{
     item: Item | null;
@@ -15,6 +16,16 @@ const emit = defineEmits<{
 
 const coverUrl = ref('');
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+const { getTypeByExtension } = useItemTypes();
+
+const filePlaceholderIcon = computed(() => {
+    if (!props.item || props.item.itemType !== 'file') return '📄';
+    const ext = props.item.path.split('.').pop() ?? '';
+    const matched = getTypeByExtension(ext);
+    if (matched) return matched.icon;
+    if (IMAGE_EXTS.includes(ext.toLowerCase())) return '🖼️';
+    return '📄';
+});
 
 // Load cover for file items (ZIP)
 watch(() => [props.item?.id, props.item?.coverCachePath], async () => {
@@ -85,7 +96,7 @@ const formatDate = (unix: number | null) => {
         <div v-if="item && item.itemType === 'file'" class="content">
             <div class="cover-wrapper" @click="emit('showDetail', item)">
                 <img v-if="coverUrl" :src="coverUrl" :alt="item.name" class="preview-cover" />
-                <div v-else class="cover-placeholder">📄</div>
+                <div v-else class="cover-placeholder">{{ filePlaceholderIcon }}</div>
                 <div class="zoom-overlay"><span>點擊查看詳情</span></div>
             </div>
 
