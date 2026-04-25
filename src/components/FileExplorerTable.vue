@@ -8,11 +8,12 @@ const props = defineProps<{
   items: FileItem[];
   itemByPath: Map<string, Item>;
   selectedItemPath: string | null;
+  selectedPaths?: string[];
   searchQuery?: string;
 }>();
 
 const emit = defineEmits<{
-  (e: 'click', item: FileItem): void;
+  (e: 'click', item: FileItem, event: MouseEvent): void;
   (e: 'dblclick', item: FileItem): void;
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
@@ -90,7 +91,7 @@ const scrollToIndex = (idx: number) => {
 const navigateTo = (idx: number) => {
   const item = sortedItems.value[idx];
   if (!item) return;
-  emit('click', item);
+  emit('click', item, new MouseEvent('click'));
   nextTick(() => scrollToIndex(idx));
 };
 
@@ -203,7 +204,8 @@ const getItemTags = (item: FileItem) => {
   return props.itemByPath.get(item.path)?.tags ?? [];
 };
 
-const isSelected = (item: FileItem): boolean => item.path === props.selectedItemPath;
+const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
+const isSelected = (item: FileItem): boolean => selectedSet.value.has(item.path) || item.path === props.selectedItemPath;
 
 // Search highlight
 const highlightText = (text: string): string => {
@@ -266,7 +268,7 @@ const sortedItems = computed(() => {
           v-for="item in visibleItems"
           :key="item.path"
           :class="{ selected: isSelected(item) }"
-          @click="emit('click', item)"
+          @click="emit('click', item, $event)"
           @dblclick="emit('dblclick', item)"
           @contextmenu.prevent="showContextMenu($event, item)"
         >

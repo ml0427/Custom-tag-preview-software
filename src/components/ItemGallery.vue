@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
+import ThumbnailGridView from './ThumbnailGridView.vue';
 import { useToast } from '../composables/useToast';
 
 const props = defineProps<{
@@ -54,10 +55,54 @@ const filteredFileItems = computed(() => {
 
 const selectedFileItemPath = ref<string | null>(null);
 const selectedItem = ref<Item | null>(null);
+const selectedPaths = ref<string[]>([]);
+const lastClickIdx = ref(-1);
+const isBatchDeleting = ref(false);
 
-const handleFileItemClick = (item: FileItem) => {
+const handleFileItemClick = (item: FileItem, event?: MouseEvent) => {
+  const list = filteredFileItems.value;
+  const idx = list.findIndex(i => i.path === item.path);
+
+  if (event?.ctrlKey || event?.metaKey) {
+    const newSet = new Set(selectedPaths.value);
+    if (newSet.has(item.path)) newSet.delete(item.path);
+    else { newSet.add(item.path); lastClickIdx.value = idx; }
+    selectedPaths.value = [...newSet];
+  } else if (event?.shiftKey && lastClickIdx.value >= 0) {
+    const start = Math.min(lastClickIdx.value, idx);
+    const end = Math.max(lastClickIdx.value, idx);
+    const newSet = new Set(selectedPaths.value);
+    for (let i = start; i <= end; i++) newSet.add(list[i].path);
+    selectedPaths.value = [...newSet];
+  } else {
+    selectedPaths.value = [item.path];
+    lastClickIdx.value = idx;
+  }
+
   selectedFileItemPath.value = item.path;
   selectedItem.value = itemByPath.value.get(item.path) ?? null;
+};
+
+const clearMultiSelect = () => {
+  selectedPaths.value = selectedFileItemPath.value ? [selectedFileItemPath.value] : [];
+};
+
+const batchDelete = async () => {
+  const paths = selectedPaths.value;
+  if (!paths.length) return;
+  if (!await confirmDialog(`確定將選取的 ${paths.length} 個項目移至資源回收筒？`)) return;
+  isBatchDeleting.value = true;
+  try {
+    await Promise.all(paths.map(p => api.trashItem(p)));
+    selectedPaths.value = [];
+    selectedFileItemPath.value = null;
+    selectedItem.value = null;
+    await loadAll();
+  } catch (e: any) {
+    showToast('批次刪除失敗：' + (e?.message ?? e), 'error');
+  } finally {
+    isBatchDeleting.value = false;
+  }
 };
 
 const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'cbz', 'cbr'];
@@ -120,6 +165,7 @@ const handleDelete = async (fileItem: FileItem) => {
       selectedFileItemPath.value = null;
       selectedItem.value = null;
     }
+    selectedPaths.value = selectedPaths.value.filter(p => p !== fileItem.path);
     await loadAll();
   } catch (e: any) {
     showToast('刪除失敗：' + (e?.message ?? e), 'error');
@@ -131,6 +177,9 @@ const handleRenamed = (updated: Item) => {
   const idx = itemsData.value.findIndex(i => i.id === updated.id);
   if (idx !== -1) itemsData.value[idx] = updated;
 };
+
+// View mode
+const viewMode = ref<'list' | 'grid'>('list');
 
 // Preview toggle
 const isPreviewOpen = ref(false);
@@ -167,6 +216,7 @@ const loadAll = async () => {
   fileItems.value = [];
   itemsData.value = [];
   selectedItem.value = null;
+  selectedPaths.value = [];
   try {
     await Promise.all([loadFileItems(), loadItemsBackground()]);
   } catch (e) {
@@ -178,6 +228,8 @@ const loadAll = async () => {
 
 watch(() => props.sourcePath, () => {
   selectedFileItemPath.value = null;
+  selectedPaths.value = [];
+  lastClickIdx.value = -1;
   loadAll();
 });
 
@@ -234,6 +286,20 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
             <template v-if="gallerySearch.trim()">{{ filteredFileItems.length }} / {{ fileItems.length }} 項</template>
             <template v-else>{{ fileItems.length }} 項</template>
           </span>
+          <div class="view-toggle">
+            <button
+              class="view-btn"
+              :class="{ active: viewMode === 'list' }"
+              @click="viewMode = 'list'"
+              title="列表檢視"
+            >☰</button>
+            <button
+              class="view-btn"
+              :class="{ active: viewMode === 'grid' }"
+              @click="viewMode = 'grid'"
+              title="縮圖格子"
+            >⊞</button>
+          </div>
         </div>
       </div>
 
@@ -253,10 +319,24 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         </div>
 
         <FileExplorerTable
+          v-else-if="viewMode === 'list'"
+          :items="filteredFileItems"
+          :itemByPath="itemByPath"
+          :selectedItemPath="selectedFileItemPath"
+          :selectedPaths="selectedPaths"
+          :searchQuery="gallerySearch"
+          @click="handleFileItemClick"
+          @dblclick="handleFileItemDblClick"
+          @detail="handleContextDetail"
+          @rename="handleContextRename"
+          @delete="handleDelete"
+        />
+        <ThumbnailGridView
           v-else
           :items="filteredFileItems"
           :itemByPath="itemByPath"
           :selectedItemPath="selectedFileItemPath"
+          :selectedPaths="selectedPaths"
           :searchQuery="gallerySearch"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
@@ -270,6 +350,16 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         <span v-if="sourcePath">{{ filteredFileItems.length }} 個項目</span>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="selectedPaths.length > 1" class="batch-action-bar">
+        <span class="batch-count">已選取 {{ selectedPaths.length }} 項</span>
+        <button class="batch-btn" @click="clearMultiSelect">取消選取</button>
+        <button class="batch-btn batch-danger" :disabled="isBatchDeleting" @click="batchDelete">
+          {{ isBatchDeleting ? '刪除中...' : '移至資源回收筒' }}
+        </button>
+      </div>
+    </Teleport>
 
     <button class="preview-toggle-btn" @click="togglePreview" :title="isPreviewOpen ? '收起預覽' : '展開預覽'">
       {{ isPreviewOpen ? '›' : '‹' }}
@@ -399,6 +489,21 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .gallery-search::placeholder { color: var(--text-secondary); }
 
+.view-toggle { display: flex; gap: 2px; flex-shrink: 0; }
+.view-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 3px 7px;
+  border-radius: 5px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.view-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
+.view-btn.active { color: var(--text-primary); background: rgba(255,255,255,0.1); border-color: var(--panel-border); }
+
 .search-count {
   font-size: 0.8rem;
   color: var(--text-secondary);
@@ -483,5 +588,41 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.batch-action-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2130;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 500;
+  animation: slideUp 0.2s ease;
+}
+@keyframes slideUp {
+  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);   opacity: 1; }
+}
+.batch-count { font-size: 0.88rem; color: var(--text-primary); font-weight: 600; }
+.batch-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.batch-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
+.batch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.batch-danger { color: #f87171; border-color: rgba(248,65,65,0.3); }
+.batch-danger:hover:not(:disabled) { background: rgba(248,65,65,0.15); }
 
 </style>
