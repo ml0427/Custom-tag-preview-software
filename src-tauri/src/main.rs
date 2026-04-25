@@ -72,6 +72,7 @@ fn main() {
             // Items (new primary API)
             commands::get_items,
             commands::get_item,
+            commands::get_item_by_path,
             commands::tag_item,
             commands::untag_item,
             commands::rename_item,

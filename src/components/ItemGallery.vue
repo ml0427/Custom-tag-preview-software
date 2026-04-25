@@ -219,6 +219,11 @@ const loadAll = async () => {
   selectedPaths.value = [];
   try {
     await Promise.all([loadFileItems(), loadItemsBackground()]);
+    // 若沒有明確選取項目，自動把當前資料夾設為 preview item（樹狀圖導航用）
+    if (!selectedFileItemPath.value && props.sourcePath) {
+      const folderItem = await api.getItemByPath(props.sourcePath).catch(() => null);
+      if (folderItem) selectedItem.value = folderItem;
+    }
   } catch (e) {
     console.error(e);
   } finally {

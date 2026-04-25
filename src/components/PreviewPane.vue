@@ -46,18 +46,9 @@ watch(() => props.item?.path, async (folderPath) => {
     coverUrl.value = '';
     try {
         const files = await api.listDirFiles(folderPath);
-        let firstImage = files.find(f =>
+        const firstImage = files.find(f =>
             !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
         );
-        if (!firstImage) {
-            const firstDir = files.find(f => f.isDir);
-            if (firstDir) {
-                const subFiles = await api.listDirFiles(firstDir.path);
-                firstImage = subFiles.find(f =>
-                    !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
-                );
-            }
-        }
         if (firstImage) {
             coverUrl.value = await api.getImageBase64ByPath(firstImage.path);
         }

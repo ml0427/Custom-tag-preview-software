@@ -193,6 +193,23 @@ pub async fn get_item(id: i64, pool: State<'_, SqlitePool>) -> Result<Item, Stri
 }
 
 #[tauri::command]
+pub async fn get_item_by_path(path: String, pool: State<'_, SqlitePool>) -> Result<Option<Item>, String> {
+    let row = sqlx::query("SELECT * FROM items WHERE path = ?")
+        .bind(&path)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    match row {
+        None => Ok(None),
+        Some(r) => {
+            let id: i64 = r.get("id");
+            let tags = fetch_item_tags(&pool, id).await?;
+            Ok(Some(read_item_from_row(&r, tags)))
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn tag_item(item_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
     db::add_tag_to_item(&pool, item_id, tag_id)
         .await

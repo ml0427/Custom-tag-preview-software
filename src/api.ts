@@ -131,6 +131,10 @@ export const api = {
         return await invoke<Item>('get_item', { id });
     },
 
+    async getItemByPath(path: string): Promise<Item | null> {
+        return await invoke<Item | null>('get_item_by_path', { path });
+    },
+
     async tagItem(itemId: number, tagId: number): Promise<void> {
         await invoke('tag_item', { itemId, tagId });
     },
