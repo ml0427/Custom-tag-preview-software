@@ -223,7 +223,7 @@ const deleteType = async (t: ItemType) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 1100;
 }
 .modal {
     background: var(--panel-bg);
