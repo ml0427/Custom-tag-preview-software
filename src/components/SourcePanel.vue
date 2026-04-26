@@ -174,7 +174,7 @@ const handleAddSource = async () => {
 
 const handleRemoveSource = async (source: Source, e: MouseEvent) => {
   e.stopPropagation();
-  if (!await confirmDialog(`確定移除「${source.path}」？\n（不影響已掃描的漫畫資料）`)) return;
+  if (!await confirmDialog(`確定移除「${source.path}」？\n（不影響已匯入的項目資料）`)) return;
   await api.removeSource(source.id);
   if (props.selectedPath?.startsWith(source.path)) emit('select', null);
   await loadSources();
@@ -243,7 +243,7 @@ onMounted(() => {
       :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
       @click.stop
     >
-      <div class="ctx-item" @click="openModifyTypeFromCtx">✏️ 修改類型</div>
+      <div class="ctx-item" @click="openModifyTypeFromCtx">✏️ 修改類別</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">🗑 移除追蹤記錄</div>
     </div>
@@ -254,7 +254,7 @@ onMounted(() => {
 
         <!-- Phase 1：基本設定 -->
         <template v-if="modalPhase === 'edit'">
-          <h3>{{ folderInDb ? '修改類型' : '加入知識庫' }}</h3>
+          <h3>{{ folderInDb ? '修改類別' : '加入知識庫' }}</h3>
           <div class="folder-field">
             <label>路徑</label>
             <span class="path-text">{{ editFolder.path }}</span>
@@ -264,14 +264,14 @@ onMounted(() => {
             <input v-model="editFolder.name" class="folder-input" placeholder="顯示名稱" />
           </div>
           <div class="folder-field">
-            <label>類型</label>
+            <label>類別</label>
             <div class="type-select-row">
               <select v-model="editFolder.folderType" class="folder-input">
                 <option v-for="t in itemTypes" :key="t.name" :value="t.name">
                   {{ t.icon }} {{ t.displayName }}
                 </option>
               </select>
-              <button class="manage-type-btn" type="button" @click="showTypeManage = true" title="管理類型">⚙</button>
+              <button class="manage-type-btn" type="button" @click="showTypeManage = true" title="管理類別">⚙</button>
             </div>
           </div>
           <label class="apply-sub-check">
@@ -338,9 +338,9 @@ onMounted(() => {
         class="btn-scan"
         @click="emit('openScanWizard')"
         :disabled="sources.length === 0"
-        title="掃描標籤 wizard"
+        title="批次標記精靈"
       >
-        🏷 掃描標籤
+        🏷 批次標記
       </button>
     </div>
   </div>

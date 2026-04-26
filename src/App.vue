@@ -4,7 +4,7 @@ import { api, type Item, type Folder, type Tag } from './api'
 import { useItemTypes } from './composables/useItemTypes'
 import ActivityBar from './components/ActivityBar.vue'
 import TagSidebar from './components/TagSidebar.vue'
-import WorkspacePanel from './components/WorkspacePanel.vue'
+import SourcePanel from './components/SourcePanel.vue'
 import ItemGallery from './components/ItemGallery.vue'
 import ItemDetailModal from './components/ItemDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
@@ -23,9 +23,6 @@ const showScanWizard = ref(false)
 const handleActivitySelect = (id: string) => {
   if (id === 'workspace' && activePanel.value !== 'workspace') {
     selectedTagId.value = null
-  }
-  if (id === 'tags' && activePanel.value !== 'tags') {
-    selectedSourcePath.value = null
   }
   activePanel.value = activePanel.value === id ? null : id
 }
@@ -75,7 +72,7 @@ onMounted(() => {
 
 <template>
   <div class="layout">
-    <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
+    <ActivityBar :active="activePanel" :hasSource="allTags.length > 0" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
       <div v-if="activePanel" class="side-panel glass-panel">
@@ -84,7 +81,7 @@ onMounted(() => {
           :selectedTagId="selectedTagId"
           @select="handleTagSelect"
         />
-        <WorkspacePanel
+        <SourcePanel
           v-else-if="activePanel === 'workspace'"
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"

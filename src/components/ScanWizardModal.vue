@@ -151,8 +151,8 @@ const applyAndClose = async () => {
 
         <!-- Step 1: 選來源 -->
         <div v-if="step === 1" class="step-body">
-          <h2>選擇掃描目錄</h2>
-          <p class="sub">選擇來源後可進入子目錄精準掃描</p>
+          <h2>選擇標記目錄</h2>
+          <p class="sub">選擇來源後可進入子目錄精準設定範圍</p>
           <div v-if="sources.length === 0" class="empty-hint">尚未新增任何來源目錄</div>
 
           <!-- Source roots -->
@@ -194,7 +194,7 @@ const applyAndClose = async () => {
               </button>
             </div>
             <div v-if="selectedPath !== selectedSourceRoot" class="scope-badge">
-              掃描範圍：{{ getLabel(selectedPath) }}
+              標記範圍：{{ getLabel(selectedPath) }}
             </div>
           </div>
 
@@ -208,7 +208,7 @@ const applyAndClose = async () => {
         <!-- Step 2: 規則編輯器 -->
         <div v-else-if="step === 2" class="step-body">
           <h2>設定標籤規則</h2>
-          <p class="sub">符合條件的項目，掃描後自動打標籤</p>
+          <p class="sub">符合條件的項目將自動套用標籤</p>
 
           <div class="rules-table">
             <div class="rules-header">
@@ -249,7 +249,7 @@ const applyAndClose = async () => {
           <h2>預覽結果</h2>
           <p class="sub">以下項目將被套用標籤（共 {{ previewItems.length }} 項）</p>
 
-          <div v-if="isLoading" class="loading-hint">掃描中...</div>
+          <div v-if="isLoading" class="loading-hint">套用中...</div>
           <div v-else-if="previewItems.length === 0 && !errorMsg" class="empty-hint">沒有項目符合規則</div>
           <div v-else class="preview-list">
             <div v-for="item in previewItems" :key="item.path" class="preview-row">

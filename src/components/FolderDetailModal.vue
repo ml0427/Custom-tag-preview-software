@@ -91,7 +91,7 @@ const openFolder = async () => {
           </div>
 
           <div class="info-block">
-            <label>類型</label>
+            <label>類別</label>
             <select v-model="editType" class="edit-input" @change="saveChanges">
               <option v-for="t in itemTypes" :key="t.name" :value="t.name">
                 {{ t.icon }} {{ t.displayName }}

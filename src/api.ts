@@ -23,7 +23,7 @@ export interface Item {
 }
 
 // Legacy Comic (kept for internal compat; maps to Item with itemType='file')
-export interface Comic {
+interface Comic {
     id: number;
     filePath: string;
     title: string;
@@ -34,8 +34,8 @@ export interface Comic {
     tags: Tag[];
 }
 
-// Legacy Folder (used by WorkspacePanel)
-export interface Folder {
+// Legacy Folder (used by SourcePanel)
+interface Folder {
     id: number;
     path: string;
     name: string;
@@ -214,7 +214,7 @@ export const api = {
         return await invoke('sync_sources');
     },
 
-    // ── Folders (WorkspacePanel backward compat) ──────────────────────────────
+    // ── Folders (SourcePanel backward compat) ────────────────────────────────
     async getFolders(tagId?: number, search?: string): Promise<Folder[]> {
         return await invoke<Folder[]>('get_folders', { tagId, search });
     },

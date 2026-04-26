@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:\\\\Users\\\\ml042\\\\Desktop\\\\自定義標籤預覽軟體\\\\.claude\")",
+      "Bash(cp /tmp/claude_settings_backup.json \"C:\\\\Users\\\\ml042\\\\Desktop\\\\自定義標籤預覽軟體\\\\.claude\\\\settings.local.json\")",
+      "Bash(mkdir -p \"/c/Users/ml042/Desktop/自定義標籤預覽軟體/.claude\")",
+      "Bash(cp /tmp/claude_settings_backup.json \"/c/Users/ml042/Desktop/自定義標籤預覽軟體/.claude/settings.local.json\")",
+      "Bash(git push *)",
+      "Bash(gh issue *)",
+      "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" issue list --repo ml0427/Custom-tag-preview-software --state open)",
+      "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" issue list --repo ml0427/Custom-tag-preview-software --state open --json number,title,labels)",
+      "mcp__pinecone__search-records",
+      "mcp__pinecone__list-indexes",
+      "Bash(npm run *)",
+      "Bash(cargo check *)",
+      "Bash(node -e ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "mcp__pinecone__upsert-records",
+      "Bash(awk '{print $2}')",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match \"git|node|cargo|tauri\" } | Select-Object Name, Id | Format-Table -AutoSize)",
+      "Bash(git commit -m 'feat: v0.27 右鍵選單刪除功能 *)",
+      "Bash(gh label *)",
+      "Bash(cp \"src/components/ComicGallery.vue\" \"src/components/ItemGallery.vue\")",
+      "Bash(cp \"src/components/ComicDetailModal.vue\" \"src/components/ItemDetailModal.vue\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); fh=d.get\\('five_hour',{}\\); print\\(f'quota: {fh.get\\(\\\\\"used_percentage\\\\\",0\\):.1f}% | resets: {fh.get\\(\\\\\"resets_at\\\\\",\\\\\"?\\\\\"\\)}'\\); \")"
+    ]
+  }
+}
