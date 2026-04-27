@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { api, type Item, type Tag } from '../api';
+import { api, type Item, type Tag, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 
 const props = defineProps<{
     item: Item | null;
+    fileItem?: FileItem | null;
 }>();
 
 const emit = defineEmits<{
@@ -16,49 +17,76 @@ const emit = defineEmits<{
 
 const coverUrl = ref('');
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+const ZIP_EXTS = ['zip', 'cbz', 'cbr', 'rar', '7z'];
 const { getTypeByExtension } = useItemTypes();
 
 const filePlaceholderIcon = computed(() => {
-    if (!props.item || props.item.itemType !== 'file') return '📄';
-    const ext = props.item.path.split('.').pop() ?? '';
+    if (props.item?.itemType === 'folder' || props.fileItem?.isDir) return '📁';
+    const ext = props.item
+        ? (props.item.path.split('.').pop() ?? '')
+        : (props.fileItem?.extension ?? '');
     const matched = getTypeByExtension(ext);
     if (matched) return matched.icon;
     if (IMAGE_EXTS.includes(ext.toLowerCase())) return '🖼️';
     return '📄';
 });
 
-// Load cover for file items (ZIP)
-watch(() => [props.item?.id, props.item?.coverCachePath], async () => {
-    const item = props.item;
-    if (!item || item.itemType !== 'file') return;
-    try {
-        coverUrl.value = await api.getCoverBase64(item.id);
-    } catch {
-        coverUrl.value = '';
-    }
-}, { immediate: true });
+// Single watcher with stale-check token to prevent race conditions
+const coverLoadToken = ref(0);
 
-// Load cover for folder items (first image in directory)
-watch(() => props.item?.path, async (folderPath) => {
-    const item = props.item;
-    if (!item || item.itemType !== 'folder') return;
-    if (!folderPath) { coverUrl.value = ''; return; }
+const loadCover = async () => {
+    const token = ++coverLoadToken.value;
     coverUrl.value = '';
-    try {
-        const files = await api.listDirFiles(folderPath);
-        const firstImage = files.find(f =>
-            !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
-        );
-        if (firstImage) {
-            coverUrl.value = await api.getImageBase64ByPath(firstImage.path);
-        }
-    } catch { coverUrl.value = ''; }
-}, { immediate: true });
 
-// Also clear cover when switching item types
-watch(() => props.item, (newItem) => {
-    if (!newItem) coverUrl.value = '';
-});
+    const item = props.item;
+    const fi = props.fileItem;
+
+    if (item) {
+        if (item.itemType === 'file') {
+            try {
+                const url = await api.getCoverBase64(item.id);
+                if (coverLoadToken.value === token) coverUrl.value = url;
+            } catch {}
+        } else if (item.itemType === 'folder') {
+            try {
+                const files = await api.listDirFiles(item.path);
+                const firstImage = files.find(f =>
+                    !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
+                );
+                if (firstImage) {
+                    const url = await api.getImageBase64ByPath(firstImage.path);
+                    if (coverLoadToken.value === token) coverUrl.value = url;
+                }
+            } catch {}
+        }
+    } else if (fi && !fi.isDir) {
+        const ext = fi.extension?.toLowerCase() ?? '';
+        try {
+            let url: string;
+            if (ZIP_EXTS.includes(ext)) {
+                url = await api.getZipCoverByPath(fi.path);
+            } else if (IMAGE_EXTS.includes(ext)) {
+                url = await api.getImageBase64ByPath(fi.path);
+            } else {
+                return;
+            }
+            if (coverLoadToken.value === token) coverUrl.value = url;
+        } catch {}
+    } else if (fi?.isDir) {
+        try {
+            const files = await api.listDirFiles(fi.path);
+            const firstImage = files.find(f =>
+                !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
+            );
+            if (firstImage) {
+                const url = await api.getImageBase64ByPath(firstImage.path);
+                if (coverLoadToken.value === token) coverUrl.value = url;
+            }
+        } catch {}
+    }
+};
+
+watch([() => props.item, () => props.fileItem], loadCover, { immediate: true });
 
 const formatSize = (bytes: number | null) => {
     if (!bytes) return '-';
@@ -146,6 +174,69 @@ const formatDate = (unix: number | null) => {
                 <div class="path-section">
                     <h4>路徑</h4>
                     <div class="path-box">{{ item.path }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unscanned file preview -->
+        <div v-else-if="fileItem && !fileItem.isDir" class="content">
+            <div class="cover-wrapper">
+                <img v-if="coverUrl" :src="coverUrl" :alt="fileItem.name" class="preview-cover" />
+                <div v-else class="cover-placeholder">{{ filePlaceholderIcon }}</div>
+            </div>
+
+            <div class="info-scroll">
+                <div class="title-container">
+                    <h3 class="item-title">{{ fileItem.name }}</h3>
+                </div>
+
+                <div class="meta-section">
+                    <div class="meta-item">
+                        <span class="label">檔案大小</span>
+                        <span class="value">{{ formatSize(fileItem.fileSize) }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="label">修改日期</span>
+                        <span class="value">{{ fileItem.modifiedTime ?? '-' }}</span>
+                    </div>
+                </div>
+
+                <div class="tags-section">
+                    <h4>標籤</h4>
+                    <div class="tags-container">
+                        <span class="no-tags">尚未掃描</span>
+                    </div>
+                </div>
+
+                <div class="path-section">
+                    <h4>路徑</h4>
+                    <div class="path-box">{{ fileItem.path }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unscanned folder preview -->
+        <div v-else-if="fileItem && fileItem.isDir" class="content">
+            <div class="cover-wrapper">
+                <img v-if="coverUrl" :src="coverUrl" :alt="fileItem.name" class="preview-cover" />
+                <div v-else class="cover-placeholder">📁</div>
+            </div>
+
+            <div class="info-scroll">
+                <div class="title-container">
+                    <h3 class="item-title">{{ fileItem.name }}</h3>
+                </div>
+
+                <div class="tags-section">
+                    <h4>標籤</h4>
+                    <div class="tags-container">
+                        <span class="no-tags">尚未掃描</span>
+                    </div>
+                </div>
+
+                <div class="path-section">
+                    <h4>路徑</h4>
+                    <div class="path-box">{{ fileItem.path }}</div>
                 </div>
             </div>
         </div>

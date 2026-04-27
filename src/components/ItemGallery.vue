@@ -56,6 +56,12 @@ const filteredFileItems = computed(() => {
 const selectedFileItemPath = ref<string | null>(null);
 const selectedItem = ref<Item | null>(null);
 const selectedPaths = ref<string[]>([]);
+
+const selectedFileItem = computed<FileItem | null>(() => {
+  if (selectedItem.value) return null;
+  if (!selectedFileItemPath.value) return null;
+  return filteredFileItems.value.find(fi => fi.path === selectedFileItemPath.value) ?? null;
+});
 const lastClickIdx = ref(-1);
 const isBatchDeleting = ref(false);
 
@@ -511,6 +517,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
     <PreviewPane
       v-if="isPreviewOpen"
       :item="selectedItem"
+      :fileItem="selectedFileItem"
       :style="{ width: previewWidth + 'px', minWidth: previewWidth + 'px' }"
       @show-detail="emit('showDetail', $event)"
       @show-folder-detail="emit('showFolderDetail', $event)"

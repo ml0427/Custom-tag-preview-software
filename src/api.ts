@@ -159,6 +159,10 @@ export const api = {
         return await invoke<string>('get_cover_base64', { id });
     },
 
+    async getZipCoverByPath(path: string): Promise<string> {
+        return await invoke<string>('get_zip_cover_by_path', { path });
+    },
+
     // ── Tags ──────────────────────────────────────────────────────────────────
     async getTags(): Promise<Tag[]> {
         return await invoke<Tag[]>('get_tags');

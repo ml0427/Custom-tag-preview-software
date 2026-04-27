@@ -337,6 +337,17 @@ pub async fn get_cover_base64(id: i64, pool: State<'_, SqlitePool>) -> Result<St
     Ok(format!("data:image/jpeg;base64,{}", b64))
 }
 
+#[tauri::command]
+pub async fn get_zip_cover_by_path(path: String) -> Result<String, String> {
+    let entries = zip_utils::get_image_entries(&path).map_err(|e| e.to_string())?;
+    if entries.is_empty() {
+        return Err("No images in zip".to_string());
+    }
+    let image_data = zip_utils::extract_image(&path, &entries[0]).map_err(|e| e.to_string())?;
+    let b64 = general_purpose::STANDARD.encode(&image_data);
+    Ok(format!("data:image/jpeg;base64,{}", b64))
+}
+
 // ── Folder-item operations (WorkspacePanel backward compat) ───────────────────
 
 #[tauri::command]

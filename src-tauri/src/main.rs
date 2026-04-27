@@ -119,6 +119,7 @@ fn main() {
             commands::list_subdirs,
             commands::list_dir_files,
             commands::get_image_base64_by_path,
+            commands::get_zip_cover_by_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
