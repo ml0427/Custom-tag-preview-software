@@ -293,14 +293,17 @@ const stopResizing = () => {
 
 const loadAll = async () => {
   isLoading.value = true;
+  const prevPath = selectedFileItemPath.value;
   fileItems.value = [];
   itemsData.value = [];
   selectedItem.value = null;
   selectedPaths.value = [];
   try {
     await Promise.all([loadFileItems(), loadItemsBackground()]);
-    // 若沒有明確選取項目，自動把當前資料夾設為 preview item（樹狀圖導航用）
-    if (!selectedFileItemPath.value && props.sourcePath) {
+    if (prevPath) {
+      selectedItem.value = itemByPath.value.get(prevPath) ?? null;
+    } else if (props.sourcePath) {
+      // 若沒有明確選取項目，自動把當前資料夾設為 preview item（樹狀圖導航用）
       const folderItem = await api.getItemByPath(props.sourcePath).catch(() => null);
       if (folderItem) selectedItem.value = folderItem;
     }
@@ -380,8 +383,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           />
           <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
           <span class="search-count" v-if="sourcePath">
-            <template v-if="gallerySearch.trim()">{{ filteredFileItems.length }} / {{ fileItems.length }} 項</template>
-            <template v-else>{{ fileItems.length }} 項</template>
+            <template v-if="gallerySearch.trim()">{{ filteredFileItems.length }} / {{ (selectedTagIds?.length ?? 0) > 0 ? itemsData.length : fileItems.length }} 項</template>
+            <template v-else>{{ (selectedTagIds?.length ?? 0) > 0 ? itemsData.length : fileItems.length }} 項</template>
           </span>
           <div class="view-toggle">
             <button

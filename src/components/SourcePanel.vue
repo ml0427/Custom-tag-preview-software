@@ -309,8 +309,8 @@ onMounted(() => {
               v-model="tagInput"
               class="folder-input"
               placeholder="輸入標籤名稱，Enter 新增"
-              @input="onInputChange(tagInput, allTags)"
-              @keydown.enter.prevent="submitInput(allTags)"
+              @input="onInputChange"
+              @keydown.enter.prevent="submitInput"
               @keydown.esc="hideSuggestions"
               @blur="hideSuggestions"
             />
