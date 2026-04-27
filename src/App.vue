@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { api, type Item, type Folder, type Tag } from './api'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useItemTypes } from './composables/useItemTypes'
 import ActivityBar from './components/ActivityBar.vue'
 import TagSidebar from './components/TagSidebar.vue'
@@ -64,9 +65,30 @@ const loadGlobalTags = async () => {
 
 const { load: loadItemTypes } = useItemTypes()
 
-onMounted(() => {
+// ── Scan progress bar ─────────────────────────────────────────────────────────
+const scanProgress = ref<{ active: boolean; current: number; name: string }>({
+  active: false, current: 0, name: ''
+})
+let scanHideTimer: ReturnType<typeof setTimeout> | null = null
+let unlistenScan: UnlistenFn | null = null
+
+const resetScanHideTimer = () => {
+  if (scanHideTimer) clearTimeout(scanHideTimer)
+  scanHideTimer = setTimeout(() => { scanProgress.value.active = false }, 1500)
+}
+
+onMounted(async () => {
   loadGlobalTags()
   loadItemTypes()
+  unlistenScan = await listen<{ current: number; name: string }>('scan-progress', ({ payload }) => {
+    scanProgress.value = { active: true, current: payload.current, name: payload.name }
+    resetScanHideTimer()
+  })
+})
+
+onUnmounted(() => {
+  unlistenScan?.()
+  if (scanHideTimer) clearTimeout(scanHideTimer)
 })
 </script>
 
@@ -125,6 +147,17 @@ onMounted(() => {
     />
 
     <ToastContainer />
+
+    <!-- 掃描進度條 -->
+    <Teleport to="body">
+      <transition name="scan-bar">
+        <div v-if="scanProgress.active" class="scan-progress-bar">
+          <span class="scan-spinner"></span>
+          <span class="scan-text">掃描中… {{ scanProgress.current }} 個項目</span>
+          <span class="scan-name">{{ scanProgress.name }}</span>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -172,4 +205,49 @@ onMounted(() => {
   width: 240px;
   opacity: 1;
 }
+
+.scan-progress-bar {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  background: #1e2130;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 1200;
+  max-width: 360px;
+}
+
+.scan-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.scan-text {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.scan-name {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scan-bar-enter-active, .scan-bar-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.scan-bar-enter-from, .scan-bar-leave-to { opacity: 0; transform: translateY(10px); }
 </style>

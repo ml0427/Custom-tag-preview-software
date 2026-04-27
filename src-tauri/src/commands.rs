@@ -47,7 +47,7 @@ pub async fn scan_directory(
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
     let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
-    scanner::scan_directory(&pool, &path, &cache_dir)
+    scanner::scan_directory(&pool, &path, &cache_dir, &app)
         .await
         .map(|count| serde_json::json!({ "message": "Scan completed", "addedCount": count }))
         .map_err(|e| e.to_string())
@@ -60,7 +60,7 @@ pub async fn incremental_scan(
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
     let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
-    scanner::incremental_scan_directory(&pool, &path, &cache_dir)
+    scanner::incremental_scan_directory(&pool, &path, &cache_dir, &app)
         .await
         .map(|(added, updated, removed)| serde_json::json!({
             "message": "增量掃描完成",
@@ -82,7 +82,7 @@ pub async fn sync_sources(pool: State<'_, SqlitePool>, app: AppHandle) -> Result
     let mut errors: Vec<String> = Vec::new();
 
     for source in &sources {
-        match scanner::incremental_scan_directory(&pool, &source.path, &cache_dir).await {
+        match scanner::incremental_scan_directory(&pool, &source.path, &cache_dir, &app).await {
             Ok((added, updated, removed)) => {
                 total_added += added;
                 total_updated += updated;
@@ -735,7 +735,7 @@ pub async fn apply_tag_scan(
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
     let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
-    let (added, updated, removed) = scanner::incremental_scan_directory(&pool, &scope_path, &cache_dir)
+    let (added, updated, removed) = scanner::incremental_scan_directory(&pool, &scope_path, &cache_dir, &app)
         .await
         .map_err(|e| e.to_string())?;
 

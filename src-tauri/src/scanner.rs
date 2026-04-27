@@ -8,8 +8,9 @@ use chrono::Local;
 use std::fs;
 use std::collections::{HashMap, HashSet};
 use std::time::UNIX_EPOCH;
+use tauri::{AppHandle, Emitter};
 
-pub async fn scan_directory(pool: &SqlitePool, path_str: &str, cache_dir: &Path) -> Result<i32> {
+pub async fn scan_directory(pool: &SqlitePool, path_str: &str, cache_dir: &Path, app: &AppHandle) -> Result<i32> {
     db::clear_database(pool).await?;
     if cache_dir.exists() {
         let _ = fs::remove_dir_all(cache_dir);
@@ -35,9 +36,13 @@ pub async fn scan_directory(pool: &SqlitePool, path_str: &str, cache_dir: &Path)
             .unwrap_or(false));
 
     for entry in entries {
+        let name = entry.path().file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
         if process_zip_file(pool, entry.path(), cache_dir).await? {
             added_count += 1;
         }
+        let _ = app.emit("scan-progress", serde_json::json!({ "current": added_count, "name": name }));
     }
 
     Ok(added_count)
@@ -121,6 +126,7 @@ pub async fn incremental_scan_directory(
     pool: &SqlitePool,
     path_str: &str,
     cache_dir: &Path,
+    app: &AppHandle,
 ) -> Result<(i32, i32, i32)> {
     fs::create_dir_all(cache_dir)?;
 
@@ -179,6 +185,10 @@ pub async fn incremental_scan_directory(
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
+        let name = entry.path().file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+
         if let Some((existing_id, db_mtime)) = existing.get(&file_path) {
             if (mtime_unix - db_mtime).abs() > 2 {
                 sqlx::query(
@@ -202,6 +212,10 @@ pub async fn incremental_scan_directory(
                 }
             }
         }
+        let _ = app.emit("scan-progress", serde_json::json!({
+            "current": added + updated,
+            "name": name
+        }));
     }
 
     let mut removed = 0i32;
