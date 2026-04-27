@@ -215,9 +215,22 @@ const highlightText = (text: string): string => {
   return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
 };
 
-// Sort
-const sortBy = ref<'name' | 'size' | 'date'>('name');
-const sortDir = ref<'asc' | 'desc'>('asc');
+// Sort — persisted via localStorage
+const VALID_SORT_BY = ['name', 'size', 'date'] as const;
+const VALID_SORT_DIR = ['asc', 'desc'] as const;
+const savedSortBy = localStorage.getItem('gallery-sort-by');
+const savedSortDir = localStorage.getItem('gallery-sort-dir');
+const sortBy = ref<'name' | 'size' | 'date'>(
+  VALID_SORT_BY.includes(savedSortBy as any) ? (savedSortBy as any) : 'name'
+);
+const sortDir = ref<'asc' | 'desc'>(
+  VALID_SORT_DIR.includes(savedSortDir as any) ? (savedSortDir as any) : 'asc'
+);
+
+watch([sortBy, sortDir], ([by, dir]) => {
+  localStorage.setItem('gallery-sort-by', by);
+  localStorage.setItem('gallery-sort-dir', dir);
+});
 
 const toggleSort = (col: 'name' | 'size' | 'date') => {
   if (sortBy.value === col) {
