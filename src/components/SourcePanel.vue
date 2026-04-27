@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
 import { api, type Source, type Folder, type Tag } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import DirTreeNode from './DirTreeNode.vue';
-import TypeManageModal from './TypeManageModal.vue';
+import TypeManageModal from './CategoryManageModal.vue';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
 import { useItemTypes } from '../composables/useItemTypes';
@@ -24,7 +24,7 @@ const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const showFolderModal = ref(false);
 const modalPhase = ref<'edit' | 'tags'>('edit');
 const folderInDb = ref<{ id: number } | null>(null);
-const editFolder = ref({ path: '', name: '', folderType: 'default' });
+const editFolder = ref({ path: '', name: '', category: 'default' });
 const applyToSubfolders = ref(false);
 const allTags = ref<Tag[]>([]);
 
@@ -65,14 +65,14 @@ const openModifyTypeFromCtx = async () => {
   const existing = all.find(f => f.path === p);
   if (existing) {
     folderInDb.value = { id: existing.id };
-    editFolder.value = { path: p, name: existing.name, folderType: existing.folderType };
+    editFolder.value = { path: p, name: existing.name, category: existing.category };
     initTags(existing.tags ?? []);
   } else {
     folderInDb.value = null;
     editFolder.value = {
       path: p,
       name: p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p,
-      folderType: 'default',
+      category: 'default',
     };
     initTags([]);
   }
@@ -98,14 +98,14 @@ const collectAllSubdirs = async (path: string): Promise<string[]> => {
 };
 
 const submitFolderModal = async () => {
-  const { path, name, folderType } = editFolder.value;
+  const { path, name, category } = editFolder.value;
   if (!path || !name) return;
   try {
     let saved: Folder;
     if (folderInDb.value) {
-      saved = await api.updateFolder(folderInDb.value.id, name.trim(), folderType, '');
+      saved = await api.updateFolder(folderInDb.value.id, name.trim(), category, '');
     } else {
-      saved = await api.createFolder(path, name.trim(), folderType, '');
+      saved = await api.createFolder(path, name.trim(), category, '');
     }
     folderInDb.value = { id: saved.id };
     if (applyToSubfolders.value) {
@@ -115,8 +115,8 @@ const submitFolderModal = async () => {
         const existing = currentMap.get(subPath);
         const subName = subPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? subPath;
         return existing
-          ? api.updateFolder(existing.id, existing.name, folderType, '')
-          : api.createFolder(subPath, subName, folderType, '');
+          ? api.updateFolder(existing.id, existing.name, category, '')
+          : api.createFolder(subPath, subName, category, '');
       }));
     }
     await loadDbFolders();
@@ -266,7 +266,7 @@ onMounted(() => {
           <div class="folder-field">
             <label>類別</label>
             <div class="type-select-row">
-              <select v-model="editFolder.folderType" class="folder-input">
+              <select v-model="editFolder.category" class="folder-input">
                 <option v-for="t in itemTypes" :key="t.name" :value="t.name">
                   {{ t.icon }} {{ t.displayName }}
                 </option>

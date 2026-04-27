@@ -87,7 +87,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             cover_cache_path TEXT,
             fingerprint     TEXT,
             note            TEXT DEFAULT '',
-            folder_type     TEXT DEFAULT 'default',
+            category        TEXT DEFAULT 'default',
             import_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );"
     ).execute(&pool).await?;
@@ -133,6 +133,13 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     let _ = sqlx::query("ALTER TABLE item_types ADD COLUMN color TEXT")
         .execute(&pool).await;
 
+    // Rename folder_type → category (idempotent)
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN category TEXT DEFAULT 'default'")
+        .execute(&pool).await;
+    let _ = sqlx::query(
+        "UPDATE items SET category = folder_type WHERE folder_type IS NOT NULL AND folder_type != 'default' AND (category IS NULL OR category = 'default')"
+    ).execute(&pool).await;
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS type_extensions (
             type_id   INTEGER NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
@@ -172,7 +179,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ).execute(&pool).await?;
 
     sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, folder_type, note, import_at)
+        "INSERT OR IGNORE INTO items (path, item_type, name, category, note, import_at)
          SELECT path, 'folder', name, folder_type, note, created_at
          FROM folders"
     ).execute(&pool).await?;

@@ -39,7 +39,7 @@ watch(() => props.item, (item) => {
     initTags(item.tags);
     editName.value = item.name;
     editNote.value = item.note ?? '';
-    editType.value = item.folderType ?? 'default';
+    editType.value = item.category ?? 'default';
   }
 }, { immediate: true });
 
@@ -82,7 +82,7 @@ const openFolder = async () => {
       <div v-if="item" class="modal-body">
         <div class="modal-left">
           <div class="folder-icon-area">
-            <span class="big-icon">{{ getTypeConfig(item.folderType).icon }}</span>
+            <span class="big-icon">{{ getTypeConfig(item.category).icon }}</span>
           </div>
 
           <div class="info-block">

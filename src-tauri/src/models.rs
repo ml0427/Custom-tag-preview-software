@@ -13,7 +13,7 @@ pub struct Item {
     pub cover_cache_path: Option<String>,
     pub fingerprint: Option<String>,
     pub note: Option<String>,
-    pub folder_type: Option<String>,
+    pub category: Option<String>,
     pub import_at: String,
     pub tags: Vec<Tag>,
 }
@@ -40,7 +40,7 @@ pub struct Folder {
     pub id: i64,
     pub path: String,
     pub name: String,
-    pub folder_type: String,
+    pub category: String,
     pub note: String,
     pub created_at: String,
     #[sqlx(skip)]

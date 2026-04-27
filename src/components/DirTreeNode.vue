@@ -27,7 +27,7 @@ const { getTypeConfig } = useItemTypes();
 
 const nodeIcon = computed(() => {
   if (props.isRoot) return '📂';
-  const ft = folderByPath.value.get(props.path)?.folderType;
+  const ft = folderByPath.value.get(props.path)?.category;
   return getTypeConfig(ft).icon;
 });
 

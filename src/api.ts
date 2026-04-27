@@ -17,7 +17,7 @@ export interface Item {
     coverCachePath: string | null;
     fingerprint: string | null;
     note: string | null;
-    folderType: string | null;
+    category: string | null;
     importAt: string;
     tags: Tag[];
 }
@@ -39,7 +39,7 @@ interface Folder {
     id: number;
     path: string;
     name: string;
-    folderType: string;
+    category: string;
     note: string;
     createdAt: string;
     tags: Tag[];
@@ -219,12 +219,12 @@ export const api = {
         return await invoke<Folder[]>('get_folders', { tagId, search });
     },
 
-    async createFolder(path: string, name: string, folderType: string, note: string): Promise<Folder> {
-        return await invoke<Folder>('create_folder', { path, name, folderType, note });
+    async createFolder(path: string, name: string, category: string, note: string): Promise<Folder> {
+        return await invoke<Folder>('create_folder', { path, name, category, note });
     },
 
-    async updateFolder(id: number, name: string, folderType: string, note: string): Promise<Folder> {
-        return await invoke<Folder>('update_folder', { id, name, folderType, note });
+    async updateFolder(id: number, name: string, category: string, note: string): Promise<Folder> {
+        return await invoke<Folder>('update_folder', { id, name, category, note });
     },
 
     async deleteFolder(id: number): Promise<void> {

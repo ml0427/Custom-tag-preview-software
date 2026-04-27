@@ -40,7 +40,7 @@ const showCover = (item: FileItem): boolean => {
 
 const getIcon = (item: FileItem): string => {
   if (item.isDir) {
-    const ft = props.itemByPath.get(item.path)?.folderType;
+    const ft = props.itemByPath.get(item.path)?.category;
     return getTypeConfig(ft).icon;
   }
   const ext = item.extension?.toLowerCase() ?? '';
@@ -58,7 +58,7 @@ const getIcon = (item: FileItem): string => {
 const getItemType = (item: FileItem): string => {
   if (item.isDir) {
     const dbItem = props.itemByPath.get(item.path);
-    if (dbItem) return getTypeConfig(dbItem.folderType).displayName;
+    if (dbItem) return getTypeConfig(dbItem.category).displayName;
     return '目錄';
   }
   return item.extension?.toUpperCase() ?? '—';
@@ -67,7 +67,7 @@ const getItemType = (item: FileItem): string => {
 const getTypeColor = (item: FileItem): string | null => {
   if (!item.isDir) return null;
   const dbItem = props.itemByPath.get(item.path);
-  return getTypeConfig(dbItem?.folderType).color ?? null;
+  return getTypeConfig(dbItem?.category).color ?? null;
 };
 
 const getItemTags = (item: FileItem) => props.itemByPath.get(item.path)?.tags ?? [];

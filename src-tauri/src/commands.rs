@@ -22,7 +22,7 @@ fn read_item_from_row(row: &sqlx::sqlite::SqliteRow, tags: Vec<Tag>) -> Item {
         cover_cache_path: row.get("cover_cache_path"),
         fingerprint: row.get("fingerprint"),
         note: row.get("note"),
-        folder_type: row.get("folder_type"),
+        category: row.get("category"),
         import_at: row.get("import_at"),
         tags,
     }
@@ -364,7 +364,7 @@ pub async fn get_folders(
             id,
             path: row.get("path"),
             name: row.get("name"),
-            folder_type: row.get::<Option<String>, _>("folder_type")
+            category: row.get::<Option<String>, _>("category")
                 .unwrap_or_else(|| "default".to_string()),
             note: row.get::<Option<String>, _>("note").unwrap_or_default(),
             created_at: row.get("import_at"),
@@ -378,16 +378,16 @@ pub async fn get_folders(
 pub async fn create_folder(
     path: String,
     name: String,
-    folder_type: String,
+    category: String,
     note: String,
     pool: State<'_, SqlitePool>,
 ) -> Result<Folder, String> {
     sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, folder_type, note) VALUES (?, 'folder', ?, ?, ?)"
+        "INSERT OR IGNORE INTO items (path, item_type, name, category, note) VALUES (?, 'folder', ?, ?, ?)"
     )
     .bind(&path)
     .bind(&name)
-    .bind(&folder_type)
+    .bind(&category)
     .bind(&note)
     .execute(&*pool)
     .await
@@ -403,7 +403,7 @@ pub async fn create_folder(
         id: row.get("id"),
         path,
         name: row.get("name"),
-        folder_type: row.get::<Option<String>, _>("folder_type")
+        category: row.get::<Option<String>, _>("category")
             .unwrap_or_else(|| "default".to_string()),
         note: row.get::<Option<String>, _>("note").unwrap_or_default(),
         created_at: row.get("import_at"),
@@ -415,15 +415,15 @@ pub async fn create_folder(
 pub async fn update_folder(
     id: i64,
     name: String,
-    folder_type: String,
+    category: String,
     note: String,
     pool: State<'_, SqlitePool>,
 ) -> Result<Folder, String> {
     sqlx::query(
-        "UPDATE items SET name = ?, folder_type = ?, note = ? WHERE id = ? AND item_type = 'folder'"
+        "UPDATE items SET name = ?, category = ?, note = ? WHERE id = ? AND item_type = 'folder'"
     )
     .bind(&name)
-    .bind(&folder_type)
+    .bind(&category)
     .bind(&note)
     .bind(id)
     .execute(&*pool)
@@ -441,7 +441,7 @@ pub async fn update_folder(
         id,
         path: row.get("path"),
         name,
-        folder_type,
+        category,
         note,
         created_at: row.get("import_at"),
         tags,
@@ -1053,7 +1053,7 @@ pub async fn delete_item_type(id: i64, pool: State<'_, SqlitePool>) -> Result<()
 
     let type_name: String = row.get("name");
 
-    sqlx::query("UPDATE items SET folder_type = 'default' WHERE folder_type = ?")
+    sqlx::query("UPDATE items SET category = 'default' WHERE category = ?")
         .bind(&type_name)
         .execute(&*pool)
         .await
