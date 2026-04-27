@@ -1,30 +1,55 @@
 # 自定義標籤預覽軟體 (Custom Tag Preview Software)
 
-這是一款專為漫畫與同人誌檔案開發的預覽與管理軟體。從原本的 Spring Boot + Java 架構全面遷移至 **Tauri v2 (Rust) + Vue 3**，實現更輕量化、更快速的原生桌面體驗。
+本地桌面應用程式，用於管理大量檔案（壓縮包、圖片、影片等），以標籤系統取代傳統資料夾分類，提供快速預覽與批次操作。基於 **Tauri v2 (Rust) + Vue 3** 建構，無需伺服器，資料完全本地。
 
-## 🌟 核心功能
+## 功能
 
-- **🚀 自動掃描與擷取**：自動掃描指定目錄下的 ZIP 壓縮檔，並透過正則表達式自動提取作者、社團與作品名稱。
-- **🖼️ 即時預覽**：直接從壓縮檔中提取第一頁作為封面，採用 Base64 同步載入技術，無需生成實體快取檔，隱私且高效。
-- **🏷️ 標籤管理**：完整的標籤系統，支援手動新增、刪除以及與作品的關聯管理。
-- **📝 檔案重新命名**：支援在軟體內直接修改作品標題，並同步重新命名磁碟上的檔案。
-- **🔍 篩選與分頁**：支援按標籤篩選作品，並提供極致流暢的分頁瀏覽體驗。
-- **📂 本地數據庫**：使用 SQLite (sqlx) 存儲所有數據，確保數據安全且不依賴外部伺服器。
+### 來源管理
+- 新增多個來源目錄（Source），自動同步新增/移除的檔案
+- 樹狀圖導航，支援資料夾逐層瀏覽
+- 資料夾可設定**自訂類別**（含圖示、顏色、副檔名規則）
 
-## 🛠️ 技術棧
+### 標籤系統
+- 手動新增、重新命名、刪除標籤
+- **多標籤 AND 篩選**：點選多個標籤，結果同時包含所有選定標籤
+- 標籤規則：依路徑 prefix/suffix/contains/regex 自動套用
+- 批次貼標籤 / 移標籤（多選後操作）
 
-- **後端**: [Tauri v2](https://v2.tauri.app/) (Rust)
-- **前端**: [Vue 3](https://vuejs.org/) + [Vite](https://vitejs.dev/) + TypeScript
-- **資料庫**: [SQLite](https://sqlite.org/) + [sqlx](https://github.com/launchbadge/sqlx)
-- **樣式**: Vanilla CSS (Premium Glassmorphism Design)
+### 瀏覽與預覽
+- 列表檢視 / 縮圖格子檢視（可切換）
+- 右側預覽面板（可調整寬度）
+- Ctrl/Shift 多選，批次刪除（移至資源回收筒）
 
-## 🚀 開發與建構
+### 批次操作（多選後顯示）
+- 批次**加標籤**：搜尋標籤後一鍵套用
+- 批次**移標籤**：列出聯集標籤，點選移除
+- 批次移至資源回收筒
 
-### 環境準備
-確保您的電腦已安裝：
-- [Node.js](https://nodejs.org/)
-- [Rust 工具鏈](https://www.rust-lang.org/)
-- Windows 使用者需安裝 [C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+### 掃描 / 同步
+- 全量掃描：清除後重建資料庫
+- 增量掃描：僅處理新增 / 移除的項目
+- 批次掃描精靈：一次對所有來源執行同步
+
+### 其他
+- 檔案重新命名（同步磁碟）
+- 縮圖快取（JPG，`app_data/comic_cache/`）
+- 深色主題 Glassmorphism UI
+
+## 技術棧
+
+| 層 | 技術 |
+|----|------|
+| 桌面框架 | [Tauri v2](https://v2.tauri.app/) (Rust) |
+| 前端 | [Vue 3](https://vuejs.org/) + Vite + TypeScript |
+| 資料庫 | SQLite + [sqlx](https://github.com/launchbadge/sqlx) |
+| 樣式 | Vanilla CSS (Glassmorphism) |
+
+## 開發
+
+### 環境需求
+- [Node.js](https://nodejs.org/) 18+
+- [Rust 工具鏈](https://www.rust-lang.org/)（`rustup` 安裝）
+- Windows：需安裝 [C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 
 ### 安裝依賴
 ```powershell
@@ -36,19 +61,29 @@ npm install
 npm run tauri dev
 ```
 
-### 打包發佈 (Production)
+### 打包發佈
 ```powershell
 npm run tauri build
 ```
-打包後的安裝檔位於 `src-tauri/target/release/bundle/`。
+產出安裝檔位於 `src-tauri/target/release/bundle/`。
 
-## 📁 專案結構
-- `src/`: Vue 3 前端原始碼、API 定義以及全螢幕毛玻璃風格 UI。
-- `src-tauri/`: Rust 後端邏輯，包含資料庫遷移、ZIP 處理與檔案掃描。
-- `tauri.conf.json`: Tauri 配置文件。
+## 專案結構
 
-## 📄 授權
-本專案為私有開發。
+```
+src/                  # Vue 3 前端
+  components/         # UI 元件
+  composables/        # 共用邏輯（useToast、useTagManager、useItemTypes）
+  api.ts              # Tauri IPC 封裝
+src-tauri/src/        # Rust 後端
+  commands.rs         # Tauri command 實作
+  db.rs               # 資料庫初始化與 migration
+  models.rs           # 資料結構定義
+  scanner.rs          # 目錄掃描 / 縮圖產生
+  zip_utils.rs        # ZIP 封面擷取
+scripts/
+  stamp-build.cjs     # 自動更新版本號 + build 時間戳
+```
 
----
-*Powered by Antigravity Agentic AI*
+## 授權
+
+私有專案，未經授權不得轉載或商業使用。
