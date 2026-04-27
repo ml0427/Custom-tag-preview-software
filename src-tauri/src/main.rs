@@ -89,6 +89,7 @@ fn main() {
             commands::create_tag,
             commands::delete_tag,
             commands::rename_tag,
+            commands::set_tag_color,
             commands::merge_tags,
             commands::search_tags,
             // Tag rules & scan wizard

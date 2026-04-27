@@ -30,7 +30,7 @@ fn read_item_from_row(row: &sqlx::sqlite::SqliteRow, tags: Vec<Tag>) -> Item {
 
 async fn fetch_item_tags(pool: &SqlitePool, item_id: i64) -> Result<Vec<Tag>, String> {
     sqlx::query_as::<_, Tag>(
-        "SELECT t.id, t.name FROM tags t JOIN item_tags it ON t.id = it.tag_id WHERE it.item_id = ?"
+        "SELECT t.id, t.name, t.color FROM tags t JOIN item_tags it ON t.id = it.tag_id WHERE it.item_id = ?"
     )
     .bind(item_id)
     .fetch_all(pool)
@@ -561,6 +561,21 @@ pub async fn create_tag(name: String, pool: State<'_, SqlitePool>) -> Result<Tag
 }
 
 #[tauri::command]
+pub async fn set_tag_color(id: i64, color: Option<String>, pool: State<'_, SqlitePool>) -> Result<Tag, String> {
+    sqlx::query("UPDATE tags SET color = ? WHERE id = ?")
+        .bind(&color)
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query_as::<_, Tag>("SELECT id, name, color FROM tags WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn delete_tag(id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
     sqlx::query("DELETE FROM tags WHERE id = ?")
         .bind(id)
@@ -578,7 +593,11 @@ pub async fn rename_tag(id: i64, name: String, pool: State<'_, SqlitePool>) -> R
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(Tag { id, name })
+    sqlx::query_as::<_, Tag>("SELECT id, name, color FROM tags WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -605,7 +624,7 @@ pub async fn merge_tags(source_id: i64, target_id: i64, pool: State<'_, SqlitePo
 pub async fn search_tags(query: String, pool: State<'_, SqlitePool>) -> Result<Vec<Tag>, String> {
     let pattern = format!("%{}%", query);
     sqlx::query_as::<_, Tag>(
-        "SELECT id, name FROM tags WHERE name LIKE ? ORDER BY name ASC LIMIT 10",
+        "SELECT id, name, color FROM tags WHERE name LIKE ? ORDER BY name ASC LIMIT 10",
     )
     .bind(pattern)
     .fetch_all(&*pool)

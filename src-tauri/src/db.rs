@@ -132,6 +132,8 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     // Add color column if upgrading from previous version
     let _ = sqlx::query("ALTER TABLE item_types ADD COLUMN color TEXT")
         .execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE tags ADD COLUMN color TEXT")
+        .execute(&pool).await;
 
     // Rename folder_type → category (idempotent)
     let _ = sqlx::query("ALTER TABLE items ADD COLUMN category TEXT DEFAULT 'default'")
@@ -206,14 +208,14 @@ pub async fn clear_database(pool: &SqlitePool) -> Result<()> {
 }
 
 pub async fn get_tags(pool: &SqlitePool) -> Result<Vec<Tag>> {
-    let tags = sqlx::query_as::<_, Tag>("SELECT id, name FROM tags ORDER BY name ASC")
+    let tags = sqlx::query_as::<_, Tag>("SELECT id, name, color FROM tags ORDER BY name ASC")
         .fetch_all(pool)
         .await?;
     Ok(tags)
 }
 
 pub async fn find_tag_by_name(pool: &SqlitePool, name: &str) -> Result<Option<Tag>> {
-    let tag = sqlx::query_as::<_, Tag>("SELECT id, name FROM tags WHERE name = ?")
+    let tag = sqlx::query_as::<_, Tag>("SELECT id, name, color FROM tags WHERE name = ?")
         .bind(name)
         .fetch_optional(pool)
         .await?;
@@ -226,7 +228,7 @@ pub async fn create_tag(pool: &SqlitePool, name: &str) -> Result<Tag> {
         .execute(pool)
         .await?
         .last_insert_rowid();
-    Ok(Tag { id, name: name.to_string() })
+    Ok(Tag { id, name: name.to_string(), color: None })
 }
 
 pub async fn get_sources(pool: &SqlitePool) -> Result<Vec<Source>> {

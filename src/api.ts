@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 export interface Tag {
     id: number;
     name: string;
+    color?: string | null;
 }
 
 // Unified Item — replaces Comic + Folder
@@ -178,6 +179,9 @@ export const api = {
 
     async renameTag(id: number, name: string): Promise<Tag> {
         return await invoke<Tag>('rename_tag', { id, name });
+    },
+    async setTagColor(id: number, color: string | null): Promise<Tag> {
+        return await invoke<Tag>('set_tag_color', { id, color });
     },
 
     async mergeTags(sourceId: number, targetId: number): Promise<void> {

@@ -23,6 +23,7 @@ pub struct Item {
 pub struct Tag {
     pub id: i64,
     pub name: String,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
