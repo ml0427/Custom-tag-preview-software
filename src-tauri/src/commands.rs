@@ -108,7 +108,7 @@ pub async fn sync_sources(pool: State<'_, SqlitePool>, app: AppHandle) -> Result
 pub async fn get_items(
     page: i64,
     size: i64,
-    tag_id: Option<i64>,
+    tag_ids: Option<Vec<i64>>,
     sort_by: Option<String>,
     sort_dir: Option<String>,
     source_path: Option<String>,
@@ -124,24 +124,30 @@ pub async fn get_items(
     };
     let dir = if sort_dir.as_deref() == Some("asc") { "ASC" } else { "DESC" };
     let source_like = source_path.as_deref().map(|p| format!("{}%", p));
-    let with_tag = tag_id.is_some();
+    let active_tags: Vec<i64> = tag_ids.unwrap_or_default();
+    let with_tags = !active_tags.is_empty();
     let has_source = source_path.is_some();
 
     // Build both data and count queries with the same conditions
     macro_rules! build_query {
         ($select:expr) => {{
             let mut qb = sqlx::QueryBuilder::new($select);
-            if with_tag {
-                qb.push(" JOIN item_tags it ON i.id = it.item_id WHERE it.tag_id = ");
-                qb.push_bind(tag_id.unwrap());
+            // AND-logic multi-tag filter via subquery
+            if with_tags {
+                qb.push(" WHERE i.id IN (SELECT item_id FROM item_tags WHERE tag_id IN (");
+                let mut sep = qb.separated(", ");
+                for id in &active_tags { sep.push_bind(*id); }
+                qb.push(") GROUP BY item_id HAVING COUNT(DISTINCT tag_id) = ");
+                qb.push_bind(active_tags.len() as i64);
+                qb.push(")");
             }
-            let mut need_and = with_tag;
+            let mut need_and = with_tags;
             if has_source {
                 qb.push(if need_and { " AND" } else { " WHERE" });
                 qb.push(" i.path LIKE ");
                 qb.push_bind(source_like.clone().unwrap());
                 need_and = true;
-            } else if !with_tag {
+            } else if !with_tags {
                 qb.push(" WHERE EXISTS (SELECT 1 FROM sources s WHERE i.path LIKE s.path || '%')");
                 need_and = true;
             }

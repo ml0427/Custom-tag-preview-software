@@ -8,7 +8,7 @@ import { useToast } from '../composables/useToast';
 
 const props = defineProps<{
   sourcePath: string | null;
-  selectedTagId?: number | null;
+  selectedTagIds?: number[];
 }>();
 
 const emit = defineEmits<{
@@ -32,7 +32,7 @@ const itemByPath = computed(() =>
 const filteredFileItems = computed(() => {
   // Tag mode (any): use backend-filtered itemsData converted to FileItem
   // No-tag source mode: use raw filesystem listing
-  const base: FileItem[] = (props.selectedTagId != null)
+  const base: FileItem[] = ((props.selectedTagIds?.length ?? 0) > 0)
     ? itemsData.value.map(item => ({
         name: item.name,
         path: item.path,
@@ -222,8 +222,8 @@ const loadFileItems = async () => {
 
 const loadItemsBackground = async () => {
   try {
-    const tagId = props.selectedTagId ?? undefined;
-    const res = await api.getItems(0, 9999, tagId, 'importAt', 'desc', props.sourcePath ?? undefined);
+    const tagIds = props.selectedTagIds?.length ? props.selectedTagIds : undefined;
+    const res = await api.getItems(0, 9999, tagIds, 'importAt', 'desc', props.sourcePath ?? undefined);
     itemsData.value = res.content;
   } catch {
     itemsData.value = [];
@@ -312,7 +312,7 @@ watch(() => props.sourcePath, () => {
   loadAll();
 });
 
-watch(() => props.selectedTagId, async () => {
+watch(() => props.selectedTagIds, async () => {
   isLoading.value = true;
   itemsData.value = [];
   try { await loadItemsBackground(); }
@@ -395,7 +395,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       </div>
 
       <div class="table-wrapper">
-        <div v-if="!sourcePath && !selectedTagId" class="no-workspace-state">
+        <div v-if="!sourcePath && !(selectedTagIds?.length)" class="no-workspace-state">
           <div class="no-workspace-icon">📂</div>
           <p>請從左側選擇工作目錄或標籤</p>
         </div>

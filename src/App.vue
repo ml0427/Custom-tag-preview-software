@@ -12,7 +12,7 @@ import ScanWizardModal from './components/ScanWizardModal.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
 const activePanel = ref<string | null>('workspace')
-const selectedTagId = ref<number | null>(null)
+const selectedTagIds = ref<number[]>([])
 const selectedSourcePath = ref<string | null>(null)
 const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
@@ -22,17 +22,17 @@ const showScanWizard = ref(false)
 
 const handleActivitySelect = (id: string) => {
   if (id === 'workspace' && activePanel.value !== 'workspace') {
-    selectedTagId.value = null
+    selectedTagIds.value = []
   }
   activePanel.value = activePanel.value === id ? null : id
 }
 
-const handleTagSelect = (tagId: number | null) => {
-  selectedTagId.value = tagId
+const handleTagSelect = (tagIds: number[]) => {
+  selectedTagIds.value = tagIds
 }
 
 const handleJumpToTag = (tagId: number) => {
-  selectedTagId.value = tagId
+  selectedTagIds.value = [tagId]
   activePanel.value = 'tags'
 }
 
@@ -78,7 +78,7 @@ onMounted(() => {
       <div v-if="activePanel" class="side-panel glass-panel">
         <TagSidebar
           v-if="activePanel === 'tags'"
-          :selectedTagId="selectedTagId"
+          :selectedTagIds="selectedTagIds"
           @select="handleTagSelect"
         />
         <SourcePanel
@@ -95,7 +95,7 @@ onMounted(() => {
       <ItemGallery
         ref="galleryRef"
         :sourcePath="selectedSourcePath"
-        :selectedTagId="selectedTagId"
+        :selectedTagIds="selectedTagIds"
         @showDetail="handleFileItemSelect"
         @showFolderDetail="handleFolderItemSelect"
         @navigateDir="(path) => { selectedSourcePath = path; }"

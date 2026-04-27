@@ -4,8 +4,8 @@ import { api, type Tag } from '../api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useToast } from '../composables/useToast';
 
-const props = defineProps<{ selectedTagId: number | null }>();
-const emit = defineEmits<{ (e: 'select', tagId: number | null): void }>();
+const props = defineProps<{ selectedTagIds: number[] }>();
+const emit = defineEmits<{ (e: 'select', tagIds: number[]): void }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
 const searchQuery = ref('');
@@ -43,7 +43,15 @@ const loadTags = async () => {
   tagCounts.value = new Map(counts.map(c => [c.id, c.count]));
 };
 
-const handleSelect = (id: number | null) => emit('select', id);
+const handleSelect = (id: number | null) => {
+  if (id === null) { emit('select', []); return; }
+  const current = props.selectedTagIds;
+  if (current.includes(id)) {
+    emit('select', current.filter(t => t !== id));
+  } else {
+    emit('select', [...current, id]);
+  }
+};
 
 const filteredTags = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -71,7 +79,7 @@ const handleDeleteTag = async (tag: Tag) => {
   if (!await confirmDialog(`確定刪除標籤「${tag.name}」？`)) return;
   try {
     await api.deleteTag(tag.id);
-    if (props.selectedTagId === tag.id) emit('select', null);
+    if (props.selectedTagIds.includes(tag.id)) emit('select', props.selectedTagIds.filter(id => id !== tag.id));
     await loadTags();
   } catch { showToast('刪除標籤失敗', 'error'); }
 };
@@ -118,14 +126,26 @@ onUnmounted(() => {
       />
     </div>
 
+    <!-- 已選標籤 chip 列 -->
+    <div v-if="selectedTagIds.length" class="selected-chips">
+      <span
+        v-for="id in selectedTagIds"
+        :key="id"
+        class="chip"
+      >
+        {{ tags.find(t => t.id === id)?.name ?? id }}
+        <span class="chip-x" @click="handleSelect(id)">✕</span>
+      </span>
+    </div>
+
     <!-- 全部漫畫 -->
-    <div class="all-item" :class="{ active: selectedTagId === null }" @click="handleSelect(null)">
+    <div class="all-item" :class="{ active: selectedTagIds.length === 0 }" @click="handleSelect(null)">
       🌟 全部漫畫
     </div>
 
     <!-- 標籤清單 -->
     <ul class="tag-list" @click.stop>
-      <li v-for="tag in filteredTags" :key="tag.id" :class="{ active: selectedTagId === tag.id }">
+      <li v-for="tag in filteredTags" :key="tag.id" :class="{ active: selectedTagIds.includes(tag.id) }">
 
         <template v-if="editingTagId === tag.id">
           <div class="tag-edit-row">
@@ -195,6 +215,33 @@ onUnmounted(() => {
   padding: 8px 12px 4px;
   flex-shrink: 0;
 }
+
+.selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 12px 2px;
+  flex-shrink: 0;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(47, 129, 247, 0.25);
+  border: 1px solid rgba(47, 129, 247, 0.5);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  color: #7eb8ff;
+  white-space: nowrap;
+}
+.chip-x {
+  cursor: pointer;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  line-height: 1;
+}
+.chip-x:hover { opacity: 1; }
 
 .search-input {
   width: 100%;

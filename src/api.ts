@@ -118,13 +118,13 @@ export const api = {
     async getItems(
         page = 0,
         size = 9999,
-        tagId?: number,
+        tagIds?: number[],
         sortBy?: string,
         sortDir?: string,
         sourcePath?: string,
         itemType?: string,
     ): Promise<Page<Item>> {
-        return await invoke<Page<Item>>('get_items', { page, size, tagId, sortBy, sortDir, sourcePath, itemType });
+        return await invoke<Page<Item>>('get_items', { page, size, tagIds, sortBy, sortDir, sourcePath, itemType });
     },
 
     async getItem(id: number): Promise<Item> {
