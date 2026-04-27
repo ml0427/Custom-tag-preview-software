@@ -114,6 +114,9 @@ fn main() {
             commands::create_item_type,
             commands::update_item_type,
             commands::delete_item_type,
+            // Duplicate detection
+            commands::get_duplicate_groups,
+            commands::compute_fingerprints,
             // File system
             commands::open_file,
             commands::list_subdirs,

@@ -282,6 +282,14 @@ export const api = {
         return await invoke('apply_tag_scan', { scopePath, rules });
     },
 
+    // ── Duplicate detection ───────────────────────────────────────────────────
+    async getDuplicateGroups(): Promise<{ fingerprint: string; items: Item[] }[]> {
+        return await invoke('get_duplicate_groups');
+    },
+    async computeFingerprints(): Promise<number> {
+        return await invoke('compute_fingerprints');
+    },
+
     // ── Item Types ────────────────────────────────────────────────────────────
     async getItemTypes(): Promise<ItemType[]> {
         return await invoke<ItemType[]>('get_item_types');

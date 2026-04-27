@@ -10,6 +10,7 @@ import ItemGallery from './components/ItemGallery.vue'
 import ItemDetailModal from './components/ItemDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
 import ScanWizardModal from './components/ScanWizardModal.vue'
+import DuplicateView from './components/DuplicateView.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
 const activePanel = ref<string | null>('workspace')
@@ -97,7 +98,7 @@ onUnmounted(() => {
     <ActivityBar :active="activePanel" :hasSource="allTags.length > 0" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
-      <div v-if="activePanel" class="side-panel glass-panel">
+      <div v-if="activePanel && activePanel !== 'duplicates'" class="side-panel glass-panel">
         <TagSidebar
           v-if="activePanel === 'tags'"
           :selectedTagIds="selectedTagIds"
@@ -114,7 +115,9 @@ onUnmounted(() => {
     </transition>
 
     <main class="main-content">
+      <DuplicateView v-if="activePanel === 'duplicates'" />
       <ItemGallery
+        v-else
         ref="galleryRef"
         :sourcePath="selectedSourcePath"
         :selectedTagIds="selectedTagIds"

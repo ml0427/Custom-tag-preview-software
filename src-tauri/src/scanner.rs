@@ -6,9 +6,21 @@ use sqlx::{SqlitePool, Row};
 use crate::db;
 use chrono::Local;
 use std::fs;
+use std::io::Read;
 use std::collections::{HashMap, HashSet};
 use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Emitter};
+use sha2::{Sha256, Digest};
+
+pub fn compute_file_fingerprint(path: &Path) -> Option<String> {
+    let mut file = fs::File::open(path).ok()?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 65536]; // first 64 KB
+    let n = file.read(&mut buf).ok()?;
+    if n == 0 { return None; }
+    hasher.update(&buf[..n]);
+    Some(format!("{:x}", hasher.finalize()))
+}
 
 pub async fn scan_directory(pool: &SqlitePool, path_str: &str, cache_dir: &Path, app: &AppHandle) -> Result<i32> {
     db::clear_database(pool).await?;
@@ -60,15 +72,17 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
         .unwrap_or(0);
     let import_at = Local::now().to_rfc3339();
 
+    let fingerprint = compute_file_fingerprint(path);
     let result = sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at)
-         VALUES (?, 'file', ?, ?, ?, ?)"
+        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at, fingerprint)
+         VALUES (?, 'file', ?, ?, ?, ?, ?)"
     )
     .bind(&file_path)
     .bind(&title)
     .bind(file_size)
     .bind(mtime_unix)
     .bind(&import_at)
+    .bind(&fingerprint)
     .execute(pool)
     .await?;
 
