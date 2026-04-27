@@ -59,6 +59,80 @@ const selectedPaths = ref<string[]>([]);
 const lastClickIdx = ref(-1);
 const isBatchDeleting = ref(false);
 
+// ── Batch tag picker ──────────────────────────────────────────────────────────
+type TagPickerMode = 'add' | 'remove' | null;
+const tagPickerMode = ref<TagPickerMode>(null);
+const tagPickerSearch = ref('');
+const tagPickerSuggestions = ref<{ id: number; name: string }[]>([]);
+const isBatchTagging = ref(false);
+let tagDebounce: ReturnType<typeof setTimeout> | null = null;
+
+const selectedItemsData = computed(() =>
+  selectedPaths.value.flatMap(p => {
+    const item = itemByPath.value.get(p);
+    return item ? [item] : [];
+  })
+);
+
+const removableTags = computed(() => {
+  const map = new Map<number, string>();
+  selectedItemsData.value.forEach(item =>
+    item.tags.forEach(t => map.set(t.id, t.name))
+  );
+  return [...map.entries()].map(([id, name]) => ({ id, name }));
+});
+
+const openTagPicker = (mode: 'add' | 'remove') => {
+  tagPickerMode.value = mode;
+  tagPickerSearch.value = '';
+  tagPickerSuggestions.value = [];
+};
+
+const closeTagPicker = () => {
+  tagPickerMode.value = null;
+  tagPickerSearch.value = '';
+  tagPickerSuggestions.value = [];
+};
+
+const onTagPickerInput = () => {
+  if (tagDebounce) clearTimeout(tagDebounce);
+  const q = tagPickerSearch.value.trim();
+  if (!q) { tagPickerSuggestions.value = []; return; }
+  tagDebounce = setTimeout(async () => {
+    tagPickerSuggestions.value = await api.searchTags(q);
+  }, 200);
+};
+
+const batchAddTag = async (tag: { id: number; name: string }) => {
+  closeTagPicker();
+  isBatchTagging.value = true;
+  try {
+    const ids = selectedItemsData.value.map(i => i.id);
+    await Promise.all(ids.map(id => api.tagItem(id, tag.id)));
+    await loadAll();
+    showToast(`已為 ${ids.length} 個項目加上「${tag.name}」`, 'success');
+  } catch (e: any) {
+    showToast('批次加標籤失敗：' + (e?.message ?? e), 'error');
+  } finally {
+    isBatchTagging.value = false;
+  }
+};
+
+const batchRemoveTag = async (tag: { id: number; name: string }) => {
+  closeTagPicker();
+  isBatchTagging.value = true;
+  try {
+    const ids = selectedItemsData.value.map(i => i.id);
+    await Promise.all(ids.map(id => api.untagItem(id, tag.id).catch(() => {})));
+    await loadAll();
+    showToast(`已從 ${ids.length} 個項目移除「${tag.name}」`, 'success');
+  } catch (e: any) {
+    showToast('批次移標籤失敗：' + (e?.message ?? e), 'error');
+  } finally {
+    isBatchTagging.value = false;
+  }
+};
+
 const handleFileItemClick = (item: FileItem, event?: MouseEvent) => {
   const list = filteredFileItems.value;
   const idx = list.findIndex(i => i.path === item.path);
@@ -246,8 +320,20 @@ watch(() => props.selectedTagId, async () => {
   finally { isLoading.value = false; }
 });
 
-onMounted(() => loadAll());
-onUnmounted(() => stopResizing());
+onMounted(() => {
+  loadAll();
+  document.addEventListener('click', onDocClick);
+});
+onUnmounted(() => {
+  stopResizing();
+  document.removeEventListener('click', onDocClick);
+});
+
+const onDocClick = (e: MouseEvent) => {
+  if (tagPickerMode.value && !(e.target as HTMLElement).closest('.batch-tag-wrap')) {
+    closeTagPicker();
+  }
+};
 
 defineExpose({ refresh: () => loadAll() });
 
@@ -360,6 +446,51 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       <div v-if="selectedPaths.length > 1" class="batch-action-bar">
         <span class="batch-count">已選取 {{ selectedPaths.length }} 項</span>
         <button class="batch-btn" @click="clearMultiSelect">取消選取</button>
+
+        <!-- 加標籤 -->
+        <div class="batch-tag-wrap">
+          <button class="batch-btn" :disabled="isBatchTagging" @click="tagPickerMode === 'add' ? closeTagPicker() : openTagPicker('add')">
+            ＋ 加標籤
+          </button>
+          <div v-if="tagPickerMode === 'add'" class="tag-picker-popover">
+            <input
+              ref="tagSearchInput"
+              v-model="tagPickerSearch"
+              class="tag-picker-input"
+              placeholder="搜尋標籤…"
+              @input="onTagPickerInput"
+              autofocus
+            />
+            <div class="tag-picker-list">
+              <div
+                v-for="t in tagPickerSuggestions"
+                :key="t.id"
+                class="tag-picker-item"
+                @mousedown.prevent="batchAddTag(t)"
+              >{{ t.name }}</div>
+              <div v-if="tagPickerSearch && !tagPickerSuggestions.length" class="tag-picker-empty">無符合標籤</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 移標籤 -->
+        <div class="batch-tag-wrap">
+          <button class="batch-btn" :disabled="isBatchTagging || !removableTags.length" @click="tagPickerMode === 'remove' ? closeTagPicker() : openTagPicker('remove')">
+            － 移標籤
+          </button>
+          <div v-if="tagPickerMode === 'remove'" class="tag-picker-popover">
+            <div class="tag-picker-list">
+              <div
+                v-for="t in removableTags"
+                :key="t.id"
+                class="tag-picker-item"
+                @mousedown.prevent="batchRemoveTag(t)"
+              >{{ t.name }}</div>
+              <div v-if="!removableTags.length" class="tag-picker-empty">已選項目無標籤</div>
+            </div>
+          </div>
+        </div>
+
         <button class="batch-btn batch-danger" :disabled="isBatchDeleting" @click="batchDelete">
           {{ isBatchDeleting ? '刪除中...' : '移至資源回收筒' }}
         </button>
@@ -629,5 +760,42 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .batch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .batch-danger { color: #f87171; border-color: rgba(248,65,65,0.3); }
 .batch-danger:hover:not(:disabled) { background: rgba(248,65,65,0.15); }
+
+.batch-tag-wrap { position: relative; }
+.tag-picker-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2130;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 180px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 600;
+}
+.tag-picker-input {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  padding: 5px 8px;
+  margin-bottom: 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+.tag-picker-list { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
+.tag-picker-item {
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.tag-picker-item:hover { background: rgba(255,255,255,0.1); }
+.tag-picker-empty { font-size: 0.8rem; color: var(--text-secondary); padding: 4px 8px; }
 
 </style>
