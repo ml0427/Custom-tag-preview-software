@@ -452,7 +452,9 @@ const deleteType = async (t: ItemType) => {
     align-items: center;
 }
 .rule-select {
-    background: rgba(255,255,255,0.05);
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(0,0,0,0.35);
     border: 1px solid var(--panel-border);
     border-radius: 6px;
     color: var(--text-primary);
@@ -461,10 +463,11 @@ const deleteType = async (t: ItemType) => {
     outline: none;
     flex-shrink: 0;
     width: 90px;
+    cursor: pointer;
 }
 .rule-select:focus { border-color: var(--accent-color); }
 .rule-input {
-    background: rgba(255,255,255,0.05);
+    background: rgba(0,0,0,0.35);
     border: 1px solid var(--panel-border);
     border-radius: 6px;
     color: var(--text-primary);
@@ -473,6 +476,7 @@ const deleteType = async (t: ItemType) => {
     outline: none;
     flex: 1;
     min-width: 0;
+    font-family: inherit;
 }
 .rule-input:focus { border-color: var(--accent-color); }
 .rule-input:disabled { opacity: 0.3; cursor: not-allowed; }
