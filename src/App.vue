@@ -9,7 +9,6 @@ import SourcePanel from './components/SourcePanel.vue'
 import ItemGallery from './components/ItemGallery.vue'
 import ItemDetailModal from './components/ItemDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
-import ScanWizardModal from './components/ScanWizardModal.vue'
 import DuplicateView from './components/DuplicateView.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
@@ -20,7 +19,6 @@ const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
 const galleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
-const showScanWizard = ref(false)
 
 const handleActivitySelect = (id: string) => {
   if (id === 'workspace' && activePanel.value !== 'workspace') {
@@ -109,7 +107,7 @@ onUnmounted(() => {
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"
           @folderCreated="galleryRef?.refresh()"
-          @openScanWizard="showScanWizard = true"
+
         />
       </div>
     </transition>
@@ -141,12 +139,6 @@ onUnmounted(() => {
       @close="selectedFolderItem = null"
       @updated="galleryRef?.refresh()"
       @deleted="galleryRef?.refresh()"
-    />
-
-    <ScanWizardModal
-      :visible="showScanWizard"
-      @close="showScanWizard = false"
-      @completed="galleryRef?.refresh(); loadGlobalTags()"
     />
 
     <ToastContainer />

@@ -98,6 +98,7 @@ pub struct ItemType {
     pub color: Option<String>,
     pub is_builtin: bool,
     pub extensions: Vec<String>,
+    pub tag_rules: Vec<TagRuleInput>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,6 +109,7 @@ pub struct ItemTypeInput {
     pub display_name: String,
     pub color: Option<String>,
     pub extensions: Vec<String>,
+    pub tag_rules: Vec<TagRuleInput>,
 }
 
 #[derive(Debug, Serialize, Clone)]

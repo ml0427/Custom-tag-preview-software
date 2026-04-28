@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { api, type ItemType, type ItemTypeInput } from '../api';
+import { api, type ItemType, type ItemTypeInput, type TagRuleInput } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
 
@@ -14,8 +14,8 @@ const selected = ref<ItemType | null>(null);
 const isNew = ref(false);
 const saving = ref(false);
 
-const form = ref<{ name: string; icon: string; displayName: string; color: string; extensions: string[] }>({
-    name: '', icon: '📁', displayName: '', color: '', extensions: [],
+const form = ref<{ name: string; icon: string; displayName: string; color: string; extensions: string[]; tagRules: Array<{ matchType: string; pattern: string; tagName: string }> }>({
+    name: '', icon: '📁', displayName: '', color: '', extensions: [], tagRules: [],
 });
 const extInput = ref('');
 
@@ -34,15 +34,27 @@ const selectFirst = () => {
 const selectType = (t: ItemType) => {
     selected.value = t;
     isNew.value = false;
-    form.value = { name: t.name, icon: t.icon, displayName: t.displayName, color: t.color ?? '', extensions: [...t.extensions] };
+    form.value = {
+        name: t.name, icon: t.icon, displayName: t.displayName, color: t.color ?? '',
+        extensions: [...t.extensions],
+        tagRules: (t.tagRules ?? []).map(r => ({ matchType: r.matchType, pattern: r.pattern, tagName: r.tagName })),
+    };
     extInput.value = '';
 };
 
 const startNew = () => {
     selected.value = null;
     isNew.value = true;
-    form.value = { name: '', icon: '📁', displayName: '', color: '', extensions: [] };
+    form.value = { name: '', icon: '📁', displayName: '', color: '', extensions: [], tagRules: [] };
     extInput.value = '';
+};
+
+const addRule = () => {
+    form.value.tagRules.push({ matchType: 'prefix', pattern: '', tagName: '' });
+};
+
+const removeRule = (i: number) => {
+    form.value.tagRules.splice(i, 1);
 };
 
 const addExt = () => {
@@ -73,6 +85,7 @@ const save = async () => {
             displayName: form.value.displayName,
             color: form.value.color || null,
             extensions: form.value.extensions,
+            tagRules: form.value.tagRules.map(r => ({ name: '', matchType: r.matchType, pattern: r.pattern, tagName: r.tagName })),
         };
         if (isNew.value) {
             const created = await api.createItemType(input);
@@ -202,6 +215,30 @@ const deleteType = async (t: ItemType) => {
                             />
                         </div>
                         <p class="field-hint">不含點號，例：zip、epub、cbz</p>
+
+                        <label class="field-label" style="margin-top:16px">自動標記規則</label>
+                        <p class="field-hint">指定此類別後，自動對資料夾內的檔案套用以下規則打標籤</p>
+                        <div class="rule-list">
+                            <div v-for="(rule, i) in form.tagRules" :key="i" class="rule-row">
+                                <select v-model="rule.matchType" class="rule-select">
+                                    <option value="prefix">前綴</option>
+                                    <option value="suffix">後綴</option>
+                                    <option value="contains">包含</option>
+                                    <option value="regex">正則</option>
+                                    <option value="regex_capture">正則擷取</option>
+                                </select>
+                                <input v-model="rule.pattern" class="rule-input" placeholder="模式" />
+                                <input
+                                    v-model="rule.tagName"
+                                    class="rule-input"
+                                    placeholder="標籤名稱"
+                                    :disabled="rule.matchType === 'regex_capture'"
+                                    :title="rule.matchType === 'regex_capture' ? '正則擷取模式下，標籤名稱由括號捕捉組決定' : ''"
+                                />
+                                <button class="rule-del" @click="removeRule(i)" title="刪除">✕</button>
+                            </div>
+                            <button class="add-rule-btn" @click="addRule">＋ 新增規則</button>
+                        </div>
 
                         <div class="form-actions">
                             <button class="save-btn" :disabled="saving" @click="save">
@@ -403,6 +440,67 @@ const deleteType = async (t: ItemType) => {
     color: var(--text-secondary);
     margin: 2px 0 0;
 }
+.rule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+.rule-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.rule-select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    padding: 5px 6px;
+    outline: none;
+    flex-shrink: 0;
+    width: 90px;
+}
+.rule-select:focus { border-color: var(--accent-color); }
+.rule-input {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    padding: 5px 8px;
+    outline: none;
+    flex: 1;
+    min-width: 0;
+}
+.rule-input:focus { border-color: var(--accent-color); }
+.rule-input:disabled { opacity: 0.3; cursor: not-allowed; }
+.rule-del {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+.rule-del:hover { color: #f87171; }
+.add-rule-btn {
+    background: transparent;
+    border: 1px dashed var(--panel-border);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: color 0.15s, border-color 0.15s;
+    align-self: flex-start;
+    margin-top: 2px;
+}
+.add-rule-btn:hover { color: var(--text-primary); border-color: var(--accent-color); }
 .form-actions {
     margin-top: 16px;
 }

@@ -104,6 +104,7 @@ export interface ItemType {
     color: string | null;
     isBuiltin: boolean;
     extensions: string[];
+    tagRules: TagRuleInput[];
 }
 
 export interface ItemTypeInput {
@@ -112,6 +113,7 @@ export interface ItemTypeInput {
     displayName: string;
     color: string | null;
     extensions: string[];
+    tagRules: TagRuleInput[];
 }
 
 export const api = {
@@ -309,5 +311,9 @@ export const api = {
 
     async deleteItemType(id: number): Promise<void> {
         await invoke('delete_item_type', { id });
+    },
+
+    async reapplyAllCategoryRules(): Promise<{ tagged: number }> {
+        return await invoke('reapply_all_category_rules');
     },
 }

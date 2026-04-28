@@ -151,6 +151,16 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ).execute(&pool).await?;
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS category_tag_rules (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_name TEXT NOT NULL REFERENCES item_types(name) ON DELETE CASCADE,
+            match_type    TEXT NOT NULL DEFAULT 'prefix',
+            pattern       TEXT NOT NULL,
+            tag_name      TEXT NOT NULL DEFAULT ''
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
         "INSERT OR IGNORE INTO item_types (name, icon, display_name, is_builtin)
          VALUES ('default','📁','一般資料夾',1), ('comic','📚','漫畫',1)"
     ).execute(&pool).await?;

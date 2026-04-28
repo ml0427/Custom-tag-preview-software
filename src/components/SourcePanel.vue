@@ -12,7 +12,6 @@ const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
   (e: 'select', path: string | null): void;
   (e: 'folderCreated'): void;
-  (e: 'openScanWizard'): void;
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
@@ -121,9 +120,30 @@ const submitFolderModal = async () => {
     }
     await loadDbFolders();
     emit('folderCreated');
+
+    // 自動套用類別規則
+    const selectedType = itemTypes.value.find(t => t.name === category);
+    if (selectedType?.tagRules?.length) {
+      try {
+        const result = await api.applyTagScan(path, selectedType.tagRules);
+        if (result.tagged > 0) showToast(`已自動套用 ${result.tagged} 個標籤`, 'success');
+      } catch { /* ignore */ }
+    }
+
     modalPhase.value = 'tags';
   } catch (e) {
     showToast('操作失敗: ' + String(e), 'error');
+  }
+};
+
+const handleReapplyRules = async () => {
+  if (sources.value.length === 0) { showToast('尚未新增任何來源目錄', 'info'); return; }
+  try {
+    const result = await api.reapplyAllCategoryRules();
+    showToast(`重新套用完成，共標記 ${result.tagged} 次`, 'success');
+    emit('folderCreated');
+  } catch (e) {
+    showToast('重新套用失敗: ' + String(e), 'error');
   }
 };
 
@@ -265,14 +285,11 @@ onMounted(() => {
           </div>
           <div class="folder-field">
             <label>類別</label>
-            <div class="type-select-row">
-              <select v-model="editFolder.category" class="folder-input">
-                <option v-for="t in itemTypes" :key="t.name" :value="t.name">
-                  {{ t.icon }} {{ t.displayName }}
-                </option>
-              </select>
-              <button class="manage-type-btn" type="button" @click="showTypeManage = true" title="管理類別">⚙</button>
-            </div>
+            <select v-model="editFolder.category" class="folder-input">
+              <option v-for="t in itemTypes" :key="t.name" :value="t.name">
+                {{ t.icon }} {{ t.displayName }}
+              </option>
+            </select>
           </div>
           <label class="apply-sub-check">
             <input type="checkbox" v-model="applyToSubfolders" />
@@ -334,13 +351,9 @@ onMounted(() => {
 
     <div class="panel-footer">
       <button class="btn-add" @click="handleAddSource">＋ 新增目錄</button>
-      <button
-        class="btn-scan"
-        @click="emit('openScanWizard')"
-        :disabled="sources.length === 0"
-        title="批次標記精靈"
-      >
-        🏷 批次標記
+      <button class="btn-manage" @click="showTypeManage = true">⚙ 管理類別</button>
+      <button class="btn-scan" @click="handleReapplyRules" :disabled="sources.length === 0" title="對所有資料夾重新套用類別規則">
+        🔄 重新套用規則
       </button>
     </div>
   </div>
@@ -459,7 +472,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.btn-add, .btn-scan {
+.btn-add, .btn-manage, .btn-scan {
   width: 100%;
   padding: 10px;
   border-radius: 8px;
@@ -482,8 +495,14 @@ onMounted(() => {
   border: 1px solid var(--panel-border);
   color: var(--text-primary);
 }
-
 .btn-add:hover { background: rgba(255,255,255,0.12); }
+
+.btn-manage {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--panel-border);
+  color: var(--text-secondary);
+}
+.btn-manage:hover { background: rgba(255,255,255,0.09); color: var(--text-primary); }
 
 
 .tree-area::-webkit-scrollbar { width: 4px; }
@@ -564,20 +583,6 @@ onMounted(() => {
   font-family: inherit;
 }
 .folder-input:focus { border-color: var(--accent-color); }
-.type-select-row { display: flex; gap: 6px; align-items: center; }
-.type-select-row .folder-input { flex: 1; }
-.manage-type-btn {
-  background: transparent;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  padding: 6px 8px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.15s, border-color 0.15s;
-}
-.manage-type-btn:hover { color: var(--text-primary); border-color: var(--accent-color); }
 
 .apply-sub-check {
   display: flex;
