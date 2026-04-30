@@ -23,6 +23,9 @@ const itemsData = ref<Item[]>([]);
 const fileItems = ref<FileItem[]>([]);
 const isLoading = ref(false);
 const gallerySearch = ref('');
+const tagPage = ref(0);
+const tagTotalPages = ref(1);
+const TAG_PAGE_SIZE = 200;
 
 // O(1) lookup by path
 const itemByPath = computed(() =>
@@ -226,14 +229,24 @@ const loadFileItems = async () => {
   }
 };
 
-const loadItemsBackground = async () => {
+const loadItemsBackground = async (page = 0) => {
   try {
     const tagIds = props.selectedTagIds?.length ? props.selectedTagIds : undefined;
-    const res = await api.getItems(0, 9999, tagIds, 'importAt', 'desc', props.sourcePath ?? undefined);
+    const pageSize = tagIds ? TAG_PAGE_SIZE : 9999;
+    const res = await api.getItems(page, pageSize, tagIds, 'importAt', 'desc', props.sourcePath ?? undefined);
     itemsData.value = res.content;
+    tagPage.value = page;
+    tagTotalPages.value = Math.max(1, res.totalPages);
   } catch {
     itemsData.value = [];
   }
+};
+
+const gotoTagPage = async (page: number) => {
+  isLoading.value = true;
+  try { await loadItemsBackground(page); }
+  catch (e) { console.error(e); }
+  finally { isLoading.value = false; }
 };
 
 const handleDelete = async (fileItem: FileItem) => {
@@ -321,7 +334,9 @@ watch(() => props.sourcePath, () => {
 watch(() => props.selectedTagIds, async () => {
   isLoading.value = true;
   itemsData.value = [];
-  try { await loadItemsBackground(); }
+  tagPage.value = 0;
+  tagTotalPages.value = 1;
+  try { await loadItemsBackground(0); }
   catch (e) { console.error(e); }
   finally { isLoading.value = false; }
 });
@@ -445,6 +460,11 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
       <div class="status-bar">
         <span v-if="sourcePath">{{ filteredFileItems.length }} 個項目</span>
+        <div v-if="selectedTagIds?.length && tagTotalPages > 1" class="pagination">
+          <button class="page-btn" :disabled="tagPage === 0" @click="gotoTagPage(tagPage - 1)">‹</button>
+          <span class="page-info">{{ tagPage + 1 }} / {{ tagTotalPages }}</span>
+          <button class="page-btn" :disabled="tagPage >= tagTotalPages - 1" @click="gotoTagPage(tagPage + 1)">›</button>
+        </div>
       </div>
     </div>
 
@@ -658,6 +678,35 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   padding: 6px 4px 0;
   font-size: 0.78rem;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-btn {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 1px 7px;
+  border-radius: 4px;
+  line-height: 1.4;
+  transition: color 0.15s, background 0.15s;
+}
+.page-btn:hover:not(:disabled) { color: var(--text-primary); background: rgba(255,255,255,0.07); }
+.page-btn:disabled { opacity: 0.3; cursor: default; }
+
+.page-info {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .table-wrapper {

@@ -46,7 +46,7 @@ pub async fn scan_directory(
     pool: State<'_, SqlitePool>,
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+    let cache_dir = app.path().app_data_dir().expect("failed to get app data dir").join("thumb_cache");
     scanner::scan_directory(&pool, &path, &cache_dir, &app)
         .await
         .map(|count| serde_json::json!({ "message": "Scan completed", "addedCount": count }))
@@ -59,7 +59,7 @@ pub async fn incremental_scan(
     pool: State<'_, SqlitePool>,
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+    let cache_dir = app.path().app_data_dir().expect("failed to get app data dir").join("thumb_cache");
     scanner::incremental_scan_directory(&pool, &path, &cache_dir, &app)
         .await
         .map(|(added, updated, removed)| serde_json::json!({
@@ -74,7 +74,7 @@ pub async fn incremental_scan(
 #[tauri::command]
 pub async fn sync_sources(pool: State<'_, SqlitePool>, app: AppHandle) -> Result<serde_json::Value, String> {
     let sources = db::get_sources(&pool).await.map_err(|e| e.to_string())?;
-    let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+    let cache_dir = app.path().app_data_dir().expect("failed to get app data dir").join("thumb_cache");
 
     let mut total_added = 0i32;
     let mut total_updated = 0i32;
@@ -145,7 +145,7 @@ pub async fn get_items(
             if has_source {
                 qb.push(if need_and { " AND" } else { " WHERE" });
                 qb.push(" i.path LIKE ");
-                qb.push_bind(source_like.clone().unwrap());
+                qb.push_bind(source_like.clone().expect("source_like is Some when has_source is true"));
                 need_and = true;
             } else if !with_tags {
                 qb.push(" WHERE EXISTS (SELECT 1 FROM sources s WHERE i.path LIKE s.path || '%')");
@@ -297,7 +297,7 @@ pub async fn set_item_cover(
         .await
         .map_err(|e| e.to_string())?;
 
-    let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+    let cache_dir = app.path().app_data_dir().expect("failed to get app data dir").join("thumb_cache");
     let file_path: String = sqlx::query("SELECT path FROM items WHERE id = ?")
         .bind(id)
         .fetch_one(&*pool)
@@ -494,7 +494,7 @@ pub async fn trash_item(path: String, pool: State<'_, SqlitePool>, app: AppHandl
         .map_err(|e| e.to_string())?;
 
     if let Some(item_id) = id {
-        let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+        let cache_dir = app.path().app_data_dir().expect("failed to get app data dir").join("thumb_cache");
         let _ = fs::remove_file(cache_dir.join(format!("{}.jpg", item_id)));
     }
     Ok(())
@@ -516,7 +516,7 @@ pub async fn untrack_item(path: String, pool: State<'_, SqlitePool>, app: AppHan
         .map_err(|e| e.to_string())?;
 
     if let Some(item_id) = id {
-        let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+        let cache_dir = app.path().app_data_dir().expect("failed to get app data dir").join("thumb_cache");
         let _ = fs::remove_file(cache_dir.join(format!("{}.jpg", item_id)));
     }
     Ok(())
@@ -745,7 +745,7 @@ pub async fn apply_tag_scan(
     pool: State<'_, SqlitePool>,
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let cache_dir = app.path().app_data_dir().unwrap().join("comic_cache");
+    let cache_dir = app.path().app_data_dir().expect("failed to get app data dir").join("thumb_cache");
     let (added, updated, removed) = scanner::incremental_scan_directory(&pool, &scope_path, &cache_dir, &app)
         .await
         .map_err(|e| e.to_string())?;
