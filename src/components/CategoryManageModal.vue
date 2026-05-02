@@ -216,7 +216,7 @@ const deleteType = async (t: ItemType) => {
                         </div>
                         <p class="field-hint">不含點號，例：zip、epub、cbz</p>
 
-                        <label class="field-label" style="margin-top:16px">自動標記規則</label>
+                        <label class="field-label field-label--spaced">自動標記規則</label>
                         <p class="field-hint">指定此類別後，自動對資料夾內的檔案套用以下規則打標籤</p>
                         <div class="rule-list">
                             <div v-for="(rule, i) in form.tagRules" :key="i" class="rule-row">
@@ -263,8 +263,8 @@ const deleteType = async (t: ItemType) => {
     z-index: 2100;
 }
 .modal {
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
     border-radius: 14px;
     width: 640px;
     max-width: 95vw;
@@ -279,7 +279,7 @@ const deleteType = async (t: ItemType) => {
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--border-default);
     flex-shrink: 0;
 }
 .modal-title {
@@ -304,7 +304,7 @@ const deleteType = async (t: ItemType) => {
 }
 .type-list {
     width: 200px;
-    border-right: 1px solid var(--panel-border);
+    border-right: 1px solid var(--border-default);
     overflow-y: auto;
     padding: 8px 0;
     flex-shrink: 0;
@@ -328,7 +328,7 @@ const deleteType = async (t: ItemType) => {
 .builtin-badge {
     font-size: 0.65rem;
     color: var(--text-secondary);
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--border-default);
     border-radius: 3px;
     padding: 1px 4px;
     flex-shrink: 0;
@@ -350,7 +350,7 @@ const deleteType = async (t: ItemType) => {
 .add-type-btn {
     margin: 8px 10px 4px;
     background: transparent;
-    border: 1px dashed var(--panel-border);
+    border: 1px dashed var(--border-default);
     color: var(--text-secondary);
     border-radius: 6px;
     padding: 6px 10px;
@@ -358,7 +358,7 @@ const deleteType = async (t: ItemType) => {
     font-size: 0.85rem;
     transition: color 0.15s, border-color 0.15s;
 }
-.add-type-btn:hover { color: var(--text-primary); border-color: var(--accent-color); }
+.add-type-btn:hover { color: var(--text-primary); border-color: var(--accent); }
 .type-form {
     flex: 1;
     padding: 20px 24px;
@@ -378,9 +378,10 @@ const deleteType = async (t: ItemType) => {
     color: var(--text-secondary);
     margin-top: 10px;
 }
+.field-label--spaced { margin-top: 16px; }
 .field-input {
     background: rgba(255,255,255,0.05);
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     color: var(--text-primary);
     font-size: 0.9rem;
@@ -391,7 +392,7 @@ const deleteType = async (t: ItemType) => {
     margin-top: 4px;
 }
 .field-input:disabled { opacity: 0.4; cursor: not-allowed; }
-.field-input:focus { border-color: var(--accent-color); }
+.field-input:focus { border-color: var(--accent); }
 .icon-input { width: 80px; font-size: 1.2rem; text-align: center; }
 .ext-tags {
     display: flex;
@@ -399,7 +400,7 @@ const deleteType = async (t: ItemType) => {
     gap: 6px;
     align-items: center;
     background: rgba(255,255,255,0.05);
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     padding: 6px 8px;
     margin-top: 4px;
@@ -455,7 +456,7 @@ const deleteType = async (t: ItemType) => {
     -webkit-appearance: none;
     appearance: none;
     background: rgba(0,0,0,0.35);
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     color: var(--text-primary);
     font-size: 0.82rem;
@@ -465,10 +466,10 @@ const deleteType = async (t: ItemType) => {
     width: 90px;
     cursor: pointer;
 }
-.rule-select:focus { border-color: var(--accent-color); }
+.rule-select:focus { border-color: var(--accent); }
 .rule-input {
     background: rgba(0,0,0,0.35);
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     color: var(--text-primary);
     font-size: 0.85rem;
@@ -478,7 +479,7 @@ const deleteType = async (t: ItemType) => {
     min-width: 0;
     font-family: inherit;
 }
-.rule-input:focus { border-color: var(--accent-color); }
+.rule-input:focus { border-color: var(--accent); }
 .rule-input:disabled { opacity: 0.3; cursor: not-allowed; }
 .rule-del {
     background: transparent;
@@ -494,7 +495,7 @@ const deleteType = async (t: ItemType) => {
 .rule-del:hover { color: #f87171; }
 .add-rule-btn {
     background: transparent;
-    border: 1px dashed var(--panel-border);
+    border: 1px dashed var(--border-default);
     color: var(--text-secondary);
     border-radius: 6px;
     padding: 5px 10px;
@@ -504,12 +505,12 @@ const deleteType = async (t: ItemType) => {
     align-self: flex-start;
     margin-top: 2px;
 }
-.add-rule-btn:hover { color: var(--text-primary); border-color: var(--accent-color); }
+.add-rule-btn:hover { color: var(--text-primary); border-color: var(--accent); }
 .form-actions {
     margin-top: 16px;
 }
 .save-btn {
-    background: var(--accent-color);
+    background: var(--accent);
     border: none;
     border-radius: 6px;
     color: #fff;
@@ -521,8 +522,8 @@ const deleteType = async (t: ItemType) => {
 .save-btn:hover:not(:disabled) { opacity: 0.85; }
 .save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .color-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.color-picker { width: 36px; height: 32px; border: 1px solid var(--panel-border); border-radius: 6px; padding: 2px; background: transparent; cursor: pointer; flex-shrink: 0; }
+.color-picker { width: 36px; height: 32px; border: 1px solid var(--border-default); border-radius: 6px; padding: 2px; background: transparent; cursor: pointer; flex-shrink: 0; }
 .color-text { flex: 1; }
-.clear-color-btn { background: transparent; border: 1px solid var(--panel-border); border-radius: 4px; color: var(--text-secondary); font-size: 0.75rem; padding: 4px 6px; cursor: pointer; flex-shrink: 0; }
+.clear-color-btn { background: transparent; border: 1px solid var(--border-default); border-radius: 4px; color: var(--text-secondary); font-size: 0.75rem; padding: 4px 6px; cursor: pointer; flex-shrink: 0; }
 .clear-color-btn:hover { color: #f87171; }
 </style>

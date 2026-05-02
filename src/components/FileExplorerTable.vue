@@ -402,7 +402,7 @@ const sortedItems = computed(() => {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--border-default);
   white-space: nowrap;
 }
 .comic-table th.sortable { cursor: pointer; user-select: none; }
@@ -419,7 +419,7 @@ const sortedItems = computed(() => {
 
 .comic-table tr { cursor: default; transition: background 0.2s; }
 .comic-table tr:hover { background: rgba(255,255,255,0.03); }
-.comic-table tr.selected { background: var(--accent-color-transparent) !important; }
+.comic-table tr.selected { background: var(--accent-bg-subtle) !important; }
 .spacer-row td { padding: 0; border: none; }
 
 .col-name  { width: 38%; }
@@ -434,10 +434,10 @@ const sortedItems = computed(() => {
 
 .tag-chips { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; }
 .mini-tag {
-  background: rgba(47, 129, 247, 0.12);
-  border: 1px solid rgba(47, 129, 247, 0.25);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent);
   padding: 1px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   color: var(--accent-hover);
   white-space: nowrap;
@@ -449,7 +449,7 @@ const sortedItems = computed(() => {
 
 .rename-input {
   background: rgba(255,255,255,0.08);
-  border: 1px solid var(--accent-color);
+  border: 1px solid var(--accent);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 0.95rem;
@@ -462,7 +462,7 @@ const sortedItems = computed(() => {
   position: fixed;
   z-index: 9999;
   background: #1e2130;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 4px;
   min-width: 160px;
@@ -483,7 +483,7 @@ const sortedItems = computed(() => {
   transition: background 0.15s;
 }
 .ctx-item:hover { background: rgba(255,255,255,0.08); }
-.ctx-divider { height: 1px; background: var(--panel-border); margin: 3px 4px; }
+.ctx-divider { height: 1px; background: var(--border-default); margin: 3px 4px; }
 .ctx-danger { color: #f87171; }
 .ctx-danger:hover { background: rgba(248,65,65,0.12); color: #f87171; }
 

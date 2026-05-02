@@ -257,8 +257,8 @@ const formatDate = (unix: number | null) => {
 .preview-pane {
     width: 350px;
     height: 100%;
-    background: var(--panel-bg);
-    border-left: 1px solid var(--panel-border);
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border-default);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -379,8 +379,8 @@ const formatDate = (unix: number | null) => {
 }
 
 .tag {
-    background: var(--accent-color-transparent);
-    color: var(--accent-color);
+    background: var(--accent-bg-subtle);
+    color: var(--accent);
     padding: 4px 10px;
     border-radius: 100px;
     font-size: 0.85rem;
@@ -418,7 +418,7 @@ const formatDate = (unix: number | null) => {
     padding: 10px;
     font-weight: 500;
     background: rgba(255,255,255,0.06);
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--border-default);
     border-radius: 8px;
     color: var(--text-secondary);
     cursor: pointer;

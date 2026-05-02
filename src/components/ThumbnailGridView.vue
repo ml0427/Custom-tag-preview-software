@@ -232,7 +232,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 
 .thumb-card {
   background: rgba(255,255,255,0.04);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   overflow: hidden;
   cursor: default;
@@ -248,8 +248,8 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 }
 
 .thumb-card.selected {
-  background: var(--accent-color-transparent) !important;
-  border-color: var(--accent-color) !important;
+  background: var(--accent-bg-subtle) !important;
+  border-color: var(--accent) !important;
 }
 
 .thumb-cover {
@@ -325,10 +325,10 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .thumb-tags { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; overflow: hidden; }
 
 .mini-tag {
-  background: rgba(47, 129, 247, 0.12);
-  border: 1px solid rgba(47, 129, 247, 0.25);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.68rem;
   color: var(--accent-hover);
   white-space: nowrap;
@@ -343,7 +343,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .grid-rename-input {
   width: 100%;
   background: rgba(255,255,255,0.08);
-  border: 1px solid var(--accent-color);
+  border: 1px solid var(--accent);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 0.82rem;
@@ -356,7 +356,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   position: fixed;
   z-index: 9999;
   background: #1e2130;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 4px;
   min-width: 160px;
@@ -376,7 +376,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   transition: background 0.15s;
 }
 .ctx-item:hover { background: rgba(255,255,255,0.08); }
-.ctx-divider { height: 1px; background: var(--panel-border); margin: 3px 4px; }
+.ctx-divider { height: 1px; background: var(--border-default); margin: 3px 4px; }
 .ctx-danger { color: #f87171; }
 .ctx-danger:hover { background: rgba(248,65,65,0.12); color: #f87171; }
 

@@ -133,9 +133,9 @@ const onContextMenu = (e: MouseEvent) => {
 .node-row:hover { background: rgba(255,255,255,0.06); }
 
 .node-row.active {
-  background: var(--tag-bg);
+  background: var(--accent-bg-subtle);
   color: var(--accent-hover);
-  border-left: 3px solid var(--accent-color);
+  border-left: 3px solid var(--accent);
   padding-left: calc(5px + var(--depth) * 14px);
 }
 

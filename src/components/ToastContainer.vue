@@ -48,9 +48,9 @@ const { toasts, confirmState, resolveConfirm } = useToast();
   pointer-events: auto;
 }
 
-.toast-info    { background: rgba(47, 129, 247, 0.9); color: #fff; }
-.toast-success { background: rgba(46, 160, 67, 0.9);  color: #fff; }
-.toast-error   { background: rgba(248, 81, 73, 0.9);  color: #fff; }
+.toast-info    { background: var(--color-info);    color: var(--text-on-accent); }
+.toast-success { background: var(--color-success); color: var(--text-on-accent); }
+.toast-error   { background: var(--color-danger);  color: var(--text-on-accent); }
 
 .toast-enter-active { transition: all 0.25s ease; }
 .toast-leave-active { transition: all 0.2s ease; }
@@ -100,11 +100,11 @@ const { toasts, confirmState, resolveConfirm } = useToast();
 .btn-cancel {
   background: rgba(255,255,255,0.08);
   color: var(--text-secondary);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
 }
 .btn-cancel:hover { opacity: 0.8; }
 .btn-ok {
-  background: var(--accent-color);
+  background: var(--accent);
   color: #fff;
 }
 .btn-ok:hover { opacity: 0.85; }

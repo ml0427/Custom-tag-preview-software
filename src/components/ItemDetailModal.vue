@@ -284,8 +284,8 @@ watch(() => props.item, (item) => {
 }
 
 .edit-tag {
-  background: var(--tag-bg);
-  border: 1px solid var(--accent-color);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent);
   color: #fff;
   padding: 4px 10px;
   border-radius: 15px;
@@ -295,7 +295,7 @@ watch(() => props.item, (item) => {
   gap: 8px;
 }
 
-.edit-tag .remove { cursor: pointer; color: var(--danger-color); font-weight: bold; }
+.edit-tag .remove { cursor: pointer; color: var(--color-danger); font-weight: bold; }
 .edit-tag .remove:hover { filter: brightness(1.2); }
 
 .tag-input-wrapper { position: relative; }
@@ -305,21 +305,21 @@ watch(() => props.item, (item) => {
   padding: 8px 10px;
   background: rgba(0,0,0,0.4);
   color: #fff;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   outline: none;
   font-size: 0.9rem;
   box-sizing: border-box;
   transition: border-color 0.2s;
 }
-.tag-text-input:focus { border-color: var(--accent-color); }
+.tag-text-input:focus { border-color: var(--accent); }
 
 .tag-suggestions {
   position: absolute;
   top: calc(100% + 4px);
   left: 0; right: 0;
-  background: #1e2230;
-  border: 1px solid var(--panel-border);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   list-style: none;
   padding: 4px 0;
@@ -358,10 +358,10 @@ watch(() => props.item, (item) => {
 .image-preview-section h3 {
   margin-bottom: 15px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--border-default);
 }
 
-.loading { font-size: 0.85rem; color: var(--accent-color); animation: pulse 1.5s infinite; }
+.loading { font-size: 0.85rem; color: var(--accent); animation: pulse 1.5s infinite; }
 @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 
 .image-list {
