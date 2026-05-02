@@ -29,6 +29,26 @@
 
 ## 🔀 2. 風格切換機制
 
+### 2.0 FOUC 防閃爍（必加）
+
+Vue/Tauri 在 `main.ts` 執行前，HTML 已渲染數十毫秒，會先閃預設樣式才被 JS 改寫。在 `index.html` 的 `<head>` 加入下列 script，**搶在 Vue 掛載前**就先注入 theme：
+
+```html
+<head>
+  <!-- ...其他 meta/link... -->
+  <script>
+    (function () {
+      const theme = localStorage.getItem('app-theme') || 'default';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+</head>
+```
+
+放置位置：在 `<head>` 內任意位置皆可，但**必須在 Vue 主 script 之前**。Tauri 為純 client-side 環境，這段會在第一個 paint 前同步執行。
+
+實作 themeStore 後仍保留 `init()` 呼叫，但作用變成「讓 store state 與 DOM 同步」（DOM 已先被上面的 script 設好）。
+
 ### 2.1 [data-theme] 屬性切換
 
 所有風格變數定義在 `:root[data-theme="X"]` 選擇器下，組件引用 `var(--xxx)` 即可自動跟隨：
@@ -42,7 +62,7 @@
 
 ### 2.2 Pinia themeStore（建議實作）
 
-新增檔案 `src/stores/themeStore.ts`：
+新增檔案 `src/stores/themeStore.ts`。切換時暫禁 transition 50ms，避免顏色/邊框/圓角全部一起漸變造成「黏」感（採瞬間切換策略）：
 
 ```ts
 import { defineStore } from 'pinia'
@@ -50,6 +70,7 @@ import { defineStore } from 'pinia'
 export type ThemeId = 'default' | 'macos' | 'vercel' | 'neon'
 
 const STORAGE_KEY = 'app-theme'
+const TRANSITION_DISABLE_MS = 50
 
 export const useThemeStore = defineStore('theme', {
   state: () => ({
@@ -57,15 +78,39 @@ export const useThemeStore = defineStore('theme', {
   }),
   actions: {
     setTheme(id: ThemeId) {
+      const root = document.documentElement
+
+      // 1. 暫禁全域 transition，避免切換瞬間所有元素 300ms 漸變
+      root.classList.add('disable-transitions')
+
+      // 2. 套用新主題
       this.current = id
-      document.documentElement.setAttribute('data-theme', id)
+      root.setAttribute('data-theme', id)
       localStorage.setItem(STORAGE_KEY, id)
+
+      // 3. 強制 reflow 讓 .disable-transitions 生效，50ms 後恢復
+      void root.offsetHeight
+      setTimeout(() => root.classList.remove('disable-transitions'), TRANSITION_DISABLE_MS)
     },
     init() {
-      this.setTheme(this.current)
+      // DOM 的 data-theme 已由 index.html head script 設置（§2.0），
+      // 這裡只同步 store state，不再呼叫 setTheme 避免重複套用 + 觸發切換動畫。
+      const fromDom = document.documentElement.getAttribute('data-theme') as ThemeId | null
+      if (fromDom) this.current = fromDom
     },
   },
 })
+```
+
+**對應 CSS**（加在 `style.css` §3.2 變數區塊之後）：
+
+```css
+.disable-transitions,
+.disable-transitions *,
+.disable-transitions *::before,
+.disable-transitions *::after {
+  transition: none !important;
+}
 ```
 
 ### 2.3 啟動時初始化
@@ -452,7 +497,21 @@ HTML class 約定：`.badge`, `.tag-chip`
 | 預設背景 | `var(--accent-bg-subtle)` |
 | 預設文字 | `var(--accent)` |
 
-**自訂色標籤**（v0.36+）：使用 inline `:style="{ background: tag.color + '33', color: tag.color, borderColor: tag.color + '66' }"`。**這是內聯樣式的合法例外**，因為值來自使用者資料而非設計系統。
+**自訂色標籤**（v0.36+）：使用 inline `:style="{ background: tag.color + '22', color: tag.color, borderColor: tag.color + '66' }"`。**這是內聯樣式的合法例外**，因為值來自使用者資料而非設計系統。
+
+> ⚠️ **資料層約定（防破版）**：字串拼接 hex alpha（`22` / `66`）**僅對 `#rrggbb` 6 碼格式有效**。若 `tag.color` 是 3 碼縮寫（`#f00`）、`rgb(...)`、`hsl(...)` 或不含 `#`，拼接結果會變成無效 CSS 字串導致破版。
+>
+> - 存入資料庫前**必須**正規化為 `#rrggbb`，建議共用以下函數（前後端皆可）：
+>   ```ts
+>   export function normalizeHex(c: string): string | null {
+>     const m = c.trim().toLowerCase().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/);
+>     if (!m) return null;
+>     const hex = m[1].length === 3 ? m[1].split('').map(ch => ch + ch).join('') : m[1];
+>     return '#' + hex;
+>   }
+>   ```
+> - 現存 `src/components/TagSidebar.vue:37-39` 的 `tagStyle()` 未做驗證，屬潛在破版點，建議在後續實作風格切換時一併修補。
+> - `COLOR_PRESETS` 內的預設色盤必須以 `#rrggbb` 6 碼宣告，禁止 3 碼縮寫。
 
 #### Card
 
@@ -531,9 +590,13 @@ HTML class 約定：`.card`
 實作風格切換或新增組件時，請逐項確認：
 
 - [ ] `style.css` 已含 4 套 `[data-theme]` 的變數區塊（§3.2）
+- [ ] `style.css` 已含 `.disable-transitions` rule（§2.2）
+- [ ] `index.html` `<head>` 已加 FOUC 防閃爍 script（§2.0）
 - [ ] `themeStore.ts` 已建立並在 `main.ts` 啟動時呼叫 `init()`
 - [ ] `<html data-theme="...">` 能正確切換
+- [ ] 切換瞬間無漸變、無閃爍（首次載入 + 切換中）
 - [ ] localStorage key 統一使用 `app-theme`
+- [ ] `tag.color` 已正規化為 `#rrggbb` 6 碼（§5.1 Badge 警告框）
 - [ ] 組件層**無**任何寫死的 `#xxxxxx` 或 `rgba(...)`（資料驅動的標籤色除外）
 - [ ] 無 `style="color:..." style="background:..."` 內聯樣式
 - [ ] 所有 `border-radius` 引用 `var(--radius-*)`
