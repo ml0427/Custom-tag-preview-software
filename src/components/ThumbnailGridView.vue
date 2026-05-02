@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
-import { type Item, type FileItem } from '../api';
+import { api, type Item, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{
   items: FileItem[];
@@ -19,7 +20,20 @@ const emit = defineEmits<{
   (e: 'delete', item: FileItem): void;
 }>();
 
-const { getTypeConfig, getTypeByExtension } = useItemTypes();
+const { getTypeConfig, getTypeByExtension, itemTypes } = useItemTypes();
+const { show: showToast } = useToast();
+
+const applyRulesForFolder = async (item: FileItem) => {
+  hideContextMenu();
+  const dbItem = props.itemByPath.get(item.path);
+  if (!dbItem) return;
+  const type = itemTypes.value.find(t => t.name === (dbItem.category ?? 'default'));
+  if (!type?.tagRules?.length) { showToast('此類別沒有設定掃描規則', 'info'); return; }
+  try {
+    const result = await api.applyTagScan(item.path, type.tagRules);
+    showToast(`已套用 ${result.tagged} 個標籤`, 'success');
+  } catch (e) { showToast('套用失敗: ' + String(e), 'error'); }
+};
 
 const failedImages = ref(new Set<string>());
 const onImgError = (path: string) => {
@@ -178,7 +192,8 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
     >
       <template v-if="contextMenu.item?.isDir">
         <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">📂 進入資料夾</button>
-        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
+        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">✏️ 修改類別</button>
+        <button class="ctx-item" @click="applyRulesForFolder(contextMenu.item!)">🔄 重新套用規則</button>
         <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
         <div class="ctx-divider"></div>
         <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>

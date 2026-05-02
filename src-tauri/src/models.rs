@@ -23,6 +23,7 @@ pub struct Item {
 pub struct Tag {
     pub id: i64,
     pub name: String,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -97,6 +98,7 @@ pub struct ItemType {
     pub color: Option<String>,
     pub is_builtin: bool,
     pub extensions: Vec<String>,
+    pub tag_rules: Vec<TagRuleInput>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -107,6 +109,7 @@ pub struct ItemTypeInput {
     pub display_name: String,
     pub color: Option<String>,
     pub extensions: Vec<String>,
+    pub tag_rules: Vec<TagRuleInput>,
 }
 
 #[derive(Debug, Serialize, Clone)]

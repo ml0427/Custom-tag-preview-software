@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use sqlx::{SqlitePool, Row};
 use crate::models::{Item, Tag, Page, Source, Folder, ItemType, ItemTypeInput};
 use crate::db;
@@ -30,7 +30,7 @@ fn read_item_from_row(row: &sqlx::sqlite::SqliteRow, tags: Vec<Tag>) -> Item {
 
 async fn fetch_item_tags(pool: &SqlitePool, item_id: i64) -> Result<Vec<Tag>, String> {
     sqlx::query_as::<_, Tag>(
-        "SELECT t.id, t.name FROM tags t JOIN item_tags it ON t.id = it.tag_id WHERE it.item_id = ?"
+        "SELECT t.id, t.name, t.color FROM tags t JOIN item_tags it ON t.id = it.tag_id WHERE it.item_id = ?"
     )
     .bind(item_id)
     .fetch_all(pool)
@@ -561,6 +561,21 @@ pub async fn create_tag(name: String, pool: State<'_, SqlitePool>) -> Result<Tag
 }
 
 #[tauri::command]
+pub async fn set_tag_color(id: i64, color: Option<String>, pool: State<'_, SqlitePool>) -> Result<Tag, String> {
+    sqlx::query("UPDATE tags SET color = ? WHERE id = ?")
+        .bind(&color)
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query_as::<_, Tag>("SELECT id, name, color FROM tags WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn delete_tag(id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
     sqlx::query("DELETE FROM tags WHERE id = ?")
         .bind(id)
@@ -578,7 +593,11 @@ pub async fn rename_tag(id: i64, name: String, pool: State<'_, SqlitePool>) -> R
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(Tag { id, name })
+    sqlx::query_as::<_, Tag>("SELECT id, name, color FROM tags WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -605,7 +624,7 @@ pub async fn merge_tags(source_id: i64, target_id: i64, pool: State<'_, SqlitePo
 pub async fn search_tags(query: String, pool: State<'_, SqlitePool>) -> Result<Vec<Tag>, String> {
     let pattern = format!("%{}%", query);
     sqlx::query_as::<_, Tag>(
-        "SELECT id, name FROM tags WHERE name LIKE ? ORDER BY name ASC LIMIT 10",
+        "SELECT id, name, color FROM tags WHERE name LIKE ? ORDER BY name ASC LIMIT 10",
     )
     .bind(pattern)
     .fetch_all(&*pool)
@@ -787,6 +806,78 @@ pub async fn apply_tag_scan(
     Ok(serde_json::json!({ "added": added, "updated": updated, "removed": removed, "tagged": tagged }))
 }
 
+// ── Duplicate detection ───────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct DuplicateGroup {
+    pub fingerprint: String,
+    pub items: Vec<Item>,
+}
+
+#[tauri::command]
+pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<DuplicateGroup>, String> {
+    let fp_rows = sqlx::query(
+        "SELECT fingerprint FROM items
+         WHERE fingerprint IS NOT NULL AND item_type = 'file'
+         GROUP BY fingerprint HAVING COUNT(*) > 1
+         ORDER BY COUNT(*) DESC"
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut groups = Vec::new();
+    for row in fp_rows {
+        let fingerprint: String = row.get("fingerprint");
+        let item_rows = sqlx::query(
+            "SELECT * FROM items WHERE fingerprint = ? AND item_type = 'file' ORDER BY import_at ASC"
+        )
+        .bind(&fingerprint)
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let mut items = Vec::new();
+        for item_row in item_rows {
+            let id: i64 = item_row.get("id");
+            let tags = fetch_item_tags(&pool, id).await?;
+            items.push(read_item_from_row(&item_row, tags));
+        }
+        groups.push(DuplicateGroup { fingerprint, items });
+    }
+    Ok(groups)
+}
+
+#[tauri::command]
+pub async fn compute_fingerprints(pool: State<'_, SqlitePool>, app: AppHandle) -> Result<i32, String> {
+    let rows = sqlx::query(
+        "SELECT id, path FROM items WHERE fingerprint IS NULL AND item_type = 'file'"
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let total = rows.len() as i32;
+    let mut count = 0i32;
+    for row in &rows {
+        let id: i64 = row.get("id");
+        let path: String = row.get("path");
+        if let Some(fp) = scanner::compute_file_fingerprint(std::path::Path::new(&path)) {
+            let _ = sqlx::query("UPDATE items SET fingerprint = ? WHERE id = ?")
+                .bind(&fp)
+                .bind(id)
+                .execute(&*pool)
+                .await;
+            count += 1;
+        }
+        let _ = app.emit("fingerprint-progress", serde_json::json!({
+            "current": count,
+            "total": total
+        }));
+    }
+    Ok(count)
+}
+
 // ── Source management ─────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -928,6 +1019,44 @@ async fn fetch_type_extensions(pool: &SqlitePool, type_id: i64) -> Result<Vec<St
     .map_err(|e| e.to_string())
 }
 
+async fn fetch_category_tag_rules(pool: &SqlitePool, category_name: &str) -> Result<Vec<crate::models::TagRuleInput>, String> {
+    let rows = sqlx::query(
+        "SELECT match_type, pattern, tag_name FROM category_tag_rules WHERE category_name = ? ORDER BY id ASC"
+    )
+    .bind(category_name)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows.iter().map(|r| crate::models::TagRuleInput {
+        name: String::new(),
+        match_type: r.get("match_type"),
+        pattern: r.get("pattern"),
+        tag_name: r.get("tag_name"),
+    }).collect())
+}
+
+async fn save_category_tag_rules(pool: &SqlitePool, category_name: &str, rules: &[crate::models::TagRuleInput]) -> Result<(), String> {
+    sqlx::query("DELETE FROM category_tag_rules WHERE category_name = ?")
+        .bind(category_name)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    for rule in rules {
+        sqlx::query(
+            "INSERT INTO category_tag_rules (category_name, match_type, pattern, tag_name) VALUES (?, ?, ?, ?)"
+        )
+        .bind(category_name)
+        .bind(&rule.match_type)
+        .bind(&rule.pattern)
+        .bind(&rule.tag_name)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn get_item_types(pool: State<'_, SqlitePool>) -> Result<Vec<ItemType>, String> {
     let rows = sqlx::query(
@@ -940,16 +1069,19 @@ pub async fn get_item_types(pool: State<'_, SqlitePool>) -> Result<Vec<ItemType>
     let mut types = Vec::new();
     for row in rows {
         let id: i64 = row.get("id");
+        let name: String = row.get("name");
         let is_builtin_int: i64 = row.get("is_builtin");
         let extensions = fetch_type_extensions(&pool, id).await?;
+        let tag_rules = fetch_category_tag_rules(&pool, &name).await?;
         types.push(ItemType {
             id,
-            name: row.get("name"),
+            name,
             icon: row.get("icon"),
             display_name: row.get("display_name"),
             color: row.get("color"),
             is_builtin: is_builtin_int != 0,
             extensions,
+            tag_rules,
         });
     }
     Ok(types)
@@ -983,6 +1115,8 @@ pub async fn create_item_type(
         .map_err(|e| e.to_string())?;
     }
 
+    save_category_tag_rules(&pool, &input.name, &input.tag_rules).await?;
+
     Ok(ItemType {
         id,
         name: input.name,
@@ -991,6 +1125,7 @@ pub async fn create_item_type(
         color: input.color,
         is_builtin: false,
         extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
+        tag_rules: input.tag_rules,
     })
 }
 
@@ -1043,6 +1178,8 @@ pub async fn update_item_type(
         .map_err(|e| e.to_string())?;
     }
 
+    save_category_tag_rules(&pool, &input.name, &input.tag_rules).await?;
+
     Ok(ItemType {
         id,
         name: input.name,
@@ -1051,7 +1188,58 @@ pub async fn update_item_type(
         color: input.color,
         is_builtin: is_builtin_int != 0,
         extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
+        tag_rules: input.tag_rules,
     })
+}
+
+#[tauri::command]
+pub async fn reapply_all_category_rules(pool: State<'_, SqlitePool>) -> Result<serde_json::Value, String> {
+    let folders = sqlx::query(
+        "SELECT path, COALESCE(category, 'default') as category FROM items WHERE item_type = 'folder'"
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut total_tagged = 0i64;
+
+    for folder in &folders {
+        let path: String = folder.get("path");
+        let category: String = folder.get("category");
+
+        let rules = fetch_category_tag_rules(&pool, &category).await?;
+        if rules.is_empty() { continue; }
+
+        let items = sqlx::query(
+            "SELECT id, name FROM items WHERE item_type = 'file' AND path LIKE ?"
+        )
+        .bind(format!("{}%", path))
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        for item in &items {
+            let item_id: i64 = item.get("id");
+            let name: String = item.get("name");
+
+            for tag_name in apply_rules_to_name(&name, &rules) {
+                sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
+                    .bind(&tag_name).execute(&*pool).await.map_err(|e| e.to_string())?;
+
+                let tag_id: i64 = sqlx::query("SELECT id FROM tags WHERE name = ?")
+                    .bind(&tag_name).fetch_one(&*pool).await.map_err(|e| e.to_string())?.get("id");
+
+                let inserted = sqlx::query(
+                    "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'rule')"
+                )
+                .bind(item_id).bind(tag_id).execute(&*pool).await.map_err(|e| e.to_string())?.rows_affected();
+
+                total_tagged += inserted as i64;
+            }
+        }
+    }
+
+    Ok(serde_json::json!({ "tagged": total_tagged }))
 }
 
 #[tauri::command]

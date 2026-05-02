@@ -10,6 +10,40 @@ const emit = defineEmits<{ (e: 'select', tagIds: number[]): void }>();
 const { show: showToast, confirm: confirmDialog } = useToast();
 const searchQuery = ref('');
 
+// ─── 顏色自訂 ─────────────────────────────────────────────────────────────────
+const COLOR_PRESETS = [
+  null,
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#3b82f6', '#a855f7', '#ec4899', '#6b7280',
+];
+const colorPickerTagId = ref<number | null>(null);
+
+const openColorPicker = (e: MouseEvent, tagId: number) => {
+  e.stopPropagation();
+  colorPickerTagId.value = colorPickerTagId.value === tagId ? null : tagId;
+};
+
+const closeColorPicker = () => { colorPickerTagId.value = null; };
+
+const applyColor = async (tag: Tag, color: string | null) => {
+  try {
+    const updated = await api.setTagColor(tag.id, color);
+    const idx = tags.value.findIndex(t => t.id === tag.id);
+    if (idx !== -1) tags.value[idx] = updated;
+  } catch { showToast('設定顏色失敗', 'error'); }
+  closeColorPicker();
+};
+
+const tagStyle = (color?: string | null) => {
+  if (!color) return {};
+  return { background: `${color}22`, color, borderColor: `${color}66` };
+};
+
+const chipStyle = (tagId: number) => {
+  const tag = tags.value.find(t => t.id === tagId);
+  return tagStyle(tag?.color);
+};
+
 const tags = ref<Tag[]>([]);
 const tagCounts = ref<Map<number, number>>(new Map());
 
@@ -90,6 +124,9 @@ const cancelTagEdit = () => {
 
 const handleGlobalClick = (e: MouseEvent) => {
   if (!(e.target as HTMLElement).closest('.add-tag')) showSuggestions.value = false;
+  if (!(e.target as HTMLElement).closest('.color-picker') && !(e.target as HTMLElement).closest('.tag-dot')) {
+    closeColorPicker();
+  }
 };
 
 let unlistenFns: UnlistenFn[] = [];
@@ -132,6 +169,7 @@ onUnmounted(() => {
         v-for="id in selectedTagIds"
         :key="id"
         class="chip"
+        :style="chipStyle(id)"
       >
         {{ tags.find(t => t.id === id)?.name ?? id }}
         <span class="chip-x" @click="handleSelect(id)">✕</span>
@@ -158,13 +196,26 @@ onUnmounted(() => {
         </template>
 
         <template v-else>
-          <span class="tag-name" @click="handleSelect(tag.id)">
-            # {{ tag.name }}
+          <span class="tag-dot" :style="tag.color ? { background: tag.color } : {}" @click.stop="openColorPicker($event, tag.id)" title="設定顏色"></span>
+          <span class="tag-name" @click="handleSelect(tag.id)" :style="tagStyle(tag.color)">
+            {{ tag.name }}
             <span v-if="tagCounts.get(tag.id)" class="tag-count">({{ tagCounts.get(tag.id) }})</span>
           </span>
           <div class="tag-actions">
             <button class="icon-btn" title="重新命名" @click.stop="startRenameTag(tag)">✏️</button>
             <button class="icon-btn danger" title="刪除" @click.stop="handleDeleteTag(tag)">🗑️</button>
+          </div>
+          <!-- 顏色選擇器 -->
+          <div v-if="colorPickerTagId === tag.id" class="color-picker" @click.stop>
+            <span
+              v-for="c in COLOR_PRESETS"
+              :key="c ?? 'none'"
+              class="color-swatch"
+              :class="{ active: tag.color === c, 'swatch-none': c === null }"
+              :style="c ? { background: c } : {}"
+              :title="c ?? '預設'"
+              @click="applyColor(tag, c)"
+            ></span>
           </div>
         </template>
       </li>
@@ -302,6 +353,61 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 6px;
   min-height: 34px;
+  position: relative;
+}
+
+.tag-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.tag-dot:hover { transform: scale(1.3); }
+
+.color-picker {
+  position: absolute;
+  left: 8px;
+  top: calc(100% + 4px);
+  background: #1e2230;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  width: 144px;
+  z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+
+.color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.active { border-color: #fff; }
+.swatch-none {
+  background: rgba(255,255,255,0.15);
+  border: 2px dashed rgba(255,255,255,0.3);
+  position: relative;
+}
+.swatch-none::after {
+  content: '✕';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  color: rgba(255,255,255,0.5);
 }
 
 .tag-list > li:hover { background: rgba(255,255,255,0.07); }

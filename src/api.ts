@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 export interface Tag {
     id: number;
     name: string;
+    color?: string | null;
 }
 
 // Unified Item — replaces Comic + Folder
@@ -91,6 +92,7 @@ export interface ItemType {
     color: string | null;
     isBuiltin: boolean;
     extensions: string[];
+    tagRules: TagRuleInput[];
 }
 
 export interface ItemTypeInput {
@@ -99,6 +101,7 @@ export interface ItemTypeInput {
     displayName: string;
     color: string | null;
     extensions: string[];
+    tagRules: TagRuleInput[];
 }
 
 export const api = {
@@ -166,6 +169,9 @@ export const api = {
 
     async renameTag(id: number, name: string): Promise<Tag> {
         return await invoke<Tag>('rename_tag', { id, name });
+    },
+    async setTagColor(id: number, color: string | null): Promise<Tag> {
+        return await invoke<Tag>('set_tag_color', { id, color });
     },
 
     async mergeTags(sourceId: number, targetId: number): Promise<void> {
@@ -270,6 +276,14 @@ export const api = {
         return await invoke('apply_tag_scan', { scopePath, rules });
     },
 
+    // ── Duplicate detection ───────────────────────────────────────────────────
+    async getDuplicateGroups(): Promise<{ fingerprint: string; items: Item[] }[]> {
+        return await invoke('get_duplicate_groups');
+    },
+    async computeFingerprints(): Promise<number> {
+        return await invoke('compute_fingerprints');
+    },
+
     // ── Item Types ────────────────────────────────────────────────────────────
     async getItemTypes(): Promise<ItemType[]> {
         return await invoke<ItemType[]>('get_item_types');
@@ -285,5 +299,9 @@ export const api = {
 
     async deleteItemType(id: number): Promise<void> {
         await invoke('delete_item_type', { id });
+    },
+
+    async reapplyAllCategoryRules(): Promise<{ tagged: number }> {
+        return await invoke('reapply_all_category_rules');
     },
 }

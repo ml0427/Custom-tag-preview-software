@@ -97,6 +97,11 @@ const formatSize = (bytes: number | null) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+const tagStyle = (color?: string | null) => {
+    if (!color) return {};
+    return { background: `${color}22`, color, borderColor: `${color}66` };
+};
+
 const formatDate = (unix: number | null) => {
     if (!unix) return '-';
     return new Date(unix * 1000).toLocaleString('zh-TW', {
@@ -138,7 +143,7 @@ const formatDate = (unix: number | null) => {
                 <div class="tags-section">
                     <h4>標籤</h4>
                     <div class="tags-container">
-                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" @click="emit('tagClick', tag)">{{ tag.name }}</span>
+                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" :style="tagStyle(tag.color)" @click="emit('tagClick', tag)">{{ tag.name }}</span>
                         <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>
@@ -166,7 +171,7 @@ const formatDate = (unix: number | null) => {
                 <div class="tags-section">
                     <h4>標籤</h4>
                     <div class="tags-container">
-                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" @click="emit('tagClick', tag)">{{ tag.name }}</span>
+                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" :style="tagStyle(tag.color)" @click="emit('tagClick', tag)">{{ tag.name }}</span>
                         <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>

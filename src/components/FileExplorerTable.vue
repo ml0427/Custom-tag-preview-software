@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
-import { type Item, type FileItem } from '../api';
+import { api, type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 import { useItemTypes } from '../composables/useItemTypes';
+import { useToast } from '../composables/useToast';
 
 const props = defineProps<{
   items: FileItem[];
@@ -167,7 +168,20 @@ const visibleItems = computed(() => sortedItems.value.slice(visibleStart.value, 
 const topSpacerHeight = computed(() => visibleStart.value * ROW_HEIGHT);
 const bottomSpacerHeight = computed(() => (sortedItems.value.length - visibleEnd.value) * ROW_HEIGHT);
 
-const { getTypeConfig } = useItemTypes();
+const { getTypeConfig, itemTypes } = useItemTypes();
+const { show: showToast } = useToast();
+
+const applyRulesForFolder = async (item: FileItem) => {
+  hideContextMenu();
+  const dbItem = props.itemByPath.get(item.path);
+  if (!dbItem) return;
+  const type = itemTypes.value.find(t => t.name === (dbItem.category ?? 'default'));
+  if (!type?.tagRules?.length) { showToast('此類別沒有設定掃描規則', 'info'); return; }
+  try {
+    const result = await api.applyTagScan(item.path, type.tagRules);
+    showToast(`已套用 ${result.tagged} 個標籤`, 'success');
+  } catch (e) { showToast('套用失敗: ' + String(e), 'error'); }
+};
 
 const getFileIcon = (item: FileItem): string => {
   if (item.isDir) {
@@ -215,9 +229,22 @@ const highlightText = (text: string): string => {
   return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
 };
 
-// Sort
-const sortBy = ref<'name' | 'size' | 'date'>('name');
-const sortDir = ref<'asc' | 'desc'>('asc');
+// Sort — persisted via localStorage
+const VALID_SORT_BY = ['name', 'size', 'date'] as const;
+const VALID_SORT_DIR = ['asc', 'desc'] as const;
+const savedSortBy = localStorage.getItem('gallery-sort-by');
+const savedSortDir = localStorage.getItem('gallery-sort-dir');
+const sortBy = ref<'name' | 'size' | 'date'>(
+  VALID_SORT_BY.includes(savedSortBy as any) ? (savedSortBy as any) : 'name'
+);
+const sortDir = ref<'asc' | 'desc'>(
+  VALID_SORT_DIR.includes(savedSortDir as any) ? (savedSortDir as any) : 'asc'
+);
+
+watch([sortBy, sortDir], ([by, dir]) => {
+  localStorage.setItem('gallery-sort-by', by);
+  localStorage.setItem('gallery-sort-dir', dir);
+});
 
 const toggleSort = (col: 'name' | 'size' | 'date') => {
   if (sortBy.value === col) {
@@ -327,7 +354,8 @@ const sortedItems = computed(() => {
     >
       <template v-if="contextMenu.item?.isDir">
         <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">📂 進入資料夾</button>
-        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
+        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">✏️ 修改類別</button>
+        <button class="ctx-item" @click="applyRulesForFolder(contextMenu.item!)">🔄 重新套用規則</button>
         <button class="ctx-item" @click="startRename">修改檔名</button>
         <div class="ctx-divider"></div>
         <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>

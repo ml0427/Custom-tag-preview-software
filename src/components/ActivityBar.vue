@@ -3,8 +3,9 @@ defineProps<{ active: string | null; hasSource: boolean }>();
 const emit = defineEmits<{ (e: 'select', id: string): void }>();
 
 const items = [
-  { id: 'workspace', icon: '📁', label: '工作目錄', alwaysEnabled: true },
-  { id: 'tags',      icon: '🏷️', label: '標籤篩選', alwaysEnabled: false },
+  { id: 'workspace',   icon: '📁', label: '工作目錄', alwaysEnabled: true },
+  { id: 'tags',        icon: '🏷️', label: '標籤篩選', alwaysEnabled: false },
+  { id: 'duplicates',  icon: '🔁', label: '重複檔案', alwaysEnabled: false },
 ];
 </script>
 

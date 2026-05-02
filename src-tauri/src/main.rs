@@ -89,6 +89,7 @@ fn main() {
             commands::create_tag,
             commands::delete_tag,
             commands::rename_tag,
+            commands::set_tag_color,
             commands::merge_tags,
             commands::search_tags,
             // Tag rules & scan wizard
@@ -114,6 +115,10 @@ fn main() {
             commands::create_item_type,
             commands::update_item_type,
             commands::delete_item_type,
+            commands::reapply_all_category_rules,
+            // Duplicate detection
+            commands::get_duplicate_groups,
+            commands::compute_fingerprints,
             // File system
             commands::open_file,
             commands::list_subdirs,
