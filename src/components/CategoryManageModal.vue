@@ -216,7 +216,7 @@ const deleteType = async (t: ItemType) => {
                         </div>
                         <p class="field-hint">不含點號，例：zip、epub、cbz</p>
 
-                        <label class="field-label" style="margin-top:16px">自動標記規則</label>
+                        <label class="field-label field-label--spaced">自動標記規則</label>
                         <p class="field-hint">指定此類別後，自動對資料夾內的檔案套用以下規則打標籤</p>
                         <div class="rule-list">
                             <div v-for="(rule, i) in form.tagRules" :key="i" class="rule-row">
@@ -378,6 +378,7 @@ const deleteType = async (t: ItemType) => {
     color: var(--text-secondary);
     margin-top: 10px;
 }
+.field-label--spaced { margin-top: 16px; }
 .field-input {
     background: rgba(255,255,255,0.05);
     border: 1px solid var(--border-default);

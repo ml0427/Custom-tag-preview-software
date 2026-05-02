@@ -212,26 +212,25 @@ const applyAndClose = async () => {
 
           <div class="rules-table">
             <div class="rules-header">
-              <span style="flex:2">說明</span>
-              <span style="flex:1.5">比對方式</span>
-              <span style="flex:2">比對字串</span>
-              <span style="flex:2">套用標籤</span>
-              <span style="width:32px"></span>
+              <span>說明</span>
+              <span>比對方式</span>
+              <span>比對字串</span>
+              <span>套用標籤</span>
+              <span class="rule-del-spacer"></span>
             </div>
             <div v-for="(rule, i) in rules" :key="i" class="rule-row">
-              <input v-model="rule.name" placeholder="（選填）" class="rule-input" style="flex:2" />
-              <select v-model="rule.matchType" class="rule-select" style="flex:1.5">
+              <input v-model="rule.name" placeholder="（選填）" class="rule-input" />
+              <select v-model="rule.matchType" class="rule-select">
                 <option v-for="t in MATCH_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
               </select>
-              <input v-model="rule.pattern" placeholder="輸入字串或正則" class="rule-input" style="flex:2" />
+              <input v-model="rule.pattern" placeholder="輸入字串或正則" class="rule-input" />
               <input
                 v-if="rule.matchType !== 'regex_capture'"
                 v-model="rule.tagName"
                 placeholder="標籤名稱"
                 class="rule-input"
-                style="flex:2"
               />
-              <span v-else class="capture-hint" style="flex:2">← 自動取括號內文字</span>
+              <span v-else class="capture-hint">← 自動取括號內文字</span>
               <button class="btn-del" @click="removeRule(i)">✕</button>
             </div>
           </div>
@@ -456,24 +455,27 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 
 /* Rules table */
 .rules-table { display: flex; flex-direction: column; gap: 6px; }
-.rules-header {
-  display: flex;
+.rules-header,
+.rule-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 2fr 2fr 32px;
   gap: 8px;
+  align-items: center;
+}
+.rules-header {
   padding: 0 8px;
   font-size: 0.78rem;
   color: var(--text-secondary);
   text-transform: uppercase;
 }
 .rule-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 8px;
   padding: 8px;
 }
 .rule-input {
+  width: 100%;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
@@ -485,6 +487,7 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 }
 .rule-input:focus { border-color: var(--accent); }
 .rule-select {
+  width: 100%;
   background-color: rgba(30, 35, 50, 0.95);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237d8590'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
