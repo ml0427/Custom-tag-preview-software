@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { api, type Tag } from '../api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useToast } from '../composables/useToast';
+import { normalizeHex } from '../utils/color';
 
 const props = defineProps<{ selectedTagIds: number[] }>();
 const emit = defineEmits<{ (e: 'select', tagIds: number[]): void }>();
@@ -26,8 +27,13 @@ const openColorPicker = (e: MouseEvent, tagId: number) => {
 const closeColorPicker = () => { colorPickerTagId.value = null; };
 
 const applyColor = async (tag: Tag, color: string | null) => {
+  const safe = color === null ? null : normalizeHex(color);
+  if (color !== null && safe === null) {
+    showToast('顏色格式無效（需 #rrggbb 6 碼）', 'error');
+    return;
+  }
   try {
-    const updated = await api.setTagColor(tag.id, color);
+    const updated = await api.setTagColor(tag.id, safe);
     const idx = tags.value.findIndex(t => t.id === tag.id);
     if (idx !== -1) tags.value[idx] = updated;
   } catch { showToast('設定顏色失敗', 'error'); }
@@ -35,8 +41,9 @@ const applyColor = async (tag: Tag, color: string | null) => {
 };
 
 const tagStyle = (color?: string | null) => {
-  if (!color) return {};
-  return { background: `${color}22`, color, borderColor: `${color}66` };
+  const safe = normalizeHex(color);
+  if (!safe) return {};
+  return { background: `${safe}22`, color: safe, borderColor: `${safe}66` };
 };
 
 const chipStyle = (tagId: number) => {
