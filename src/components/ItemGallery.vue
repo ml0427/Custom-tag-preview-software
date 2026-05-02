@@ -557,9 +557,9 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 
 .resizer:hover, .resizer.is-resizing {
-  background: var(--accent-color);
+  background: var(--accent);
   width: 6px;
-  box-shadow: 0 0 10px var(--accent-color);
+  box-shadow: 0 0 10px var(--accent);
 }
 
 .header { margin-bottom: 20px; }
@@ -569,9 +569,9 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: var(--panel-bg);
+  background: var(--bg-panel);
   border-radius: 12px;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
 }
 
 .nav-btn {
@@ -605,7 +605,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .divider {
   width: 1px;
   height: 16px;
-  background: var(--panel-border);
+  background: var(--border-default);
   flex-shrink: 0;
 }
 
@@ -648,7 +648,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .view-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
-.view-btn.active { color: var(--text-primary); background: rgba(255,255,255,0.1); border-color: var(--panel-border); }
+.view-btn.active { color: var(--text-primary); background: rgba(255,255,255,0.1); border-color: var(--border-default); }
 
 .search-count {
   font-size: 0.8rem;
@@ -665,9 +665,9 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .table-wrapper {
   flex: 1;
-  background: var(--panel-bg);
+  background: var(--bg-panel);
   border-radius: 12px;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -676,9 +676,9 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .preview-toggle-btn {
   width: 28px;
   flex-shrink: 0;
-  background: var(--panel-bg);
+  background: var(--bg-panel);
   border: none;
-  border-left: 1px solid var(--panel-border);
+  border-left: 1px solid var(--border-default);
   color: var(--text-secondary);
   font-size: 1rem;
   cursor: pointer;
@@ -727,7 +727,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   width: 40px;
   height: 40px;
   border: 4px solid rgba(255,255,255,0.1);
-  border-top-color: var(--accent-color);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 15px;
@@ -741,7 +741,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   left: 50%;
   transform: translateX(-50%);
   background: #1e2130;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 12px;
   padding: 10px 18px;
   display: flex;
@@ -758,7 +758,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .batch-count { font-size: 0.88rem; color: var(--text-primary); font-weight: 600; }
 .batch-btn {
   background: rgba(255,255,255,0.08);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 0.85rem;
@@ -778,7 +778,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   left: 50%;
   transform: translateX(-50%);
   background: #1e2130;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 8px;
   min-width: 180px;
@@ -788,7 +788,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .tag-picker-input {
   width: 100%;
   background: rgba(255,255,255,0.06);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 5px;
   color: var(--text-primary);
   font-size: 0.85rem;

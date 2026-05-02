@@ -157,7 +157,7 @@ onUnmounted(() => { unlisten?.(); });
 
 .dup-header {
     padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--border-default);
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -187,9 +187,9 @@ onUnmounted(() => { unlisten?.(); });
 }
 
 .compute-btn {
-    background: rgba(47,129,247,0.15);
-    border: 1px solid rgba(47,129,247,0.4);
-    color: #7eb8ff;
+    background: var(--accent-bg-subtle);
+    border: 1px solid var(--accent);
+    color: var(--accent-hover);
     padding: 7px 16px;
     border-radius: 8px;
     font-size: 0.85rem;
@@ -198,7 +198,7 @@ onUnmounted(() => { unlisten?.(); });
     transition: background 0.15s;
     flex-shrink: 0;
 }
-.compute-btn:hover:not(:disabled) { background: rgba(47,129,247,0.25); }
+.compute-btn:hover:not(:disabled) { background: var(--accent-bg-strong); }
 .compute-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .dup-body {
@@ -225,7 +225,7 @@ onUnmounted(() => { unlisten?.(); });
     width: 36px;
     height: 36px;
     border: 3px solid rgba(255,255,255,0.1);
-    border-top-color: var(--accent-color);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.9s linear infinite;
 }
@@ -248,7 +248,7 @@ onUnmounted(() => { unlisten?.(); });
     justify-content: space-between;
     padding: 12px 16px;
     background: rgba(255,255,255,0.04);
-    border-bottom: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--border-default);
 }
 
 .group-meta {
@@ -279,7 +279,7 @@ onUnmounted(() => { unlisten?.(); });
 
 .keep-btn {
     background: transparent;
-    border: 1px solid var(--panel-border);
+    border: 1px solid var(--border-default);
     color: var(--text-secondary);
     font-size: 0.8rem;
     padding: 4px 12px;
@@ -287,7 +287,7 @@ onUnmounted(() => { unlisten?.(); });
     cursor: pointer;
     transition: all 0.15s;
 }
-.keep-btn:hover { color: var(--text-primary); border-color: var(--accent-color); }
+.keep-btn:hover { color: var(--text-primary); border-color: var(--accent); }
 
 .item-list {
     display: flex;

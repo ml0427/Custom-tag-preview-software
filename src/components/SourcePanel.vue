@@ -371,7 +371,7 @@ onMounted(() => {
 
 .panel-header {
   padding: 20px 16px 12px;
-  border-bottom: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
 }
 
@@ -408,9 +408,9 @@ onMounted(() => {
 
 .all-item:hover { background: rgba(255,255,255,0.06); }
 .all-item.active {
-  background: var(--tag-bg);
+  background: var(--accent-bg-subtle);
   color: var(--accent-hover);
-  border-left: 3px solid var(--accent-color);
+  border-left: 3px solid var(--accent);
   padding-left: 7px;
 }
 
@@ -461,14 +461,14 @@ onMounted(() => {
 }
 
 .root-header:hover .remove-btn { opacity: 0.5; }
-.root-header:hover .remove-btn:hover { opacity: 1; color: var(--danger-color); }
+.root-header:hover .remove-btn:hover { opacity: 1; color: var(--color-danger); }
 
 .panel-footer {
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-top: 1px solid var(--panel-border);
+  border-top: 1px solid var(--border-default);
   flex-shrink: 0;
 }
 
@@ -492,14 +492,14 @@ onMounted(() => {
 
 .btn-add {
   background: rgba(255,255,255,0.06);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   color: var(--text-primary);
 }
 .btn-add:hover { background: rgba(255,255,255,0.12); }
 
 .btn-manage {
   background: rgba(255,255,255,0.04);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   color: var(--text-secondary);
 }
 .btn-manage:hover { background: rgba(255,255,255,0.09); color: var(--text-primary); }
@@ -514,8 +514,8 @@ onMounted(() => {
 .ctx-menu {
   position: fixed;
   z-index: 9999;
-  background: #1e2230;
-  border: 1px solid var(--panel-border);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 4px 0;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
@@ -530,7 +530,7 @@ onMounted(() => {
   transition: background 0.15s, color 0.15s;
 }
 .ctx-item:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
-.ctx-divider { height: 1px; background: var(--panel-border); margin: 3px 0; }
+.ctx-divider { height: 1px; background: var(--border-default); margin: 3px 0; }
 .ctx-danger { color: #f87171; }
 .ctx-danger:hover { background: rgba(248,65,65,0.12) !important; color: #f87171 !important; }
 
@@ -571,7 +571,7 @@ onMounted(() => {
 
 .folder-input {
   background: rgba(0,0,0,0.35);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text-primary);
   padding: 7px 10px;
@@ -582,7 +582,7 @@ onMounted(() => {
   transition: border-color 0.2s;
   font-family: inherit;
 }
-.folder-input:focus { border-color: var(--accent-color); }
+.folder-input:focus { border-color: var(--accent); }
 
 .apply-sub-check {
   display: flex;
@@ -594,7 +594,7 @@ onMounted(() => {
   margin-top: 4px;
   user-select: none;
 }
-.apply-sub-check input[type="checkbox"] { cursor: pointer; accent-color: var(--accent-color); }
+.apply-sub-check input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
 
 .folder-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
@@ -607,7 +607,7 @@ onMounted(() => {
 }
 
 .tag-chip {
-  background: var(--tag-bg);
+  background: var(--accent-bg-subtle);
   color: var(--accent-hover);
   border-radius: 6px;
   padding: 3px 10px;
@@ -627,8 +627,8 @@ onMounted(() => {
   top: 100%;
   left: 0;
   right: 0;
-  background: #1e2230;
-  border: 1px solid var(--panel-border);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   z-index: 100;
   max-height: 140px;
@@ -646,7 +646,7 @@ onMounted(() => {
 
 .btn-cancel {
   background: transparent;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   color: var(--text-secondary);
   padding: 7px 14px;
   border-radius: 8px;
@@ -656,7 +656,7 @@ onMounted(() => {
 .btn-cancel:hover { color: var(--text-primary); }
 
 .btn-confirm {
-  background: var(--accent-color);
+  background: var(--accent);
   border: none;
   color: #fff;
   padding: 7px 16px;

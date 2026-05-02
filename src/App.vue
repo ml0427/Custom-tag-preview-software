@@ -162,7 +162,7 @@ onUnmounted(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background-image: radial-gradient(circle at top right, #1a2333 0%, #0d1117 100%);
+  background: var(--bg-app);
 }
 
 .side-panel {
@@ -206,7 +206,7 @@ onUnmounted(() => {
   bottom: 20px;
   right: 24px;
   background: #1e2130;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 10px 16px;
   display: flex;
@@ -221,7 +221,7 @@ onUnmounted(() => {
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255,255,255,0.15);
-  border-top-color: var(--accent-color);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;

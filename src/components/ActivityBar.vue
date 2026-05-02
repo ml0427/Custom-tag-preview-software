@@ -58,7 +58,7 @@ const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
   width: 64px;
   height: 100vh;
   background: rgba(13, 17, 23, 0.95);
-  border-right: 1px solid var(--panel-border);
+  border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -93,7 +93,7 @@ const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
   transform: translateY(-50%) scaleY(0);
   width: 3px;
   height: 60%;
-  background: var(--accent-color);
+  background: var(--accent);
   border-radius: 0 3px 3px 0;
   transition: transform 0.2s;
 }
@@ -105,7 +105,7 @@ const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
 
 .activity-btn.active {
   color: var(--text-primary);
-  background: rgba(47, 129, 247, 0.12);
+  background: var(--accent-bg-subtle);
 }
 
 .activity-btn.active::before {

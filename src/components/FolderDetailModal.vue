@@ -222,7 +222,7 @@ const openFolder = async () => {
 
 .edit-input {
   background: rgba(0,0,0,0.35);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text-primary);
   padding: 7px 10px;
@@ -233,15 +233,15 @@ const openFolder = async () => {
   transition: border-color 0.2s;
   font-family: inherit;
 }
-.edit-input:focus { border-color: var(--accent-color); }
+.edit-input:focus { border-color: var(--accent); }
 .edit-textarea { resize: vertical; }
 
 .tag-editor h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--accent-hover); }
 .current-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 
 .edit-tag {
-  background: var(--tag-bg);
-  border: 1px solid var(--accent-color);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent);
   color: #fff;
   padding: 3px 8px;
   border-radius: 12px;
@@ -250,7 +250,7 @@ const openFolder = async () => {
   align-items: center;
   gap: 6px;
 }
-.edit-tag .remove { cursor: pointer; color: var(--danger-color); }
+.edit-tag .remove { cursor: pointer; color: var(--color-danger); }
 
 .tag-input-wrapper { position: relative; }
 .tag-text-input {
@@ -258,21 +258,21 @@ const openFolder = async () => {
   padding: 7px 10px;
   background: rgba(0,0,0,0.35);
   color: #fff;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   outline: none;
   font-size: 0.88rem;
   box-sizing: border-box;
   transition: border-color 0.2s;
 }
-.tag-text-input:focus { border-color: var(--accent-color); }
+.tag-text-input:focus { border-color: var(--accent); }
 
 .tag-suggestions {
   position: absolute;
   top: calc(100% + 4px);
   left: 0; right: 0;
-  background: #1e2230;
-  border: 1px solid var(--panel-border);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   list-style: none;
   padding: 4px 0;
@@ -308,15 +308,15 @@ const openFolder = async () => {
 }
 .btn-open {
   background: rgba(255,255,255,0.06);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   color: var(--text-primary);
 }
 .btn-open:hover { background: rgba(255,255,255,0.12); }
 
 .btn-delete {
   background: transparent;
-  border: 1px solid var(--danger-color);
-  color: var(--danger-color);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
 }
 .btn-delete:hover { background: rgba(248,113,113,0.1); }
 </style>
