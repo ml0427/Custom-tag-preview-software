@@ -1,0 +1,67 @@
+{
+  "extends": ["stylelint-config-recommended-vue"],
+  "plugins": ["stylelint-declaration-strict-value"],
+  "rules": {
+    "scale-unlimited/declaration-strict-value": [
+      [
+        "/color$/",
+        "background",
+        "background-color",
+        "border",
+        "border-color",
+        "box-shadow",
+        "fill",
+        "stroke"
+      ],
+      {
+        "ignoreKeywords": [
+          "currentColor",
+          "transparent",
+          "inherit",
+          "initial",
+          "unset",
+          "none",
+          "auto",
+          "solid",
+          "dashed",
+          "inset",
+          "outset"
+        ],
+        "ignoreValues": [
+          "/var\\(--/",
+          "/rgba?\\(var\\(--/",
+          "/^\\d+px$/",
+          "/^\\d+rem$/",
+          "/^\\d+em$/",
+          "/^\\d+%$/",
+          "/calc\\(/",
+          "/linear-gradient\\(/",
+          "/radial-gradient\\(/",
+          "0"
+        ],
+        "ignoreFunctions": false,
+        "expandShorthand": true,
+        "disableFix": true,
+        "message": "Hardcoded color found. Use a theme token (var(--bg-*, --text-*, --accent-*, --color-*)) instead. See patches/02-color-tokens/ for the full token list. If genuinely intentional, add a /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- WHY */ comment."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/style.css"],
+      "rules": {
+        "scale-unlimited/declaration-strict-value": null
+      }
+    },
+    {
+      "files": ["**/*.vue"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "ignoreFiles": [
+    "node_modules/**",
+    "dist/**",
+    "src-tauri/target/**",
+    "public/**"
+  ]
+}

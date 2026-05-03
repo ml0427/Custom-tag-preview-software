@@ -603,8 +603,8 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn-ghost:hover:not(:disabled) { border-color: var(--text-primary); color: var(--text-primary); }
 .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-ghost:hover:not(:disabled) { border-color: var(--text-primary); color: var(--text-primary); }
 .btn-primary {
   background: var(--accent);
   border: none;
@@ -615,8 +615,8 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
   font-weight: 600;
   transition: opacity 0.2s;
 }
-.btn-primary:hover:not(:disabled) { opacity: 0.85; }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary:hover:not(:disabled) { opacity: 0.85; }
 .btn-confirm {
   background: var(--color-success);
   border: none;
@@ -627,8 +627,8 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
   font-weight: 600;
   transition: opacity 0.2s;
 }
-.btn-confirm:hover:not(:disabled) { opacity: 0.85; }
 .btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-confirm:hover:not(:disabled) { opacity: 0.85; }
 
 .step-body::-webkit-scrollbar { width: 4px; }
 .step-body::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }

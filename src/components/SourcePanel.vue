@@ -487,8 +487,8 @@ onMounted(() => {
   border: 1px solid var(--color-success);
   color: var(--color-success);
 }
-.btn-scan:hover:not(:disabled) { background: var(--bg-overlay-strong); }
 .btn-scan:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-scan:hover:not(:disabled) { background: var(--bg-overlay-strong); }
 
 .btn-add {
   background: var(--bg-overlay-soft);
@@ -658,7 +658,7 @@ onMounted(() => {
 .btn-confirm {
   background: var(--accent);
   border: none;
-  color: #fff;
+  color: var(--text-on-accent);
   padding: 7px 16px;
   border-radius: 8px;
   cursor: pointer;
@@ -666,6 +666,6 @@ onMounted(() => {
   font-weight: 500;
   transition: background 0.15s;
 }
-.btn-confirm:hover:not(:disabled) { background: var(--accent-hover); }
 .btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-confirm:hover:not(:disabled) { background: var(--accent-hover); }
 </style>

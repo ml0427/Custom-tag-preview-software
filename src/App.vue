@@ -205,14 +205,14 @@ onUnmounted(() => {
   position: fixed;
   bottom: 20px;
   right: 24px;
-  background: #1e2130;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 10px 16px;
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-popover);
   z-index: 1200;
   max-width: 360px;
 }
@@ -220,7 +220,7 @@ onUnmounted(() => {
 .scan-spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255,255,255,0.15);
+  border: 2px solid var(--border-default);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;

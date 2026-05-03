@@ -218,7 +218,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   box-sizing: border-box;
 }
 
-.thumb-grid-outer::-webkit-scrollbar { width: 10px; }
+.thumb-grid-outer::-webkit-scrollbar { width: 8px; }
 .thumb-grid-outer::-webkit-scrollbar-thumb {
   background: var(--bg-overlay-strong);
   border-radius: 10px;

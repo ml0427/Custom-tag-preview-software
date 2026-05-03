@@ -424,8 +424,8 @@ const formatDate = (unix: number | null) => {
     cursor: pointer;
     transition: all 0.2s;
 }
-.btn-open:hover:not(:disabled) { background: var(--bg-overlay-strong); color: var(--text-primary); }
 .btn-open:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-open:hover:not(:disabled) { background: var(--bg-overlay-strong); color: var(--text-primary); }
 
 .info-scroll::-webkit-scrollbar { width: 4px; }
 .info-scroll::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }

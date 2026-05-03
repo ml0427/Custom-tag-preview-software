@@ -606,8 +606,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   flex-shrink: 0;
   transition: color 0.15s, background 0.15s;
 }
-.nav-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
 .nav-btn:disabled { opacity: 0.3; cursor: default; }
+.nav-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
 .nav-btn.spinning { animation: spin 0.5s linear; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -703,8 +703,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   line-height: 1.4;
   transition: color 0.15s, background 0.15s;
 }
-.page-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
 .page-btn:disabled { opacity: 0.3; cursor: default; }
+.page-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
 
 .page-info {
   font-size: 0.78rem;
@@ -815,8 +815,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   cursor: pointer;
   transition: background 0.15s;
 }
-.batch-btn:hover:not(:disabled) { background: var(--bg-overlay-strong); }
 .batch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.batch-btn:hover:not(:disabled) { background: var(--bg-overlay-strong); }
 .batch-danger { color: var(--color-danger); border-color: var(--color-danger); }
 .batch-danger:hover:not(:disabled) { background: var(--color-danger-bg-subtle); }
 

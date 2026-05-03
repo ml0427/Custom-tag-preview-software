@@ -165,6 +165,7 @@ app.mount('#app')
 | 強調 | `--accent-bg-subtle` | accent 透明背景（弱） |
 | 強調 | `--accent-bg-strong` | accent 透明背景（強） |
 | 語意 | `--color-danger` | 錯誤/刪除 |
+| 語意 | `--color-danger-bg-subtle` | 錯誤背景（淡色） |
 | 語意 | `--color-success` | 成功 |
 | 語意 | `--color-warning` | 警告 |
 | 語意 | `--color-info` | 訊息 |
@@ -176,6 +177,8 @@ app.mount('#app')
 | 陰影 | `--shadow-md` | 中陰影（卡片） |
 | 陰影 | `--shadow-lg` | 大陰影（浮層） |
 | 陰影 | `--shadow-glow` | 發光（Neon 主用，其他風格 `none`） |
+| 陰影 | `--shadow-accent-elevated` | 強調色懸浮陰影 |
+| 聚焦 | `--ring-focus` | 焦點環（Ring/Halo） |
 | 特效 | `--blur-glass` | 毛玻璃模糊量 |
 | 動畫 | `--transition-fast` | 100–150ms |
 | 動畫 | `--transition-base` | 200–300ms |
@@ -209,6 +212,7 @@ app.mount('#app')
   --accent-bg-strong: rgba(47, 129, 247, 0.30);
 
   --color-danger: #f85149;
+  --color-danger-bg-subtle: rgba(248, 81, 73, 0.1);
   --color-success: #2ea043;
   --color-warning: #d29922;
   --color-info: #2f81f7;
@@ -222,6 +226,8 @@ app.mount('#app')
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-glow: none;
+  --ring-focus: 0 0 0 2px rgba(47, 129, 247, 0.2);
+  --shadow-accent-elevated: 0 4px 12px rgba(47, 129, 247, 0.4);
 
   --blur-glass: blur(16px);
 
@@ -589,21 +595,21 @@ HTML class 約定：`.card`
 
 實作風格切換或新增組件時，請逐項確認：
 
-- [ ] `style.css` 已含 4 套 `[data-theme]` 的變數區塊（§3.2）
-- [ ] `style.css` 已含 `.disable-transitions` rule（§2.2）
-- [ ] `index.html` `<head>` 已加 FOUC 防閃爍 script（§2.0）
-- [ ] `themeStore.ts` 已建立並在 `main.ts` 啟動時呼叫 `init()`
-- [ ] `<html data-theme="...">` 能正確切換
-- [ ] 切換瞬間無漸變、無閃爍（首次載入 + 切換中）
-- [ ] localStorage key 統一使用 `app-theme`
-- [ ] `tag.color` 已正規化為 `#rrggbb` 6 碼（§5.1 Badge 警告框）
-- [ ] 組件層**無**任何寫死的 `#xxxxxx` 或 `rgba(...)`（資料驅動的標籤色除外）
-- [ ] 無 `style="color:..." style="background:..."` 內聯樣式
-- [ ] 所有 `border-radius` 引用 `var(--radius-*)`
-- [ ] 所有 `transition` 引用 `var(--transition-*)`
-- [ ] 所有 `box-shadow` 引用 `var(--shadow-*)`，發光效果用 `var(--shadow-glow)`
-- [ ] 4 套風格的 ActivityBar 切換器都能 1 次點擊生效，重整後保留
-- [ ] Modal、Toast、Sidebar 在 4 套風格下視覺都不破版
+- [x] `style.css` 已含 4 套 `[data-theme]` 的變數區塊（§3.2）
+- [x] `style.css` 已含 `.disable-transitions` rule（§2.2）
+- [x] `index.html` `<head>` 已加 FOUC 防閃爍 script（§2.0）
+- [x] `themeStore.ts` 已建立並在 `main.ts` 啟動時呼叫 `init()`
+- [x] `<html data-theme="...">` 能正確切換
+- [x] 切換瞬間無漸變、無閃爍（首次載入 + 切換中）
+- [x] localStorage key 統一使用 `app-theme`
+- [x] `tag.color` 已正規化為 `#rrggbb` 6 碼（§5.1 Badge 警告框：已由 Patch 01 完成）
+- [x] 組件層**無**任何寫死的 `#xxxxxx` 或 `rgba(...)`（Patch 03 已全面清理）
+- [x] 無 `style="color:..." style="background:..."` 內聯樣式
+- [x] 所有 `border-radius` 引用 `var(--radius-*)`
+- [x] 所有 `transition` 引用 `var(--transition-*)`
+- [x] 所有 `box-shadow` 引用 `var(--shadow-*)`，發光效果用 `var(--shadow-glow)`
+- [x] 4 套風格的 ActivityBar 切換器都能 1 次點擊生效，重整後保留
+- [x] Modal、Toast、Sidebar 在 4 套風格下視覺都不破版
 
 ---
 

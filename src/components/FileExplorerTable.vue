@@ -379,7 +379,7 @@ const sortedItems = computed(() => {
   outline: none;
 }
 
-.vscroll-outer::-webkit-scrollbar { width: 10px; }
+.vscroll-outer::-webkit-scrollbar { width: 8px; }
 .vscroll-outer::-webkit-scrollbar-thumb {
   background: var(--bg-overlay-strong);
   border-radius: 10px;

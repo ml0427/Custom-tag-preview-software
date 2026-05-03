@@ -198,8 +198,8 @@ onUnmounted(() => { unlisten?.(); });
     transition: background 0.15s;
     flex-shrink: 0;
 }
-.compute-btn:hover:not(:disabled) { background: var(--accent-bg-strong); }
 .compute-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.compute-btn:hover:not(:disabled) { background: var(--accent-bg-strong); }
 
 .dup-body {
     flex: 1;

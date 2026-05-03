@@ -358,13 +358,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  min-height: 34px;
+  min-height: 32px;
   position: relative;
 }
 
+/* stylelint-disable scale-unlimited/declaration-strict-value -- intentional neutral fallback for tags with no color */
 .tag-dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: rgba(255,255,255,0.2);
   flex-shrink: 0;
@@ -372,6 +373,7 @@ onUnmounted(() => {
   transition: transform 0.15s, background 0.15s;
   border: 1px solid rgba(255,255,255,0.15);
 }
+/* stylelint-enable scale-unlimited/declaration-strict-value */
 .tag-dot:hover { transform: scale(1.3); }
 
 .color-picker {
@@ -400,6 +402,7 @@ onUnmounted(() => {
 }
 .color-swatch:hover { transform: scale(1.2); }
 .color-swatch.active { border-color: var(--text-on-accent); }
+/* stylelint-disable scale-unlimited/declaration-strict-value -- "no color" indicator, intentionally low-contrast */
 .swatch-none {
   background: rgba(255,255,255,0.15);
   border: 2px dashed rgba(255,255,255,0.3);
@@ -415,6 +418,7 @@ onUnmounted(() => {
   font-size: 0.6rem;
   color: rgba(255,255,255,0.5);
 }
+/* stylelint-enable scale-unlimited/declaration-strict-value */
 
 .tag-list > li:hover { background: var(--bg-hover); }
 .tag-list > li.active {
@@ -423,10 +427,10 @@ onUnmounted(() => {
   border-left: 3px solid var(--accent);
   padding-left: 7px;
 }
+.tag-count { font-size: 0.78rem; color: var(--text-tertiary); flex-shrink: 0; }
 .tag-list > li.active .tag-count { color: var(--text-secondary); }
 
 .tag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
-.tag-count { font-size: 0.78rem; color: var(--text-tertiary); flex-shrink: 0; }
 
 .tag-actions { display: none; gap: 2px; flex-shrink: 0; }
 .tag-list > li:hover .tag-actions { display: flex; }

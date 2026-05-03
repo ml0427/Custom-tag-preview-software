@@ -345,8 +345,8 @@ const deleteType = async (t: ItemType) => {
     opacity: 0;
     transition: opacity 0.15s;
 }
-.type-item:hover .del-btn { opacity: 1; }
 .del-btn:hover { color: var(--color-danger); }
+.type-item:hover .del-btn { opacity: 1; }
 .add-type-btn {
     margin: 8px 10px 4px;
     background: transparent;
@@ -519,8 +519,8 @@ const deleteType = async (t: ItemType) => {
     cursor: pointer;
     transition: opacity 0.15s;
 }
-.save-btn:hover:not(:disabled) { opacity: 0.85; }
 .save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.save-btn:hover:not(:disabled) { opacity: 0.85; }
 .color-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .color-picker { width: 36px; height: 32px; border: 1px solid var(--border-default); border-radius: 6px; padding: 2px; background: transparent; cursor: pointer; flex-shrink: 0; }
 .color-text { flex: 1; }

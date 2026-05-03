@@ -318,5 +318,5 @@ const openFolder = async () => {
   border: 1px solid var(--color-danger);
   color: var(--color-danger);
 }
-.btn-delete:hover { background: rgba(248,113,113,0.1); }
+.btn-delete:hover { background: var(--color-danger-bg-subtle); }
 </style>

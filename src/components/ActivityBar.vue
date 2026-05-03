@@ -15,7 +15,7 @@ const themeStore = useThemeStore();
 const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
   { id: 'default', label: 'Default · GitHub Dark',   color: '#2f81f7' },
   { id: 'macos',   label: 'MacOS 晶透',              color: '#007aff' },
-  { id: 'vercel',  label: 'Vercel 極簡黑',           color: '#ffffff', ring: '#666' },
+  { id: 'vercel',  label: 'Vercel 極簡黑',           color: '#ffffff', ring: '#333' },
   { id: 'neon',    label: 'Neon 霓虹科技',           color: '#00f3ff' },
 ];
 </script>
@@ -55,21 +55,22 @@ const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
 
 <style scoped>
 .activity-bar {
-  width: 64px;
+  width: 56px;
   height: 100vh;
   background: var(--bg-panel);
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 0;
-  gap: 4px;
+  padding: 16px 0;
+  gap: 16px;
+  z-index: 200;
   flex-shrink: 0;
 }
 
 .activity-btn {
-  width: 48px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
