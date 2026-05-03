@@ -23,20 +23,8 @@ export interface Item {
     tags: Tag[];
 }
 
-// Legacy Comic (kept for internal compat; maps to Item with itemType='file')
-interface Comic {
-    id: number;
-    filePath: string;
-    title: string;
-    customCoverPath: string | null;
-    importTime: string;
-    fileSize: number;
-    fileModifiedTime: string;
-    tags: Tag[];
-}
-
 // Legacy Folder (used by SourcePanel)
-interface Folder {
+export interface Folder {
     id: number;
     path: string;
     name: string;

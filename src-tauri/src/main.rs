@@ -16,7 +16,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("comic-cache", |_app_handle, request| {
             let app_data_dir = _app_handle.app_handle().path().app_data_dir().expect("failed to get app data dir");
-            let cache_dir = app_data_dir.join("comic_cache");
+            let cache_dir = app_data_dir.join("thumb_cache");
             let path = request.uri().path().trim_start_matches('/');
             let file_path = cache_dir.join(path);
 
@@ -33,12 +33,12 @@ fn main() {
                     .header("Content-Type", content_type)
                     .header("Access-Control-Allow-Origin", "*")
                     .body(data)
-                    .unwrap()
+                    .expect("failed to build HTTP response")
             } else {
                 tauri::http::Response::builder()
                     .status(404)
                     .body(Vec::new())
-                    .unwrap()
+                    .expect("failed to build HTTP 404 response")
             }
         })
         .setup(|app| {
