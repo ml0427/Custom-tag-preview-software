@@ -11,6 +11,22 @@ use std::path::Path;
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
+// Mirrors src/utils/color.ts normalizeHex — single source of truth for tag.color shape.
+// Tauri commands are a public trust boundary; never trust the JS side to have validated.
+fn normalize_hex(input: &str) -> Option<String> {
+    let trimmed = input.trim().to_lowercase();
+    if trimmed.is_empty() { return None; }
+    let stripped = trimmed.strip_prefix('#').unwrap_or(&trimmed);
+    let valid = matches!(stripped.len(), 3 | 6) && stripped.chars().all(|c| c.is_ascii_hexdigit());
+    if !valid { return None; }
+    let expanded = if stripped.len() == 3 {
+        stripped.chars().flat_map(|c| [c, c]).collect::<String>()
+    } else {
+        stripped.to_string()
+    };
+    Some(format!("#{}", expanded))
+}
+
 fn read_item_from_row(row: &sqlx::sqlite::SqliteRow, tags: Vec<Tag>) -> Item {
     Item {
         id: row.get("id"),
@@ -562,8 +578,15 @@ pub async fn create_tag(name: String, pool: State<'_, SqlitePool>) -> Result<Tag
 
 #[tauri::command]
 pub async fn set_tag_color(id: i64, color: Option<String>, pool: State<'_, SqlitePool>) -> Result<Tag, String> {
+    let normalized = match color.as_deref() {
+        None | Some("") => None,
+        Some(s) => match normalize_hex(s) {
+            Some(hex) => Some(hex),
+            None => return Err(format!("Invalid tag color: {:?} (expected #rgb or #rrggbb)", s)),
+        },
+    };
     sqlx::query("UPDATE tags SET color = ? WHERE id = ?")
-        .bind(&color)
+        .bind(&normalized)
         .bind(id)
         .execute(&*pool)
         .await

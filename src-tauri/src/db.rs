@@ -135,6 +135,33 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     let _ = sqlx::query("ALTER TABLE tags ADD COLUMN color TEXT")
         .execute(&pool).await;
 
+    // Normalize legacy tag.color rows to canonical #rrggbb (idempotent).
+    // Mirrors src/utils/color.ts normalizeHex; anything unparseable becomes NULL.
+    let _ = sqlx::query(
+        "UPDATE tags SET color = '#'
+         || lower(substr(color, 2, 1)) || lower(substr(color, 2, 1))
+         || lower(substr(color, 3, 1)) || lower(substr(color, 3, 1))
+         || lower(substr(color, 4, 1)) || lower(substr(color, 4, 1))
+         WHERE color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]' AND length(color) = 4"
+    ).execute(&pool).await;
+    let _ = sqlx::query(
+        "UPDATE tags SET color = '#' || lower(substr(color, 2))
+         WHERE color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'
+         AND length(color) = 7 AND color != lower(color)"
+    ).execute(&pool).await;
+    let _ = sqlx::query(
+        "UPDATE tags SET color = '#' || lower(color)
+         WHERE color GLOB '[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'
+         AND length(color) = 6"
+    ).execute(&pool).await;
+    let _ = sqlx::query(
+        "UPDATE tags SET color = NULL
+         WHERE color IS NOT NULL
+         AND color NOT GLOB '#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'"
+    ).execute(&pool).await;
+    let _ = sqlx::query("UPDATE tags SET color = NULL WHERE color = ''")
+        .execute(&pool).await;
+
     // Rename folder_type → category (idempotent)
     let _ = sqlx::query("ALTER TABLE items ADD COLUMN category TEXT DEFAULT 'default'")
         .execute(&pool).await;
