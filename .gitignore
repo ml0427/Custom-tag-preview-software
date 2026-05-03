@@ -32,3 +32,9 @@ test.mjs
 
 # Issue screenshots / scratch dirs
 問題/
+
+# GitNexus knowledge graph index (per-machine, regenerable via `gitnexus analyze`)
+.gitnexus/
+
+# GitNexus repo-specific skills (auto-generated from indexed graph, per-machine)
+.claude/skills/
