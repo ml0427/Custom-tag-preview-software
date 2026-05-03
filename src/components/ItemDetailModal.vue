@@ -162,7 +162,7 @@ watch(() => props.item, (item) => {
 .modal-backdrop {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.85);
+  background: var(--bg-scrim-heavy);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -192,13 +192,13 @@ watch(() => props.item, (item) => {
   position: absolute;
   top: 15px; right: 15px;
   background: transparent;
-  color: #fff;
+  color: var(--text-on-accent);
   font-size: 1.5rem;
   padding: 5px 10px;
   border-radius: 50%;
   z-index: 10;
 }
-.close-btn:hover { background: rgba(255,255,255,0.1); transform: rotate(90deg); }
+.close-btn:hover { background: var(--bg-overlay-strong); transform: rotate(90deg); }
 
 .modal-body {
   display: flex;
@@ -222,8 +222,8 @@ watch(() => props.item, (item) => {
   max-height: 300px;
   object-fit: contain;
   border-radius: 8px;
-  background: #000;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  background: var(--bg-image-placeholder);
+  box-shadow: var(--shadow-modal);
   flex-shrink: 0;
   cursor: zoom-in;
   transition: opacity 0.15s;
@@ -233,7 +233,7 @@ watch(() => props.item, (item) => {
 .cover-zoom-overlay {
   position: absolute;
   inset: 24px;
-  background: rgba(0,0,0,0.88);
+  background: var(--bg-scrim-heavy);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -247,15 +247,15 @@ watch(() => props.item, (item) => {
   max-height: 88%;
   object-fit: contain;
   border-radius: 8px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  box-shadow: var(--shadow-modal);
 }
 
 .cover-zoom-close {
   position: absolute;
   top: 12px; right: 12px;
-  background: rgba(255,255,255,0.1);
+  background: var(--bg-overlay-strong);
   border: none;
-  color: #fff;
+  color: var(--text-on-accent);
   font-size: 1rem;
   width: 32px; height: 32px;
   border-radius: 50%;
@@ -265,7 +265,7 @@ watch(() => props.item, (item) => {
   justify-content: center;
   transition: background 0.15s;
 }
-.cover-zoom-close:hover { background: rgba(255,255,255,0.2); }
+.cover-zoom-close:hover { background: var(--border-strong); }
 
 .zoom-fade-enter-active, .zoom-fade-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -286,7 +286,7 @@ watch(() => props.item, (item) => {
 .edit-tag {
   background: var(--accent-bg-subtle);
   border: 1px solid var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   padding: 4px 10px;
   border-radius: 15px;
   font-size: 0.85rem;
@@ -303,8 +303,8 @@ watch(() => props.item, (item) => {
 .tag-text-input {
   width: 100%;
   padding: 8px 10px;
-  background: rgba(0,0,0,0.4);
-  color: #fff;
+  background: var(--bg-input);
+  color: var(--text-primary);
   border: 1px solid var(--border-default);
   border-radius: 6px;
   outline: none;
@@ -324,7 +324,7 @@ watch(() => props.item, (item) => {
   list-style: none;
   padding: 4px 0;
   z-index: 200;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-popover);
   max-height: 160px;
   overflow-y: auto;
 }
@@ -336,7 +336,7 @@ watch(() => props.item, (item) => {
   color: var(--text-secondary);
   transition: background 0.15s;
 }
-.tag-suggestions li:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+.tag-suggestions li:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
 
 .modal-right {
   flex-grow: 1;

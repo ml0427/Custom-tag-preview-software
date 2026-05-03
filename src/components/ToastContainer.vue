@@ -43,7 +43,7 @@ const { toasts, confirmState, resolveConfirm } = useToast();
   font-size: 0.875rem;
   font-weight: 500;
   max-width: 360px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-popover);
   backdrop-filter: blur(8px);
   pointer-events: auto;
 }
@@ -60,7 +60,7 @@ const { toasts, confirmState, resolveConfirm } = useToast();
 .confirm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--bg-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -98,14 +98,14 @@ const { toasts, confirmState, resolveConfirm } = useToast();
   transition: opacity 0.15s;
 }
 .btn-cancel {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-overlay-soft);
   color: var(--text-secondary);
   border: 1px solid var(--border-default);
 }
 .btn-cancel:hover { opacity: 0.8; }
 .btn-ok {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .btn-ok:hover { opacity: 0.85; }
 </style>

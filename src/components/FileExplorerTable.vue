@@ -381,7 +381,7 @@ const sortedItems = computed(() => {
 
 .vscroll-outer::-webkit-scrollbar { width: 10px; }
 .vscroll-outer::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
+  background: var(--bg-overlay-strong);
   border-radius: 10px;
 }
 
@@ -395,7 +395,7 @@ const sortedItems = computed(() => {
 .comic-table th {
   position: sticky;
   top: 0;
-  background: rgba(30,30,35,0.97);
+  background: var(--bg-panel);
   z-index: 10;
   padding: 12px 16px;
   font-size: 0.85rem;
@@ -406,11 +406,11 @@ const sortedItems = computed(() => {
   white-space: nowrap;
 }
 .comic-table th.sortable { cursor: pointer; user-select: none; }
-.comic-table th.sortable:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+.comic-table th.sortable:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
 
 .comic-table td {
   padding: 10px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border-subtle);
   font-size: 0.95rem;
   white-space: nowrap;
   overflow: hidden;
@@ -418,7 +418,7 @@ const sortedItems = computed(() => {
 }
 
 .comic-table tr { cursor: default; transition: background 0.2s; }
-.comic-table tr:hover { background: rgba(255,255,255,0.03); }
+.comic-table tr:hover { background: var(--bg-overlay-soft); }
 .comic-table tr.selected { background: var(--accent-bg-subtle) !important; }
 .spacer-row td { padding: 0; border: none; }
 
@@ -448,7 +448,7 @@ const sortedItems = computed(() => {
 .tag-more { font-size: 0.75rem; color: var(--text-tertiary); flex-shrink: 0; }
 
 .rename-input {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-overlay-strong);
   border: 1px solid var(--accent);
   border-radius: 4px;
   color: var(--text-primary);
@@ -461,12 +461,12 @@ const sortedItems = computed(() => {
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: #1e2130;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 4px;
   min-width: 160px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-popover);
 }
 
 .ctx-item {
@@ -482,10 +482,10 @@ const sortedItems = computed(() => {
   border-radius: 4px;
   transition: background 0.15s;
 }
-.ctx-item:hover { background: rgba(255,255,255,0.08); }
+.ctx-item:hover { background: var(--bg-overlay-strong); }
 .ctx-divider { height: 1px; background: var(--border-default); margin: 3px 4px; }
-.ctx-danger { color: #f87171; }
-.ctx-danger:hover { background: rgba(248,65,65,0.12); color: #f87171; }
+.ctx-danger { color: var(--color-danger); }
+.ctx-danger:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); }
 
 .type-color-dot {
   display: inline-block;
@@ -498,7 +498,7 @@ const sortedItems = computed(() => {
 }
 
 :deep(mark) {
-  background: rgba(255, 200, 0, 0.3);
+  background: var(--color-warning);
   color: var(--text-primary);
   border-radius: 2px;
   padding: 0 1px;

@@ -130,7 +130,7 @@ const onContextMenu = (e: MouseEvent) => {
   user-select: none;
 }
 
-.node-row:hover { background: rgba(255,255,255,0.06); }
+.node-row:hover { background: var(--bg-overlay-soft); }
 
 .node-row.active {
   background: var(--accent-bg-subtle);

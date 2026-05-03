@@ -606,7 +606,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   flex-shrink: 0;
   transition: color 0.15s, background 0.15s;
 }
-.nav-btn:hover:not(:disabled) { color: var(--text-primary); background: rgba(255,255,255,0.07); }
+.nav-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
 .nav-btn:disabled { opacity: 0.3; cursor: default; }
 .nav-btn.spinning { animation: spin 0.5s linear; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -640,7 +640,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   flex-shrink: 0;
   line-height: 1;
 }
-.clear-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
+.clear-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
 
 .search-icon { font-size: 0.95rem; flex-shrink: 0; }
 
@@ -667,8 +667,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   line-height: 1;
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
-.view-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
-.view-btn.active { color: var(--text-primary); background: rgba(255,255,255,0.1); border-color: var(--border-default); }
+.view-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
+.view-btn.active { color: var(--text-primary); background: var(--bg-overlay-strong); border-color: var(--border-default); }
 
 .search-count {
   font-size: 0.8rem;
@@ -703,7 +703,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   line-height: 1.4;
   transition: color 0.15s, background 0.15s;
 }
-.page-btn:hover:not(:disabled) { color: var(--text-primary); background: rgba(255,255,255,0.07); }
+.page-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
 .page-btn:disabled { opacity: 0.3; cursor: default; }
 
 .page-info {
@@ -738,7 +738,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 
 .preview-toggle-btn:hover {
-  background: rgba(255,255,255,0.07);
+  background: var(--bg-overlay-soft);
   color: var(--text-primary);
 }
 
@@ -775,7 +775,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(255,255,255,0.1);
+  border: 4px solid var(--bg-overlay-strong);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -789,14 +789,14 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #1e2130;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 12px;
   padding: 10px 18px;
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-modal);
   z-index: 500;
   animation: slideUp 0.2s ease;
 }
@@ -806,7 +806,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 .batch-count { font-size: 0.88rem; color: var(--text-primary); font-weight: 600; }
 .batch-btn {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text-primary);
@@ -815,10 +815,10 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   cursor: pointer;
   transition: background 0.15s;
 }
-.batch-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
+.batch-btn:hover:not(:disabled) { background: var(--bg-overlay-strong); }
 .batch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.batch-danger { color: #f87171; border-color: rgba(248,65,65,0.3); }
-.batch-danger:hover:not(:disabled) { background: rgba(248,65,65,0.15); }
+.batch-danger { color: var(--color-danger); border-color: var(--color-danger); }
+.batch-danger:hover:not(:disabled) { background: var(--color-danger-bg-subtle); }
 
 .batch-tag-wrap { position: relative; }
 .tag-picker-popover {
@@ -826,17 +826,17 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  background: #1e2130;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 8px;
   min-width: 180px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-popover);
   z-index: 600;
 }
 .tag-picker-input {
   width: 100%;
-  background: rgba(255,255,255,0.06);
+  background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
   border-radius: 5px;
   color: var(--text-primary);
@@ -854,7 +854,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   cursor: pointer;
   color: var(--text-primary);
 }
-.tag-picker-item:hover { background: rgba(255,255,255,0.1); }
+.tag-picker-item:hover { background: var(--bg-overlay-strong); }
 .tag-picker-empty { font-size: 0.8rem; color: var(--text-secondary); padding: 4px 8px; }
 
 </style>

@@ -57,7 +57,7 @@ const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
 .activity-bar {
   width: 64px;
   height: 100vh;
-  background: rgba(13, 17, 23, 0.95);
+  background: var(--bg-panel);
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
@@ -99,7 +99,7 @@ const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
 }
 
 .activity-btn:hover {
-  background: rgba(255,255,255,0.06);
+  background: var(--bg-overlay-soft);
   color: var(--text-primary);
 }
 

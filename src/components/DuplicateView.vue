@@ -181,7 +181,7 @@ onUnmounted(() => { unlisten?.(); });
 .dup-count {
     font-size: 0.8rem;
     color: var(--text-secondary);
-    background: rgba(255,255,255,0.06);
+    background: var(--bg-overlay-soft);
     padding: 2px 10px;
     border-radius: 20px;
 }
@@ -224,7 +224,7 @@ onUnmounted(() => { unlisten?.(); });
 .spinner {
     width: 36px;
     height: 36px;
-    border: 3px solid rgba(255,255,255,0.1);
+    border: 3px solid var(--bg-overlay-strong);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.9s linear infinite;
@@ -247,7 +247,7 @@ onUnmounted(() => { unlisten?.(); });
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: rgba(255,255,255,0.04);
+    background: var(--bg-overlay-soft);
     border-bottom: 1px solid var(--border-default);
 }
 
@@ -258,8 +258,8 @@ onUnmounted(() => { unlisten?.(); });
 }
 
 .group-badge {
-    background: rgba(248,65,65,0.2);
-    color: #f87171;
+    background: var(--color-danger-bg-subtle);
+    color: var(--color-danger);
     font-size: 0.78rem;
     font-weight: 600;
     padding: 2px 9px;
@@ -298,11 +298,11 @@ onUnmounted(() => { unlisten?.(); });
     display: flex;
     align-items: center;
     padding: 10px 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid var(--border-subtle);
     gap: 12px;
 }
 .dup-item:last-child { border-bottom: none; }
-.dup-item:hover { background: rgba(255,255,255,0.03); }
+.dup-item:hover { background: var(--bg-overlay-soft); }
 
 .item-info {
     flex: 1;
@@ -347,8 +347,8 @@ onUnmounted(() => { unlisten?.(); });
     transition: opacity 0.15s, background 0.15s;
     flex-shrink: 0;
 }
-.trash-btn:hover { opacity: 1; background: rgba(248,65,65,0.15); }
+.trash-btn:hover { opacity: 1; background: var(--color-danger-bg-subtle); }
 
 .dup-body::-webkit-scrollbar { width: 4px; }
-.dup-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+.dup-body::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
 </style>

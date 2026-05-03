@@ -220,7 +220,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 
 .thumb-grid-outer::-webkit-scrollbar { width: 10px; }
 .thumb-grid-outer::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
+  background: var(--bg-overlay-strong);
   border-radius: 10px;
 }
 
@@ -231,7 +231,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 }
 
 .thumb-card {
-  background: rgba(255,255,255,0.04);
+  background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
   border-radius: 10px;
   overflow: hidden;
@@ -242,8 +242,8 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 }
 
 .thumb-card:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.15);
+  background: var(--bg-overlay-strong);
+  border-color: var(--border-default);
   transform: translateY(-2px);
 }
 
@@ -256,7 +256,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   position: relative;
   width: 100%;
   aspect-ratio: 3 / 4;
-  background: rgba(0,0,0,0.3);
+  background: var(--bg-image-placeholder);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -316,7 +316,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .thumb-type {
   font-size: 0.7rem;
   color: var(--text-secondary);
-  background: rgba(255,255,255,0.06);
+  background: var(--bg-overlay-soft);
   padding: 1px 5px;
   border-radius: 3px;
   flex-shrink: 0;
@@ -342,7 +342,7 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .thumb-rename-wrap { padding: 2px 0; }
 .grid-rename-input {
   width: 100%;
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-overlay-strong);
   border: 1px solid var(--accent);
   border-radius: 4px;
   color: var(--text-primary);
@@ -355,12 +355,12 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: #1e2130;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 4px;
   min-width: 160px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-popover);
 }
 .ctx-item {
   display: block;
@@ -375,13 +375,13 @@ onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
   border-radius: 4px;
   transition: background 0.15s;
 }
-.ctx-item:hover { background: rgba(255,255,255,0.08); }
+.ctx-item:hover { background: var(--bg-overlay-strong); }
 .ctx-divider { height: 1px; background: var(--border-default); margin: 3px 4px; }
-.ctx-danger { color: #f87171; }
-.ctx-danger:hover { background: rgba(248,65,65,0.12); color: #f87171; }
+.ctx-danger { color: var(--color-danger); }
+.ctx-danger:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); }
 
 :deep(mark) {
-  background: rgba(255, 200, 0, 0.3);
+  background: var(--color-warning);
   color: var(--text-primary);
   border-radius: 2px;
   padding: 0 1px;

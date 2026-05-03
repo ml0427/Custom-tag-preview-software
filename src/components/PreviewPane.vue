@@ -292,9 +292,9 @@ const formatDate = (unix: number | null) => {
     border-radius: 12px;
     overflow: hidden;
     margin-bottom: 24px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+    box-shadow: var(--shadow-modal);
     cursor: pointer;
-    background: #000;
+    background: var(--bg-image-placeholder);
 }
 
 .preview-cover {
@@ -313,13 +313,13 @@ const formatDate = (unix: number | null) => {
     align-items: center;
     justify-content: center;
     font-size: 5rem;
-    background: rgba(255,255,255,0.03);
+    background: var(--bg-overlay-soft);
 }
 
 .zoom-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.4);
+    background: var(--bg-scrim);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -349,7 +349,7 @@ const formatDate = (unix: number | null) => {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     margin-bottom: 24px;
-    background: rgba(255,255,255,0.05);
+    background: var(--bg-overlay-soft);
     padding: 12px;
     border-radius: 8px;
 }
@@ -384,7 +384,7 @@ const formatDate = (unix: number | null) => {
     padding: 4px 10px;
     border-radius: 100px;
     font-size: 0.85rem;
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    border: 1px solid var(--accent);
 }
 
 .clickable-tag {
@@ -392,14 +392,14 @@ const formatDate = (unix: number | null) => {
     transition: background 0.15s, border-color 0.15s;
 }
 .clickable-tag:hover {
-    background: rgba(139, 92, 246, 0.3);
-    border-color: rgba(139, 92, 246, 0.6);
+    background: var(--accent-bg-strong);
+    border-color: var(--accent-hover);
 }
 
 .no-tags { font-style: italic; color: var(--text-tertiary); }
 
 .path-box {
-    background: rgba(0,0,0,0.2);
+    background: var(--bg-input);
     padding: 10px;
     border-radius: 6px;
     font-family: monospace;
@@ -417,16 +417,16 @@ const formatDate = (unix: number | null) => {
     width: 100%;
     padding: 10px;
     font-weight: 500;
-    background: rgba(255,255,255,0.06);
+    background: var(--bg-overlay-soft);
     border: 1px solid var(--border-default);
     border-radius: 8px;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s;
 }
-.btn-open:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+.btn-open:hover:not(:disabled) { background: var(--bg-overlay-strong); color: var(--text-primary); }
 .btn-open:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .info-scroll::-webkit-scrollbar { width: 4px; }
-.info-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+.info-scroll::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
 </style>

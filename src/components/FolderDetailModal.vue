@@ -149,7 +149,7 @@ const openFolder = async () => {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.85);
+  background: var(--bg-scrim-heavy);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,14 +178,14 @@ const openFolder = async () => {
   position: absolute;
   top: 14px; right: 14px;
   background: transparent;
-  color: #fff;
+  color: var(--text-on-accent);
   font-size: 1.3rem;
   padding: 4px 9px;
   border-radius: 50%;
   z-index: 10;
   transition: background 0.15s, transform 0.2s;
 }
-.close-btn:hover { background: rgba(255,255,255,0.1); transform: rotate(90deg); }
+.close-btn:hover { background: var(--bg-overlay-strong); transform: rotate(90deg); }
 
 .modal-body {
   display: flex;
@@ -221,7 +221,7 @@ const openFolder = async () => {
 }
 
 .edit-input {
-  background: rgba(0,0,0,0.35);
+  background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text-primary);
@@ -242,7 +242,7 @@ const openFolder = async () => {
 .edit-tag {
   background: var(--accent-bg-subtle);
   border: 1px solid var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   padding: 3px 8px;
   border-radius: 12px;
   font-size: 0.82rem;
@@ -256,8 +256,8 @@ const openFolder = async () => {
 .tag-text-input {
   width: 100%;
   padding: 7px 10px;
-  background: rgba(0,0,0,0.35);
-  color: #fff;
+  background: var(--bg-input);
+  color: var(--text-primary);
   border: 1px solid var(--border-default);
   border-radius: 6px;
   outline: none;
@@ -277,7 +277,7 @@ const openFolder = async () => {
   list-style: none;
   padding: 4px 0;
   z-index: 200;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-popover);
   max-height: 140px;
   overflow-y: auto;
 }
@@ -288,7 +288,7 @@ const openFolder = async () => {
   color: var(--text-secondary);
   transition: background 0.15s;
 }
-.tag-suggestions li:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+.tag-suggestions li:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
 
 .modal-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -307,11 +307,11 @@ const openFolder = async () => {
   text-align: left;
 }
 .btn-open {
-  background: rgba(255,255,255,0.06);
+  background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
   color: var(--text-primary);
 }
-.btn-open:hover { background: rgba(255,255,255,0.12); }
+.btn-open:hover { background: var(--bg-overlay-strong); }
 
 .btn-delete {
   background: transparent;

@@ -304,8 +304,8 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text-primary);
   padding: 6px 10px;
@@ -387,7 +387,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
   width: 144px;
   z-index: 200;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-popover);
 }
 
 .color-swatch {
@@ -399,7 +399,7 @@ onUnmounted(() => {
   transition: transform 0.12s, border-color 0.12s;
 }
 .color-swatch:hover { transform: scale(1.2); }
-.color-swatch.active { border-color: #fff; }
+.color-swatch.active { border-color: var(--text-on-accent); }
 .swatch-none {
   background: rgba(255,255,255,0.15);
   border: 2px dashed rgba(255,255,255,0.3);
@@ -443,9 +443,9 @@ onUnmounted(() => {
   line-height: 1;
 }
 
-.icon-btn:hover { opacity: 1; background: rgba(255,255,255,0.1); }
-.icon-btn.confirm { color: #4ade80; }
-.icon-btn.cancel  { color: #f87171; }
+.icon-btn:hover { opacity: 1; background: var(--bg-overlay-strong); }
+.icon-btn.confirm { color: var(--color-success); }
+.icon-btn.cancel  { color: var(--color-danger); }
 .icon-btn.danger  { color: var(--color-danger); }
 
 .tag-edit-row {
@@ -457,10 +457,10 @@ onUnmounted(() => {
 
 .tag-rename-input {
   flex: 1;
-  background: rgba(0,0,0,0.4);
+  background: var(--bg-input);
   border: 1px solid var(--accent);
   border-radius: 4px;
-  color: #fff;
+  color: var(--text-primary);
   padding: 3px 6px;
   font-size: 0.85rem;
   outline: none;
@@ -468,7 +468,7 @@ onUnmounted(() => {
 }
 
 .tag-list::-webkit-scrollbar { width: 8px; }
-.tag-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+.tag-list::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
 
 .panel-footer {
   padding: 10px 12px;
@@ -482,8 +482,8 @@ onUnmounted(() => {
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
-  background: rgba(255,255,255,0.04);
-  border: 1px dashed rgba(255,255,255,0.15);
+  background: var(--bg-overlay-soft);
+  border: 1px dashed var(--border-default);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
