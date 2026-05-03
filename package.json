@@ -6,7 +6,6 @@
   "scripts": {
     "tauri build": "npm run tauri build",
     "dev": "vite",
-    "tauri build": "npm run tauri build",
     "prebuild": "node scripts/stamp-build.cjs",
     "build": "vite build",
     "preview": "vite preview",
