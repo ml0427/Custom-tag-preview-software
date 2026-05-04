@@ -16,19 +16,19 @@
   - `SourcePanel.vue` 僅保留外層容器與 Tab 切換邏輯。
 
 ### 2. `src/components/TagSidebar.vue` (目前 ~15KB) [已完成]
-極度複雜，混合了樹狀結構計算、HTML5 拖曳（Drag & Drop）以及右鍵選單。
+極度複雜，混合了多種功能。
 - **重構方案**：
   - [x] 抽離 `useTags.ts`：將標籤讀取與管理邏輯放入獨立 Hook。
-  - [ ] 抽離 `useTagDragDrop.ts`：專職處理 D&D 事件與後端同步。（目前功能尚未完全實作）
-  - [ ] 拆分 `TagContextMenu.vue`：將冗長的右鍵選單 UI 與動作獨立。
-  - [x] 拆分 `TagItem.vue`：將每一個標籤節點獨立成組件。
+  - [x] 拆分 `TagItem.vue`：將每一個標籤列獨立成組件。
+  - [x] 拆分 `TagColorPicker.vue`：將顏色選擇器獨立。
+  - [ ] 抽離 `useTagDragDrop.ts`：專職處理 D&D 事件。（待後端層級功能完成後實作）
 
 ### 3. `src/components/PreviewPane.vue` (目前 ~14KB) [已完成]
 內部包含了多種不同檔案格式的渲染邏輯。
 - **重構方案**：
-  - [x] 拆出 `MediaViewer.vue`：處理影片 (`<video>`)、圖片 (`<img>`) 與對應的縮放/預覽。
-  - [ ] 拆出 `ArchiveViewer.vue`：處理壓縮檔 (zip/rar/cbz) 的內部檔案讀取與列表。
-  - [x] 拆出 `MetadataPanel.vue`：處理右側的檔案大小、路徑、修改時間等基礎資訊，以及標籤顯示區塊。
+  - [x] 拆出 `MediaViewer.vue`：處理影片、圖片與對應的預覽展示。
+  - [x] 拆出 `MetadataPanel.vue`：處理檔案基礎資訊與標籤區塊。
+  - [ ] 拆出 `ArchiveViewer.vue`：處理壓縮檔內部檔案列表。（現有功能僅支援封面展示，待擴充）
 
 ### 4. `src/components/ScanWizardModal.vue` (目前 ~14KB) [已完成]
 負責複雜的掃描設定與結果預覽。
@@ -41,9 +41,10 @@
   - [x] 抽離 `useThumbnailLoader.ts`：將非同步加載封面圖片、處理 Base64 的邏輯獨立。
   - [x] 拆出 `ThumbnailCard.vue`：將單一格子的 UI（包含檔名高亮、選取狀態）抽離，解決 `v-for` 內過多 HTML 的問題。
 
-### 6. `src/components/ItemDetailModal.vue` & `FolderDetailModal.vue` (目前 ~10KB)
+### 6. `src/components/ItemDetailModal.vue` & `FolderDetailModal.vue` [已完成]
 - **重構方案**：
-  - 這兩個檔案有極高的重複性。應整合或抽離出共用的 `DetailFormLayout.vue`，統一表單排版與儲存按鈕的邏輯。
+  - [x] 整合出共用的 `DetailFormLayout.vue`：統一表單排版與佈局。
+  - [x] 抽離 `TagEditorField.vue`：統一標籤編輯 UI 與自動完成邏輯。
 
 ### 7. `src/components/DuplicateView.vue` (目前 ~10KB) [已完成]
 - **重構方案**：
