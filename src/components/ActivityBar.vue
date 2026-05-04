@@ -13,10 +13,10 @@ const items = [
 const themeStore = useThemeStore();
 
 const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
-  { id: 'default', label: 'Default · GitHub Dark',   color: '#2f81f7' },
-  { id: 'macos',   label: 'MacOS 晶透',              color: '#007aff' },
-  { id: 'vercel',  label: 'Vercel 極簡黑',           color: '#ffffff', ring: '#333' },
-  { id: 'neon',    label: 'Neon 霓虹科技',           color: '#00f3ff' },
+  { id: 'obsidian',  label: 'Obsidian · Amber',    color: '#f0b429' },
+  { id: 'forge',     label: 'Forge · Industrial',  color: '#ff6b35' },
+  { id: 'parchment', label: 'Parchment · Archive', color: '#b0431e', ring: '#8c6a55' },
+  { id: 'phosphor',  label: 'Phosphor · Terminal', color: '#00ff41', ring: '#1a3820' },
 ];
 </script>
 

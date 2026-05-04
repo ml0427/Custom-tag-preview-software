@@ -1,0 +1,275 @@
+/* =============================================================================
+ * Custom Tag Preview — Theme System
+ * 4 themes, each with a distinct aesthetic identity.
+ * Switched via :root[data-theme="X"]. Loaded after style.css.
+ * =========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Noto+Sans+JP:wght@300;400;500&family=Barlow+Condensed:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Bitter:ital,wght@0,400;0,500;0,600;1,400&family=Share+Tech+Mono&display=swap');
+
+
+/* ── Theme 1: obsidian — Volcanic amber precision ──────────────────────────── */
+
+:root,
+:root[data-theme="obsidian"] {
+  --bg-app:               #060609;
+  --bg-panel:             #0d0d15;
+  --bg-elevated:          #13131f;
+  --bg-input:             rgba(0,0,0,0.4);
+  --bg-hover:             rgba(255,255,255,0.04);
+
+  --border-subtle:        rgba(255,255,255,0.05);
+  --border-default:       rgba(255,255,255,0.09);
+  --border-strong:        rgba(255,255,255,0.15);
+
+  --text-primary:         #f2efe8;
+  --text-secondary:       #c6c3b9;
+  --text-tertiary:        #78766e;
+  --text-on-accent:       #060609;
+
+  --accent:               #f0b429;
+  --accent-hover:         #f7cc5a;
+  --accent-bg-subtle:     rgba(240,178,41,0.07);
+  --accent-bg-strong:     rgba(240,178,41,0.18);
+
+  --color-danger:         #f07070;
+  --color-danger-bg-subtle: rgba(240,112,112,0.1);
+  --color-success:        #68d9a4;
+  --color-warning:        #f0b429;
+  --color-info:           #7eb8f7;
+
+  --bg-overlay-soft:      rgba(255,255,255,0.04);
+  --bg-overlay-strong:    rgba(255,255,255,0.08);
+  --bg-scrim:             rgba(0,0,0,0.70);
+  --bg-scrim-heavy:       rgba(0,0,0,0.90);
+  --bg-image-placeholder: #060609;
+
+  --shadow-popover:       0 4px 16px rgba(0,0,0,0.5);
+  --shadow-modal:         0 20px 60px rgba(0,0,0,0.6);
+
+  --radius-sm:   2px;
+  --radius-md:   3px;
+  --radius-lg:   6px;
+  --radius-pill: 999px;
+
+  --shadow-sm:             0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md:             0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg:             0 8px 32px rgba(0,0,0,0.5);
+  --shadow-glow:           none;
+  --ring-focus:            0 0 0 2px rgba(240,178,41,0.30);
+  --shadow-accent-elevated: 0 4px 12px rgba(240,178,41,0.25);
+  --blur-glass:            none;
+
+  --transition-fast: 100ms ease;
+  --transition-base: 200ms ease;
+
+  --font-sans: 'Syne', 'Noto Sans JP', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+
+/* ── Theme 2: forge — Molten industrial edge ───────────────────────────────── */
+/*
+    Deep charcoal surfaces. Hot orange accent — like steel pulled from a furnace.
+    Zero radius on everything: this tool has no soft edges. IBM Plex Mono
+    gives every label a machinist-spec feel. Border emphasis over shadow.
+*/
+
+:root[data-theme="forge"] {
+  --bg-app:               #0c0d0f;
+  --bg-panel:             #141618;
+  --bg-elevated:          #1c1e21;
+  --bg-input:             rgba(0,0,0,0.55);
+  --bg-hover:             rgba(255,107,53,0.05);
+
+  --border-subtle:        rgba(255,255,255,0.04);
+  --border-default:       rgba(255,255,255,0.09);
+  --border-strong:        rgba(255,255,255,0.18);
+
+  --text-primary:         #eae5df;
+  --text-secondary:       #9e9890;
+  --text-tertiary:        #5a5550;
+  --text-on-accent:       #0c0d0f;
+
+  --accent:               #ff6b35;
+  --accent-hover:         #ff8f60;
+  --accent-bg-subtle:     rgba(255,107,53,0.07);
+  --accent-bg-strong:     rgba(255,107,53,0.18);
+
+  --color-danger:         #ff3d3d;
+  --color-danger-bg-subtle: rgba(255,61,61,0.09);
+  --color-success:        #7ecf8a;
+  --color-warning:        #ffcc47;
+  --color-info:           #60b8ff;
+
+  --bg-overlay-soft:      rgba(255,255,255,0.03);
+  --bg-overlay-strong:    rgba(255,255,255,0.07);
+  --bg-scrim:             rgba(0,0,0,0.78);
+  --bg-scrim-heavy:       rgba(0,0,0,0.93);
+  --bg-image-placeholder: #0c0d0f;
+
+  --shadow-popover:       0 0 0 1px rgba(255,107,53,0.12), 0 4px 16px rgba(0,0,0,0.65);
+  --shadow-modal:         0 0 0 1px rgba(255,107,53,0.08), 0 20px 56px rgba(0,0,0,0.75);
+
+  --radius-sm:   0px;
+  --radius-md:   2px;
+  --radius-lg:   4px;
+  --radius-pill: 2px;
+
+  --shadow-sm:             0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:             0 4px 12px rgba(0,0,0,0.55);
+  --shadow-lg:             0 8px 28px rgba(0,0,0,0.65);
+  --shadow-glow:           0 0 10px rgba(255,107,53,0.20);
+  --ring-focus:            0 0 0 1px rgba(255,107,53,0.55);
+  --shadow-accent-elevated: 0 4px 16px rgba(255,107,53,0.28);
+  --blur-glass:            none;
+
+  --transition-fast: 80ms ease;
+  --transition-base: 150ms ease;
+
+  --font-sans: 'Barlow Condensed', 'Noto Sans JP', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+
+/* ── Theme 3: parchment — Warm manuscript archive ──────────────────────────── */
+/*
+    Ivory + warm cream surfaces — like cataloguing a rare book collection.
+    Terracotta accent references the ink-stamped spine labels of a private archive.
+    Bitter (slab serif) makes every filename feel like a title in a card catalogue.
+    The only light theme. Soft natural shadows, generous radius.
+*/
+
+:root[data-theme="parchment"] {
+  --bg-app:               #f0e9dc;
+  --bg-panel:             #e8e0d0;
+  --bg-elevated:          #dfd6c4;
+  --bg-input:             rgba(60,40,20,0.06);
+  --bg-hover:             rgba(60,40,20,0.05);
+
+  --border-subtle:        rgba(80,55,30,0.08);
+  --border-default:       rgba(80,55,30,0.16);
+  --border-strong:        rgba(80,55,30,0.32);
+
+  --text-primary:         #1e1410;
+  --text-secondary:       #5e4535;
+  --text-tertiary:        #9e8570;
+  --text-on-accent:       #f0e9dc;
+
+  --accent:               #b0431e;
+  --accent-hover:         #cc5a30;
+  --accent-bg-subtle:     rgba(176,67,30,0.08);
+  --accent-bg-strong:     rgba(176,67,30,0.18);
+
+  --color-danger:         #c0391a;
+  --color-danger-bg-subtle: rgba(192,57,26,0.08);
+  --color-success:        #2e7d52;
+  --color-warning:        #b07d10;
+  --color-info:           #1a5f90;
+
+  --bg-overlay-soft:      rgba(0,0,0,0.04);
+  --bg-overlay-strong:    rgba(0,0,0,0.09);
+  --bg-scrim:             rgba(25,15,5,0.55);
+  --bg-scrim-heavy:       rgba(25,15,5,0.85);
+  --bg-image-placeholder: #d0c8b4;
+
+  --shadow-popover:       0 4px 16px rgba(30,20,10,0.16), 0 0 0 1px rgba(80,55,30,0.12);
+  --shadow-modal:         0 20px 50px rgba(30,20,10,0.22), 0 0 0 1px rgba(80,55,30,0.10);
+
+  --radius-sm:   3px;
+  --radius-md:   6px;
+  --radius-lg:   10px;
+  --radius-pill: 999px;
+
+  --shadow-sm:             0 1px 4px rgba(30,20,10,0.12);
+  --shadow-md:             0 4px 14px rgba(30,20,10,0.15);
+  --shadow-lg:             0 10px 30px rgba(30,20,10,0.20);
+  --shadow-glow:           none;
+  --ring-focus:            0 0 0 2px rgba(176,67,30,0.25);
+  --shadow-accent-elevated: 0 4px 14px rgba(176,67,30,0.22);
+  --blur-glass:            none;
+
+  --transition-fast: 120ms ease;
+  --transition-base: 260ms ease;
+
+  --font-sans: 'Bitter', 'Noto Sans JP', serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+
+/* ── Theme 4: phosphor — Green CRT terminal ────────────────────────────────── */
+/*
+    The entire screen is a phosphor display from 1984. Pure black background.
+    Everything is rendered in phosphor green. Zero border radius — terminal
+    windows have corners. Step-function transitions snap like a character
+    being redrawn to the screen. Share Tech Mono for both sans and mono:
+    there is no distinction between UI text and data here.
+*/
+
+:root[data-theme="phosphor"] {
+  --bg-app:               #020604;
+  --bg-panel:             #050e07;
+  --bg-elevated:          #091408;
+  --bg-input:             rgba(0,20,5,0.70);
+  --bg-hover:             rgba(0,255,65,0.04);
+
+  --border-subtle:        rgba(0,255,65,0.07);
+  --border-default:       rgba(0,255,65,0.14);
+  --border-strong:        rgba(0,255,65,0.28);
+
+  --text-primary:         #b0ffc0;
+  --text-secondary:       #52b86a;
+  --text-tertiary:        #285c36;
+  --text-on-accent:       #020604;
+
+  --accent:               #00ff41;
+  --accent-hover:         #33ff6b;
+  --accent-bg-subtle:     rgba(0,255,65,0.06);
+  --accent-bg-strong:     rgba(0,255,65,0.14);
+
+  --color-danger:         #ff3030;
+  --color-danger-bg-subtle: rgba(255,48,48,0.08);
+  --color-success:        #00ff41;
+  --color-warning:        #ffdd00;
+  --color-info:           #00d4ff;
+
+  --bg-overlay-soft:      rgba(0,255,65,0.03);
+  --bg-overlay-strong:    rgba(0,255,65,0.07);
+  --bg-scrim:             rgba(0,8,2,0.82);
+  --bg-scrim-heavy:       rgba(0,8,2,0.96);
+  --bg-image-placeholder: #020604;
+
+  --shadow-popover:       0 0 0 1px rgba(0,255,65,0.22), 0 4px 16px rgba(0,0,0,0.90);
+  --shadow-modal:         0 0 0 1px rgba(0,255,65,0.16), 0 16px 48px rgba(0,0,0,0.95);
+
+  --radius-sm:   0px;
+  --radius-md:   0px;
+  --radius-lg:   0px;
+  --radius-pill: 0px;
+
+  --shadow-sm:             0 0 5px rgba(0,255,65,0.10);
+  --shadow-md:             0 0 10px rgba(0,255,65,0.14);
+  --shadow-lg:             0 0 20px rgba(0,255,65,0.18);
+  --shadow-glow:           0 0 14px rgba(0,255,65,0.40);
+  --ring-focus:            0 0 0 1px rgba(0,255,65,0.65);
+  --shadow-accent-elevated: 0 0 22px rgba(0,255,65,0.45);
+  --blur-glass:            none;
+
+  /* Step transitions — terminal character redraw feel */
+  --transition-fast: 60ms steps(2);
+  --transition-base: 120ms steps(3);
+
+  --font-sans: 'Share Tech Mono', monospace;
+  --font-mono: 'Share Tech Mono', monospace;
+}
+
+
+/* =============================================================================
+ * THEMES_CONFIG (consumed by ActivityBar.vue)
+ *
+ * [
+ *   { "id": "obsidian",  "label": "Obsidian · Amber",     "color": "#f0b429", "ring": null    },
+ *   { "id": "forge",     "label": "Forge · Industrial",   "color": "#ff6b35", "ring": null    },
+ *   { "id": "parchment", "label": "Parchment · Archive",  "color": "#b0431e", "ring": "#8c6a55" },
+ *   { "id": "phosphor",  "label": "Phosphor · Terminal",  "color": "#00ff41", "ring": "#1a3820" }
+ * ]
+ * =========================================================================== */

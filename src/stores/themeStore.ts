@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 
-export type ThemeId = 'default' | 'macos' | 'vercel' | 'neon';
+export type ThemeId = 'obsidian' | 'forge' | 'parchment' | 'phosphor';
 
 const STORAGE_KEY = 'app-theme';
 const TRANSITION_DISABLE_MS = 50;
 
-const VALID_THEMES: ThemeId[] = ['default', 'macos', 'vercel', 'neon'];
+const VALID_THEMES: ThemeId[] = ['obsidian', 'forge', 'parchment', 'phosphor'];
 
 function isValidTheme(v: string | null): v is ThemeId {
   return v !== null && (VALID_THEMES as string[]).includes(v);
@@ -15,7 +15,7 @@ export const useThemeStore = defineStore('theme', {
   state: () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return {
-      current: (isValidTheme(saved) ? saved : 'default') as ThemeId,
+      current: (isValidTheme(saved) ? saved : 'obsidian') as ThemeId,
     };
   },
   actions: {
