@@ -159,6 +159,17 @@ watch(() => props.selectedItemPath, () => {
   nextTick(() => scrollToIndex(idx));
 });
 
+// 當 items 改變時，重新測量高度並將滾動歸零
+watch(() => props.items, () => {
+  scrollTop.value = 0;
+  if (outerRef.value) outerRef.value.scrollTop = 0;
+  nextTick(() => {
+    if (outerRef.value) {
+      containerHeight.value = outerRef.value.clientHeight;
+    }
+  });
+}, { deep: false });
+
 // Virtual scroll
 const visibleStart = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - BUFFER));
 const visibleEnd = computed(() => Math.min(
@@ -240,7 +251,8 @@ const getItemTags = (item: FileItem) => {
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
 const isSelected = (item: FileItem): boolean => selectedSet.value.has(item.path) || item.path === props.selectedItemPath;
 
-const highlightText = (text: string): string => {
+const highlightText = (text: string | null | undefined): string => {
+  if (!text) return '';
   const q = props.searchQuery?.trim();
   if (!q) return text;
   const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -251,7 +263,7 @@ const sortedItems = computed(() => {
   return [...props.items].sort((a, b) => {
     let cmp = 0;
     if (props.sortBy === 'name') {
-      cmp = a.name.localeCompare(b.name, 'zh-TW', { sensitivity: 'base' });
+      cmp = (a.name || '').localeCompare(b.name || '', 'zh-TW', { sensitivity: 'base' });
     } else if (props.sortBy === 'size') {
       cmp = (a.fileSize ?? 0) - (b.fileSize ?? 0);
     } else if (props.sortBy === 'date') {
@@ -439,11 +451,11 @@ const sortIcon = (col: string) => {
 .comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .spacer-row td { padding: 0; border: none; }
 
-/* Column widths */
-.col-thumb { width: 60px; padding: 8px; }
-.col-name  { width: auto; }
+/* Column widths — all % so table-layout:fixed doesn't collapse auto column */
+.col-thumb { width: 7%; min-width: 56px; padding: 8px; }
+.col-name  { width: 53%; }
 .col-tags  { width: 28%; }
-.col-size  { width: 88px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+.col-size  { width: 12%; min-width: 72px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
 
 /* Thumbnail */
 .thumb-wrap {
