@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 import { useItemTypes } from '../composables/useItemTypes';
@@ -11,6 +11,8 @@ const props = defineProps<{
   selectedItemPath: string | null;
   selectedPaths?: string[];
   searchQuery?: string;
+  sortBy: 'name' | 'size' | 'date';
+  sortDir: 'asc' | 'desc';
 }>();
 
 const emit = defineEmits<{
@@ -19,10 +21,10 @@ const emit = defineEmits<{
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
+  (e: 'sort', col: 'name' | 'size' | 'date'): void;
 }>();
 
-// Virtual scroll constants
-const ROW_HEIGHT = 44;
+const ROW_HEIGHT = 56;
 const BUFFER = 15;
 
 // Context menu
@@ -151,14 +153,13 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
 });
 
-// Scroll selected into view when changed externally
 watch(() => props.selectedItemPath, () => {
   const idx = currentIndex.value;
   if (idx < 0) return;
   nextTick(() => scrollToIndex(idx));
 });
 
-// Virtual scroll window
+// Virtual scroll
 const visibleStart = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - BUFFER));
 const visibleEnd = computed(() => Math.min(
   sortedItems.value.length,
@@ -167,6 +168,39 @@ const visibleEnd = computed(() => Math.min(
 const visibleItems = computed(() => sortedItems.value.slice(visibleStart.value, visibleEnd.value));
 const topSpacerHeight = computed(() => visibleStart.value * ROW_HEIGHT);
 const bottomSpacerHeight = computed(() => (sortedItems.value.length - visibleEnd.value) * ROW_HEIGHT);
+
+// Thumbnail loading
+const thumbUrls = reactive(new Map<string, string>());
+const thumbLoading = new Set<string>();
+const ARCHIVE_EXTS = new Set(['zip', 'cbz', 'cbr', 'rar', '7z']);
+const IMAGE_EXTS_THUMB = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+
+const loadThumb = async (item: FileItem) => {
+  const path = item.path;
+  if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
+  thumbLoading.add(path);
+  try {
+    const dbItem = props.itemByPath.get(path);
+    let url = '';
+    if (dbItem?.id) {
+      url = await api.getCoverBase64(dbItem.id).catch(() => '');
+    } else {
+      const ext = item.extension?.toLowerCase() ?? '';
+      if (ARCHIVE_EXTS.has(ext)) {
+        url = await api.getZipCoverByPath(path).catch(() => '');
+      } else if (IMAGE_EXTS_THUMB.has(ext)) {
+        url = await api.getImageBase64ByPath(path).catch(() => '');
+      }
+    }
+    if (url) thumbUrls.set(path, url);
+  } finally {
+    thumbLoading.delete(path);
+  }
+};
+
+watch(visibleItems, items => {
+  items.forEach(item => loadThumb(item));
+}, { immediate: true });
 
 const { getTypeConfig, itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
@@ -199,21 +233,6 @@ const getFileIcon = (item: FileItem): string => {
   return '📄';
 };
 
-const getItemType = (item: FileItem): string => {
-  if (item.isDir) {
-    const dbItem = props.itemByPath.get(item.path);
-    if (dbItem) return getTypeConfig(dbItem.category).displayName;
-    return '目錄';
-  }
-  return item.extension?.toUpperCase() ?? '—';
-};
-
-const getTypeColor = (item: FileItem): string | null => {
-  if (!item.isDir) return null;
-  const dbItem = props.itemByPath.get(item.path);
-  return getTypeConfig(dbItem?.category).color ?? null;
-};
-
 const getItemTags = (item: FileItem) => {
   return props.itemByPath.get(item.path)?.tags ?? [];
 };
@@ -221,7 +240,6 @@ const getItemTags = (item: FileItem) => {
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
 const isSelected = (item: FileItem): boolean => selectedSet.value.has(item.path) || item.path === props.selectedItemPath;
 
-// Search highlight
 const highlightText = (text: string): string => {
   const q = props.searchQuery?.trim();
   if (!q) return text;
@@ -229,50 +247,24 @@ const highlightText = (text: string): string => {
   return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
 };
 
-// Sort — persisted via localStorage
-const VALID_SORT_BY = ['name', 'size', 'date'] as const;
-const VALID_SORT_DIR = ['asc', 'desc'] as const;
-const savedSortBy = localStorage.getItem('gallery-sort-by');
-const savedSortDir = localStorage.getItem('gallery-sort-dir');
-const sortBy = ref<'name' | 'size' | 'date'>(
-  VALID_SORT_BY.includes(savedSortBy as any) ? (savedSortBy as any) : 'name'
-);
-const sortDir = ref<'asc' | 'desc'>(
-  VALID_SORT_DIR.includes(savedSortDir as any) ? (savedSortDir as any) : 'asc'
-);
-
-watch([sortBy, sortDir], ([by, dir]) => {
-  localStorage.setItem('gallery-sort-by', by);
-  localStorage.setItem('gallery-sort-dir', dir);
-});
-
-const toggleSort = (col: 'name' | 'size' | 'date') => {
-  if (sortBy.value === col) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortBy.value = col;
-    sortDir.value = col === 'name' ? 'asc' : 'desc';
-  }
-};
-
-const sortIcon = (col: string) => {
-  if (sortBy.value !== col) return '↕';
-  return sortDir.value === 'asc' ? '↑' : '↓';
-};
-
 const sortedItems = computed(() => {
   return [...props.items].sort((a, b) => {
     let cmp = 0;
-    if (sortBy.value === 'name') {
+    if (props.sortBy === 'name') {
       cmp = a.name.localeCompare(b.name, 'zh-TW', { sensitivity: 'base' });
-    } else if (sortBy.value === 'size') {
+    } else if (props.sortBy === 'size') {
       cmp = (a.fileSize ?? 0) - (b.fileSize ?? 0);
-    } else if (sortBy.value === 'date') {
+    } else if (props.sortBy === 'date') {
       cmp = (a.modifiedTime ?? '').localeCompare(b.modifiedTime ?? '');
     }
-    return sortDir.value === 'asc' ? cmp : -cmp;
+    return props.sortDir === 'asc' ? cmp : -cmp;
   });
 });
+
+const sortIcon = (col: string) => {
+  if (props.sortBy !== col) return '';
+  return props.sortDir === 'asc' ? '↑' : '↓';
+};
 </script>
 
 <template>
@@ -280,16 +272,19 @@ const sortedItems = computed(() => {
     <table class="comic-table">
       <thead>
         <tr>
-          <th class="col-name sortable" @click="toggleSort('name')">名稱 {{ sortIcon('name') }}</th>
-          <th class="col-size sortable" @click="toggleSort('size')">大小 {{ sortIcon('size') }}</th>
-          <th class="col-date sortable" @click="toggleSort('date')">修改日期 {{ sortIcon('date') }}</th>
-          <th class="col-type">類型</th>
+          <th class="col-thumb"></th>
+          <th class="col-name sortable" @click="emit('sort', 'name')">
+            檔名 <span class="sort-icon">{{ sortIcon('name') }}</span>
+          </th>
           <th class="col-tags">標籤</th>
+          <th class="col-size sortable" @click="emit('sort', 'size')">
+            大小 <span class="sort-icon">{{ sortIcon('size') }}</span>
+          </th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="topSpacerHeight > 0" class="spacer-row" :style="{ height: topSpacerHeight + 'px' }">
-          <td colspan="5"></td>
+          <td colspan="4"></td>
         </tr>
         <tr
           v-for="item in visibleItems"
@@ -299,9 +294,22 @@ const sortedItems = computed(() => {
           @dblclick="emit('dblclick', item)"
           @contextmenu.prevent="showContextMenu($event, item)"
         >
+          <!-- Thumbnail -->
+          <td class="col-thumb">
+            <div class="thumb-wrap">
+              <img
+                v-if="thumbUrls.get(item.path)"
+                :src="thumbUrls.get(item.path)"
+                class="thumb-img"
+                draggable="false"
+              />
+              <span v-else class="thumb-icon">{{ getFileIcon(item) }}</span>
+            </div>
+          </td>
+
+          <!-- Name + date stacked -->
           <td class="col-name">
-            <div class="file-info">
-              <span class="file-icon">{{ getFileIcon(item) }}</span>
+            <div class="name-cell">
               <input
                 v-if="editingPath === item.path"
                 v-model="editName"
@@ -317,29 +325,32 @@ const sortedItems = computed(() => {
                 :title="item.path"
                 v-html="highlightText(item.name)"
               ></span>
+              <span v-if="editingPath !== item.path" class="file-meta">
+                {{ item.modifiedTime ?? '' }}{{ item.extension ? ' · ' + item.extension.toUpperCase() : '' }}
+              </span>
             </div>
           </td>
-          <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
-          <td class="col-date">{{ item.modifiedTime ?? '—' }}</td>
-          <td class="col-type">
-            <span v-if="getTypeColor(item)" class="type-color-dot" :style="{ background: getTypeColor(item)! }"></span>
-            {{ getItemType(item) }}
-          </td>
+
+          <!-- Tags -->
           <td class="col-tags">
             <div class="tag-chips">
               <span
                 v-for="tag in getItemTags(item).slice(0, 3)"
                 :key="tag.id"
                 class="mini-tag"
+                :style="tag.color ? { background: tag.color + '18', borderColor: tag.color + '55', color: tag.color } : {}"
               >{{ tag.name }}</span>
               <span v-if="getItemTags(item).length > 3" class="tag-more">
                 +{{ getItemTags(item).length - 3 }}
               </span>
             </div>
           </td>
+
+          <!-- Size -->
+          <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
         </tr>
         <tr v-if="bottomSpacerHeight > 0" class="spacer-row" :style="{ height: bottomSpacerHeight + 'px' }">
-          <td colspan="5"></td>
+          <td colspan="4"></td>
         </tr>
       </tbody>
     </table>
@@ -397,7 +408,7 @@ const sortedItems = computed(() => {
   top: 0;
   background: var(--bg-panel);
   z-index: 10;
-  padding: 10px 16px;
+  padding: 8px 12px;
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 500;
@@ -410,56 +421,90 @@ const sortedItems = computed(() => {
 .comic-table th.sortable { cursor: pointer; user-select: none; }
 .comic-table th.sortable:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
 
+.sort-icon { opacity: 0.8; }
+
 .comic-table td {
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
-.comic-table tr { cursor: default; transition: background 0.2s; }
+.comic-table tr { cursor: default; transition: background 0.15s; }
 .comic-table tr:hover { background: var(--bg-overlay-soft); }
 .comic-table tr.selected { background: var(--accent-bg-subtle) !important; }
 .comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .spacer-row td { padding: 0; border: none; }
 
-.col-name  { width: 38%; }
-.col-size  { width: 10%; }
-.col-date  { width: 15%; }
-.col-type  { width: 12%; }
-.col-tags  { width: 25%; }
+/* Column widths */
+.col-thumb { width: 60px; padding: 8px; }
+.col-name  { width: auto; }
+.col-tags  { width: 28%; }
+.col-size  { width: 88px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
 
-.file-info { display: flex; align-items: center; gap: 10px; }
-.file-icon { font-size: 1rem; flex-shrink: 0; }
-.file-title { font-family: var(--font-jp); font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
+/* Thumbnail */
+.thumb-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-overlay-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.thumb-icon { font-size: 1.1rem; }
 
-.tag-chips { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; }
-
-.col-size, .col-date {
+/* Name cell */
+.name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+.file-title {
+  font-family: var(--font-jp);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-meta {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+/* Tags */
+.tag-chips { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; overflow: hidden; }
 
 .mini-tag {
   font-family: var(--font-jp);
   font-size: 10px;
-  padding: 1px 6px 2px;
+  padding: 2px 7px;
   border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   gap: 3px;
   white-space: nowrap;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: rgba(240, 178, 41, 0.08);
-  border: 1px solid rgba(240, 178, 41, 0.18);
+  flex-shrink: 0;
+  background: rgba(240, 178, 41, 0.1);
+  border: 1px solid rgba(240, 178, 41, 0.22);
   color: var(--accent);
 }
-
 .mini-tag::before {
   content: '';
   width: 4px;
@@ -469,19 +514,21 @@ const sortedItems = computed(() => {
   opacity: 0.6;
   flex-shrink: 0;
 }
-.tag-more { font-size: 0.75rem; color: var(--text-tertiary); flex-shrink: 0; }
+.tag-more { font-size: 0.72rem; color: var(--text-tertiary); flex-shrink: 0; }
 
+/* Rename */
 .rename-input {
   background: var(--bg-overlay-strong);
   border: 1px solid var(--accent);
   border-radius: 4px;
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   padding: 2px 6px;
   outline: none;
   width: 100%;
 }
 
+/* Context menu */
 .context-menu {
   position: fixed;
   z-index: 9999;
@@ -492,7 +539,6 @@ const sortedItems = computed(() => {
   min-width: 160px;
   box-shadow: var(--shadow-popover);
 }
-
 .ctx-item {
   display: block;
   width: 100%;
@@ -510,16 +556,6 @@ const sortedItems = computed(() => {
 .ctx-divider { height: 1px; background: var(--border-default); margin: 3px 4px; }
 .ctx-danger { color: var(--color-danger); }
 .ctx-danger:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); }
-
-.type-color-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 5px;
-  vertical-align: middle;
-  flex-shrink: 0;
-}
 
 :deep(mark) {
   background: var(--color-warning);

@@ -13,6 +13,7 @@ const emit = defineEmits<{
     (e: 'showFolderDetail', item: Item): void
     (e: 'renamed', item: Item): void
     (e: 'tagClick', tag: Tag): void
+    (e: 'close'): void
 }>();
 
 const coverUrl = ref('');
@@ -31,7 +32,6 @@ const filePlaceholderIcon = computed(() => {
     return '📄';
 });
 
-// Single watcher with stale-check token to prevent race conditions
 const coverLoadToken = ref(0);
 
 const loadCover = async () => {
@@ -105,17 +105,21 @@ const tagStyle = (color?: string | null) => {
 const formatDate = (unix: number | null) => {
     if (!unix) return '-';
     return new Date(unix * 1000).toLocaleString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
     });
 };
 </script>
 
 <template>
-    <div class="preview-pane" :class="{ 'empty': !item }">
+    <div class="preview-pane" :class="{ 'empty': !item && !fileItem }">
+
+        <!-- Header -->
+        <div class="pane-header">
+            <span class="pane-title">PREVIEW</span>
+            <button class="pane-close" @click="emit('close')" title="關閉預覽">✕</button>
+        </div>
+
         <!-- File item preview -->
         <div v-if="item && item.itemType === 'file'" class="content">
             <div class="cover-wrapper" @click="emit('showDetail', item)">
@@ -125,33 +129,36 @@ const formatDate = (unix: number | null) => {
             </div>
 
             <div class="info-scroll">
-                <div class="title-container">
-                    <h3 class="item-title">{{ item.name }}</h3>
+                <h3 class="item-title">{{ item.name }}</h3>
+
+                <div class="meta-row">
+                    <span class="meta-val">{{ formatSize(item.fileSize) }}</span>
+                    <span class="meta-sep">·</span>
+                    <span class="meta-val">{{ formatDate(item.fileModifiedAt) }}</span>
                 </div>
 
-                <div class="meta-section">
-                    <div class="meta-item">
-                        <span class="label">檔案大小</span>
-                        <span class="value">{{ formatSize(item.fileSize) }}</span>
-                    </div>
-                    <div class="meta-item">
-                        <span class="label">修改日期</span>
-                        <span class="value">{{ formatDate(item.fileModifiedAt) }}</span>
-                    </div>
-                </div>
-
-                <div class="tags-section">
-                    <h4>標籤</h4>
+                <div class="section">
+                    <div class="section-label">標籤</div>
                     <div class="tags-container">
-                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" :style="tagStyle(tag.color)" @click="emit('tagClick', tag)">{{ tag.name }}</span>
+                        <span
+                            v-for="tag in item.tags" :key="tag.id"
+                            class="tag clickable-tag"
+                            :style="tagStyle(tag.color)"
+                            @click="emit('tagClick', tag)"
+                        >{{ tag.name }}</span>
                         <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>
 
-                <div class="path-section">
-                    <h4>路徑</h4>
-                    <div class="path-box">{{ item.path }}</div>
+                <div class="section" v-if="item.note">
+                    <div class="section-label">備注</div>
+                    <div class="notes-box">{{ item.note }}</div>
                 </div>
+            </div>
+
+            <div class="pane-footer">
+                <button class="footer-btn btn-edit" @click="emit('showDetail', item)">✏️ 編輯</button>
+                <button class="footer-btn btn-open" @click="api.openFile(item.path)">▶ 開啟</button>
             </div>
         </div>
 
@@ -164,22 +171,29 @@ const formatDate = (unix: number | null) => {
             </div>
 
             <div class="info-scroll">
-                <div class="title-container">
-                    <h3 class="item-title">{{ item.name }}</h3>
-                </div>
+                <h3 class="item-title">{{ item.name }}</h3>
 
-                <div class="tags-section">
-                    <h4>標籤</h4>
+                <div class="section">
+                    <div class="section-label">標籤</div>
                     <div class="tags-container">
-                        <span v-for="tag in item.tags" :key="tag.id" class="tag clickable-tag" :style="tagStyle(tag.color)" @click="emit('tagClick', tag)">{{ tag.name }}</span>
+                        <span
+                            v-for="tag in item.tags" :key="tag.id"
+                            class="tag clickable-tag"
+                            :style="tagStyle(tag.color)"
+                            @click="emit('tagClick', tag)"
+                        >{{ tag.name }}</span>
                         <span v-if="item.tags.length === 0" class="no-tags">尚未添加標籤</span>
                     </div>
                 </div>
 
-                <div class="path-section">
-                    <h4>路徑</h4>
-                    <div class="path-box">{{ item.path }}</div>
+                <div class="section" v-if="item.note">
+                    <div class="section-label">備注</div>
+                    <div class="notes-box">{{ item.note }}</div>
                 </div>
+            </div>
+
+            <div class="pane-footer">
+                <button class="footer-btn btn-edit" @click="emit('showFolderDetail', item)">✏️ 編輯</button>
             </div>
         </div>
 
@@ -191,32 +205,24 @@ const formatDate = (unix: number | null) => {
             </div>
 
             <div class="info-scroll">
-                <div class="title-container">
-                    <h3 class="item-title">{{ fileItem.name }}</h3>
+                <h3 class="item-title">{{ fileItem.name }}</h3>
+
+                <div class="meta-row">
+                    <span class="meta-val">{{ formatSize(fileItem.fileSize) }}</span>
+                    <span class="meta-sep" v-if="fileItem.modifiedTime">·</span>
+                    <span class="meta-val" v-if="fileItem.modifiedTime">{{ fileItem.modifiedTime }}</span>
                 </div>
 
-                <div class="meta-section">
-                    <div class="meta-item">
-                        <span class="label">檔案大小</span>
-                        <span class="value">{{ formatSize(fileItem.fileSize) }}</span>
-                    </div>
-                    <div class="meta-item">
-                        <span class="label">修改日期</span>
-                        <span class="value">{{ fileItem.modifiedTime ?? '-' }}</span>
-                    </div>
-                </div>
-
-                <div class="tags-section">
-                    <h4>標籤</h4>
+                <div class="section">
+                    <div class="section-label">標籤</div>
                     <div class="tags-container">
                         <span class="no-tags">尚未掃描</span>
                     </div>
                 </div>
+            </div>
 
-                <div class="path-section">
-                    <h4>路徑</h4>
-                    <div class="path-box">{{ fileItem.path }}</div>
-                </div>
+            <div class="pane-footer">
+                <button class="footer-btn btn-open" @click="api.openFile(fileItem.path)">▶ 開啟</button>
             </div>
         </div>
 
@@ -228,20 +234,12 @@ const formatDate = (unix: number | null) => {
             </div>
 
             <div class="info-scroll">
-                <div class="title-container">
-                    <h3 class="item-title">{{ fileItem.name }}</h3>
-                </div>
-
-                <div class="tags-section">
-                    <h4>標籤</h4>
+                <h3 class="item-title">{{ fileItem.name }}</h3>
+                <div class="section">
+                    <div class="section-label">標籤</div>
                     <div class="tags-container">
                         <span class="no-tags">尚未掃描</span>
                     </div>
-                </div>
-
-                <div class="path-section">
-                    <h4>路徑</h4>
-                    <div class="path-box">{{ fileItem.path }}</div>
                 </div>
             </div>
         </div>
@@ -265,6 +263,39 @@ const formatDate = (unix: number | null) => {
     transition: width 0.3s ease;
 }
 
+/* Header */
+.pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+}
+
+.pane-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+}
+
+.pane-close {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.15s, background 0.15s;
+}
+.pane-close:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
+
+/* Empty state */
 .empty-state {
     flex: 1;
     display: flex;
@@ -274,27 +305,26 @@ const formatDate = (unix: number | null) => {
     color: var(--text-secondary);
     opacity: 0.6;
 }
+.empty-icon { font-size: 3rem; margin-bottom: 16px; }
 
-.empty-icon { font-size: 4rem; margin-bottom: 20px; }
-
+/* Content area */
 .content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 24px;
     overflow: hidden;
 }
 
+/* Cover */
 .cover-wrapper {
     position: relative;
     width: 100%;
     aspect-ratio: 3/4;
-    border-radius: 12px;
     overflow: hidden;
-    margin-bottom: 24px;
-    box-shadow: var(--shadow-modal);
     cursor: pointer;
     background: var(--bg-image-placeholder);
+    flex-shrink: 0;
+    max-height: 45%;
 }
 
 .preview-cover {
@@ -303,8 +333,7 @@ const formatDate = (unix: number | null) => {
     object-fit: contain;
     transition: transform 0.5s ease;
 }
-
-.cover-wrapper:hover .preview-cover { transform: scale(1.05); }
+.cover-wrapper:hover .preview-cover { transform: scale(1.04); }
 
 .cover-placeholder {
     width: 100%;
@@ -312,7 +341,7 @@ const formatDate = (unix: number | null) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 5rem;
+    font-size: 4rem;
     background: var(--bg-overlay-soft);
 }
 
@@ -325,108 +354,117 @@ const formatDate = (unix: number | null) => {
     justify-content: center;
     opacity: 0;
     transition: opacity 0.3s ease;
+    font-size: 0.85rem;
+    color: #fff;
 }
 .cover-wrapper:hover .zoom-overlay { opacity: 1; }
 
+/* Info scroll */
 .info-scroll {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 20px;
-    padding-right: 8px;
+    padding: 16px 16px 8px;
 }
-
-.title-container { margin-bottom: 20px; }
+.info-scroll::-webkit-scrollbar { width: 4px; }
+.info-scroll::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
 
 .item-title {
-    font-size: 1.4rem;
+    font-size: 1rem;
+    font-weight: 600;
     color: var(--text-primary);
     line-height: 1.4;
-    word-break: break-all;
+    word-break: break-word;
+    margin-bottom: 8px;
 }
 
-.meta-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 24px;
-    background: var(--bg-overlay-soft);
-    padding: 12px;
-    border-radius: 8px;
+.meta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
 }
+.meta-val {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+.meta-sep { font-size: 11px; color: var(--border-default); }
 
-.meta-item { display: flex; flex-direction: column; gap: 4px; }
+/* Sections */
+.section { margin-bottom: 16px; }
 
-.label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
+.section-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.value { font-size: 0.95rem; color: var(--text-primary); font-weight: 500; }
-
-.tags-section h4, .path-section h4 {
-    font-size: 0.9rem;
-    margin-bottom: 12px;
-    color: var(--text-secondary);
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
 }
 
 .tags-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 24px;
+    gap: 5px;
 }
 
 .tag {
     background: var(--accent-bg-subtle);
     color: var(--accent);
-    padding: 4px 10px;
+    padding: 3px 10px;
     border-radius: 100px;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     border: 1px solid var(--accent);
 }
+.clickable-tag { cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.clickable-tag:hover { background: var(--accent-bg-strong); border-color: var(--accent-hover); }
 
-.clickable-tag {
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-}
-.clickable-tag:hover {
-    background: var(--accent-bg-strong);
-    border-color: var(--accent-hover);
-}
+.no-tags { font-style: italic; color: var(--text-tertiary); font-size: 0.85rem; }
 
-.no-tags { font-style: italic; color: var(--text-tertiary); }
-
-.path-box {
-    background: var(--bg-input);
-    padding: 10px;
+.notes-box {
+    background: var(--bg-overlay-soft);
     border-radius: 6px;
-    font-family: monospace;
-    font-size: 0.8rem;
+    padding: 10px 12px;
+    font-size: 0.85rem;
     color: var(--text-secondary);
-    word-break: break-all;
-    line-height: 1.4;
+    line-height: 1.6;
+    word-break: break-word;
+    white-space: pre-wrap;
 }
 
-.action-buttons { display: flex; flex-direction: column; gap: 8px; }
+/* Footer */
+.pane-footer {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+}
 
-.detail-btn { width: 100%; padding: 12px; font-weight: 600; }
+.footer-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border-default);
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.btn-edit {
+    background: var(--bg-overlay-soft);
+    color: var(--text-primary);
+}
+.btn-edit:hover { background: var(--bg-overlay-strong); }
 
 .btn-open {
-    width: 100%;
-    padding: 10px;
-    font-weight: 500;
-    background: var(--bg-overlay-soft);
-    border: 1px solid var(--border-default);
-    border-radius: 8px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
+    background: var(--accent);
+    color: var(--bg-app);
+    border-color: var(--accent);
+    font-weight: 600;
 }
-.btn-open:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-open:hover:not(:disabled) { background: var(--bg-overlay-strong); color: var(--text-primary); }
-
-.info-scroll::-webkit-scrollbar { width: 4px; }
-.info-scroll::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
+.btn-open:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 </style>

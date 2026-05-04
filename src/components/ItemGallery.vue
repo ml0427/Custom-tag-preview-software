@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { api, type Item, type FileItem } from '../api';
+import { formatSize } from '../utils/format';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
 import ThumbnailGridView from './ThumbnailGridView.vue';
@@ -270,6 +271,54 @@ const handleRenamed = async (updated: Item) => {
   await loadAll();
 };
 
+// Sort state (lifted from FileExplorerTable)
+const VALID_SORT_BY = ['name', 'size', 'date'] as const;
+const VALID_SORT_DIR = ['asc', 'desc'] as const;
+const savedSortBy = localStorage.getItem('gallery-sort-by');
+const savedSortDir = localStorage.getItem('gallery-sort-dir');
+const sortBy = ref<'name' | 'size' | 'date'>(
+  VALID_SORT_BY.includes(savedSortBy as any) ? (savedSortBy as any) : 'name'
+);
+const sortDir = ref<'asc' | 'desc'>(
+  VALID_SORT_DIR.includes(savedSortDir as any) ? (savedSortDir as any) : 'asc'
+);
+watch([sortBy, sortDir], ([by, dir]) => {
+  localStorage.setItem('gallery-sort-by', by);
+  localStorage.setItem('gallery-sort-dir', dir);
+});
+
+const handleSort = (col: 'name' | 'size' | 'date') => {
+  if (sortBy.value === col) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortBy.value = col;
+    sortDir.value = col === 'name' ? 'asc' : 'desc';
+  }
+};
+
+const sortColLabels: Record<string, string> = { name: '名稱', size: '大小', date: '日期' };
+const sortBtnLabel = computed(() =>
+  `${sortColLabels[sortBy.value]} ${sortDir.value === 'asc' ? '↑' : '↓'}`
+);
+
+// Toolbar stats
+const totalCount = computed(() =>
+  (props.selectedTagIds?.length ?? 0) > 0 ? itemsData.value.length : fileItems.value.length
+);
+
+const totalSizeBytes = computed(() => {
+  const list = (props.selectedTagIds?.length ?? 0) > 0 ? itemsData.value : fileItems.value;
+  return list.reduce((s, i) => s + (i.fileSize ?? 0), 0);
+});
+
+const totalSizeLabel = computed(() => formatSize(totalSizeBytes.value) || '—');
+
+const filterLabel = computed(() => {
+  if ((props.selectedTagIds?.length ?? 0) > 0) return '標籤篩選';
+  if (gallerySearch.value.trim()) return `"${gallerySearch.value.trim()}"`;
+  return '全部';
+});
+
 // View mode
 const viewMode = ref<'list' | 'grid'>('list');
 
@@ -382,38 +431,41 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   <div class="main-layout">
     <div class="gallery-container">
       <div class="header">
+        <!-- Search bar row -->
         <div class="search-bar-wrap">
           <template v-if="sourcePath">
             <button class="nav-btn" :disabled="!parentPath" @click="goUp" title="上一層">↑</button>
             <button class="nav-btn" @click="loadAll" :class="{ spinning: isLoading }" title="重新整理">↺</button>
-            <span class="dir-name">{{ currentDirName }}</span>
             <span class="divider"></span>
           </template>
           <span class="search-icon">🔍</span>
           <input
             v-model="gallerySearch"
             class="gallery-search"
-            placeholder="搜尋名稱..."
+            placeholder="搜尋檔名、標籤、備注..."
           />
           <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
-          <span class="search-count" v-if="sourcePath">
-            <template v-if="gallerySearch.trim()">{{ filteredFileItems.length }} / {{ (selectedTagIds?.length ?? 0) > 0 ? itemsData.length : fileItems.length }} 項</template>
-            <template v-else>{{ (selectedTagIds?.length ?? 0) > 0 ? itemsData.length : fileItems.length }} 項</template>
-          </span>
-          <div class="view-toggle">
-            <button
-              class="view-btn"
-              :class="{ active: viewMode === 'list' }"
-              @click="viewMode = 'list'"
-              title="列表檢視"
-            >☰</button>
-            <button
-              class="view-btn"
-              :class="{ active: viewMode === 'grid' }"
-              @click="viewMode = 'grid'"
-              title="縮圖格子"
-            >⊞</button>
+          <div class="header-right">
+            <button class="sort-btn" @click="handleSort(sortBy)" :title="`目前排序：${sortBtnLabel}`">
+              {{ sortBtnLabel }}
+            </button>
+            <div class="view-toggle">
+              <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="列表檢視">☰</button>
+              <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="縮圖格子">⊞</button>
+            </div>
           </div>
+        </div>
+        <!-- Info bar -->
+        <div class="info-bar" v-if="sourcePath || (selectedTagIds?.length ?? 0) > 0">
+          <span class="info-text">
+            顯示 {{ filteredFileItems.length }}
+            <template v-if="gallerySearch.trim()"> / {{ totalCount }}</template>
+            項
+          </span>
+          <span class="info-dot">·</span>
+          <span class="info-text">篩選：{{ filterLabel }}</span>
+          <span class="info-dot">·</span>
+          <span class="info-text">總大小：{{ totalSizeLabel }}</span>
         </div>
       </div>
 
@@ -439,11 +491,14 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :selectedItemPath="selectedFileItemPath"
           :selectedPaths="selectedPaths"
           :searchQuery="gallerySearch"
+          :sortBy="sortBy"
+          :sortDir="sortDir"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
           @detail="handleContextDetail"
           @rename="handleContextRename"
           @delete="handleDelete"
+          @sort="handleSort"
         />
         <ThumbnailGridView
           v-else
@@ -460,9 +515,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         />
       </div>
 
-      <div class="status-bar">
-        <span v-if="sourcePath">{{ filteredFileItems.length }} 個項目</span>
-        <div v-if="selectedTagIds?.length && tagTotalPages > 1" class="pagination">
+      <div class="status-bar" v-if="selectedTagIds?.length && tagTotalPages > 1">
+        <div class="pagination">
           <button class="page-btn" :disabled="tagPage === 0" @click="gotoTagPage(tagPage - 1)">‹</button>
           <span class="page-info">{{ tagPage + 1 }} / {{ tagTotalPages }}</span>
           <button class="page-btn" :disabled="tagPage >= tagTotalPages - 1" @click="gotoTagPage(tagPage + 1)">›</button>
@@ -545,6 +599,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       @show-folder-detail="emit('showFolderDetail', $event)"
       @tag-click="emit('jumpToTag', $event.id)"
       @renamed="handleRenamed"
+      @close="isPreviewOpen = false"
     />
   </div>
 </template>
@@ -559,7 +614,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .gallery-container {
   flex: 1;
-  padding: 20px;
+  padding: 12px 12px 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -581,16 +636,57 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   box-shadow: 0 0 10px var(--accent);
 }
 
-.header { margin-bottom: 20px; }
+.header { margin-bottom: 8px; }
 
 .search-bar-wrap {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   background: var(--bg-panel);
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--border-default);
+  margin-bottom: 6px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.sort-btn {
+  background: var(--bg-overlay-soft);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+  line-height: 1.6;
+}
+.sort-btn:hover { color: var(--text-primary); background: var(--bg-overlay-strong); }
+
+.info-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 6px;
+}
+.info-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.info-dot {
+  font-size: 11px;
+  color: var(--border-default);
 }
 
 .nav-btn {
