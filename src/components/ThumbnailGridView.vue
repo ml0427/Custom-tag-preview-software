@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
+import { useContextMenu } from '../composables/useContextMenu';
 
 const props = defineProps<{
   items: FileItem[];
@@ -115,21 +116,13 @@ const commitRename = (item: FileItem) => {
 const cancelRename = () => { editingPath.value = null; };
 
 // Context menu
-const contextMenu = ref<{ visible: boolean; x: number; y: number; item: FileItem | null }>({
-  visible: false, x: 0, y: 0, item: null,
-});
-const showContextMenu = (e: MouseEvent, item: FileItem) => {
-  contextMenu.value = { visible: true, x: e.clientX, y: e.clientY, item };
-};
-const hideContextMenu = () => { contextMenu.value.visible = false; };
+const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
+
 const startRenameCtx = () => {
   if (!contextMenu.value.item) return;
   startRenameForItem(contextMenu.value.item);
   hideContextMenu();
 };
-
-onMounted(() => { document.addEventListener('click', hideContextMenu); });
-onUnmounted(() => { document.removeEventListener('click', hideContextMenu); });
 </script>
 
 <template>

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { api, type Item, type FileItem } from '../api';
-import { formatSize } from '../utils/format';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
 import ThumbnailGridView from './ThumbnailGridView.vue';
+import GalleryToolbar from './GalleryToolbar.vue';
+import GalleryInfoBar from './GalleryInfoBar.vue';
 import { useToast } from '../composables/useToast';
+import { useGalleryData } from '../composables/useGalleryData';
+import { formatSize } from '../utils/format';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -20,44 +23,45 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
-const itemsData = ref<Item[]>([]);
-const fileItems = ref<FileItem[]>([]);
-const isLoading = ref(false);
-const gallerySearch = ref('');
-const tagPage = ref(0);
-const tagTotalPages = ref(1);
-const TAG_PAGE_SIZE = 200;
 
-// O(1) lookup by path
-const itemByPath = computed(() =>
-  new Map(itemsData.value.map(i => [i.path, i]))
+// Sort state
+const VALID_SORT_BY = ['name', 'size', 'date'] as const;
+const VALID_SORT_DIR = ['asc', 'desc'] as const;
+const savedSortBy = localStorage.getItem('gallery-sort-by');
+const savedSortDir = localStorage.getItem('gallery-sort-dir');
+
+const sortBy = ref<'name' | 'size' | 'date'>(
+  VALID_SORT_BY.includes(savedSortBy as any) ? (savedSortBy as any) : 'name'
 );
+const sortDir = ref<'asc' | 'desc'>(
+  VALID_SORT_DIR.includes(savedSortDir as any) ? (savedSortDir as any) : 'asc'
+);
+const gallerySearch = ref('');
 
-const filteredFileItems = computed(() => {
-  // Tag mode (any): use backend-filtered itemsData converted to FileItem
-  // No-tag source mode: use raw filesystem listing
-  const base: FileItem[] = ((props.selectedTagIds?.length ?? 0) > 0)
-    ? itemsData.value.map(item => {
-        const ext = item.itemType === 'folder' ? '' : item.path.split('.').pop() || '';
-        const mtime = item.fileModifiedAt
-          ? new Date(item.fileModifiedAt * 1000).toISOString().replace('T', ' ').slice(0, 16)
-          : '';
-        return {
-          name: item.name,
-          path: item.path,
-          isDir: item.itemType === 'folder',
-          fileSize: item.fileSize,
-          modifiedTime: mtime,
-          extension: ext,
-        };
-      })
-    : fileItems.value;
-
-  let items = base;
-  const q = gallerySearch.value.trim().toLowerCase();
-  if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
-  return items;
+watch([sortBy, sortDir], ([by, dir]) => {
+  localStorage.setItem('gallery-sort-by', by);
+  localStorage.setItem('gallery-sort-dir', dir);
 });
+
+// Gallery logic composable
+const {
+  itemsData,
+  fileItems,
+  isLoading,
+  tagPage,
+  tagTotalPages,
+  itemByPath,
+  filteredFileItems,
+  loadAll,
+  gotoTagPage,
+  loadItemsBackground,
+} = useGalleryData(
+  () => props.sourcePath,
+  () => props.selectedTagIds,
+  () => gallerySearch.value,
+  () => sortBy.value,
+  () => sortDir.value
+);
 
 const selectedFileItemPath = ref<string | null>(null);
 const selectedItem = ref<Item | null>(null);
@@ -68,10 +72,11 @@ const selectedFileItem = computed<FileItem | null>(() => {
   if (!selectedFileItemPath.value) return null;
   return filteredFileItems.value.find(fi => fi.path === selectedFileItemPath.value) ?? null;
 });
+
 const lastClickIdx = ref(-1);
 const isBatchDeleting = ref(false);
 
-// ── Batch tag picker ──────────────────────────────────────────────────────────
+// Batch tag logic
 type TagPickerMode = 'add' | 'remove' | null;
 const tagPickerMode = ref<TagPickerMode>(null);
 const tagPickerSearch = ref('');
@@ -223,35 +228,6 @@ const handleContextRename = async (fileItem: FileItem, newName: string) => {
   }
 };
 
-const loadFileItems = async () => {
-  if (!props.sourcePath) { fileItems.value = []; return; }
-  try {
-    fileItems.value = await api.listDirFiles(props.sourcePath);
-  } catch {
-    fileItems.value = [];
-  }
-};
-
-const loadItemsBackground = async (page = 0) => {
-  try {
-    const tagIds = props.selectedTagIds?.length ? props.selectedTagIds : undefined;
-    const pageSize = tagIds ? TAG_PAGE_SIZE : 9999;
-    const res = await api.getItems(page, pageSize, tagIds, 'importAt', 'desc', props.sourcePath ?? undefined);
-    itemsData.value = res.content;
-    tagPage.value = page;
-    tagTotalPages.value = Math.max(1, res.totalPages);
-  } catch {
-    itemsData.value = [];
-  }
-};
-
-const gotoTagPage = async (page: number) => {
-  isLoading.value = true;
-  try { await loadItemsBackground(page); }
-  catch (e) { console.error(e); }
-  finally { isLoading.value = false; }
-};
-
 const handleDelete = async (fileItem: FileItem) => {
   const label = fileItem.isDir ? `資料夾「${fileItem.name}」` : `檔案「${fileItem.name}」`;
   if (!await confirmDialog(`確定將 ${label} 移至資源回收筒？`)) return;
@@ -273,22 +249,6 @@ const handleRenamed = async (updated: Item) => {
   await loadAll();
 };
 
-// Sort state (lifted from FileExplorerTable)
-const VALID_SORT_BY = ['name', 'size', 'date'] as const;
-const VALID_SORT_DIR = ['asc', 'desc'] as const;
-const savedSortBy = localStorage.getItem('gallery-sort-by');
-const savedSortDir = localStorage.getItem('gallery-sort-dir');
-const sortBy = ref<'name' | 'size' | 'date'>(
-  VALID_SORT_BY.includes(savedSortBy as any) ? (savedSortBy as any) : 'name'
-);
-const sortDir = ref<'asc' | 'desc'>(
-  VALID_SORT_DIR.includes(savedSortDir as any) ? (savedSortDir as any) : 'asc'
-);
-watch([sortBy, sortDir], ([by, dir]) => {
-  localStorage.setItem('gallery-sort-by', by);
-  localStorage.setItem('gallery-sort-dir', dir);
-});
-
 const handleSort = (col: 'name' | 'size' | 'date') => {
   if (sortBy.value === col) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
@@ -303,7 +263,6 @@ const sortBtnLabel = computed(() =>
   `${sortColLabels[sortBy.value]} ${sortDir.value === 'asc' ? '↑' : '↓'}`
 );
 
-// Toolbar stats
 const totalCount = computed(() =>
   (props.selectedTagIds?.length ?? 0) > 0 ? itemsData.value.length : fileItems.value.length
 );
@@ -324,11 +283,9 @@ const filterLabel = computed(() => {
 // View mode
 const viewMode = ref<'list' | 'grid'>('list');
 
-// Preview toggle
+// Preview logic
 const isPreviewOpen = ref(false);
 const togglePreview = () => { isPreviewOpen.value = !isPreviewOpen.value; };
-
-// Resizing
 const previewWidth = ref(350);
 const isResizing = ref(false);
 
@@ -354,26 +311,14 @@ const stopResizing = () => {
   document.body.style.userSelect = '';
 };
 
-const loadAll = async () => {
-  isLoading.value = true;
+const loadAllWithSelected = async () => {
   const prevPath = selectedFileItemPath.value;
-  fileItems.value = [];
-  itemsData.value = [];
-  selectedItem.value = null;
-  selectedPaths.value = [];
-  try {
-    await Promise.all([loadFileItems(), loadItemsBackground()]);
-    if (prevPath) {
-      selectedItem.value = itemByPath.value.get(prevPath) ?? null;
-    } else if (props.sourcePath) {
-      // 若沒有明確選取項目，自動把當前資料夾設為 preview item（樹狀圖導航用）
-      const folderItem = await api.getItemByPath(props.sourcePath).catch(() => null);
-      if (folderItem) selectedItem.value = folderItem;
-    }
-  } catch (e) {
-    console.error(e);
-  } finally {
-    isLoading.value = false;
+  await loadAll();
+  if (prevPath) {
+    selectedItem.value = itemByPath.value.get(prevPath) ?? null;
+  } else if (props.sourcePath) {
+    const folderItem = await api.getItemByPath(props.sourcePath).catch(() => null);
+    if (folderItem) selectedItem.value = folderItem;
   }
 };
 
@@ -381,23 +326,18 @@ watch(() => props.sourcePath, () => {
   selectedFileItemPath.value = null;
   selectedPaths.value = [];
   lastClickIdx.value = -1;
-  loadAll();
+  loadAllWithSelected();
 });
 
 watch(() => props.selectedTagIds, async () => {
-  isLoading.value = true;
-  itemsData.value = [];
-  tagPage.value = 0;
-  tagTotalPages.value = 1;
-  try { await loadItemsBackground(0); }
-  catch (e) { console.error(e); }
-  finally { isLoading.value = false; }
+  loadAllWithSelected();
 });
 
 onMounted(() => {
-  loadAll();
+  loadAllWithSelected();
   document.addEventListener('click', onDocClick);
 });
+
 onUnmounted(() => {
   stopResizing();
   document.removeEventListener('click', onDocClick);
@@ -411,19 +351,11 @@ const onDocClick = (e: MouseEvent) => {
 
 defineExpose({ refresh: () => loadAll() });
 
-// ── Toolbar ───────────────────────────────────────────────────────────────────
-
 const parentPath = computed(() => {
   if (!props.sourcePath) return null;
-  // Preserve original separator — normalizing to '/' breaks DB LIKE queries on Windows
   const p = props.sourcePath.replace(/[/\\]+$/, '');
   const lastSep = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
   return lastSep > 0 ? p.slice(0, lastSep) : null;
-});
-
-const currentDirName = computed(() => {
-  if (!props.sourcePath) return '';
-  return props.sourcePath.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() ?? '';
 });
 
 const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value); };
@@ -433,42 +365,28 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   <div class="main-layout">
     <div class="gallery-container">
       <div class="header">
-        <!-- Search bar row -->
-        <div class="search-bar-wrap">
-          <template v-if="sourcePath">
-            <button class="nav-btn" :disabled="!parentPath" @click="goUp" title="上一層">↑</button>
-            <button class="nav-btn" @click="loadAll" :class="{ spinning: isLoading }" title="重新整理">↺</button>
-            <span class="divider"></span>
-          </template>
-          <span class="search-icon">🔍</span>
-          <input
-            v-model="gallerySearch"
-            class="gallery-search"
-            placeholder="搜尋檔名、標籤、備注..."
-          />
-          <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
-          <div class="header-right">
-            <button class="sort-btn" @click="handleSort(sortBy)" :title="`目前排序：${sortBtnLabel}`">
-              {{ sortBtnLabel }}
-            </button>
-            <div class="view-toggle">
-              <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="列表檢視">☰</button>
-              <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="縮圖格子">⊞</button>
-            </div>
-          </div>
-        </div>
-        <!-- Info bar -->
-        <div class="info-bar" v-if="sourcePath || (selectedTagIds?.length ?? 0) > 0">
-          <span class="info-text">
-            顯示 {{ filteredFileItems.length }}
-            <template v-if="gallerySearch.trim()"> / {{ totalCount }}</template>
-            項
-          </span>
-          <span class="info-dot">·</span>
-          <span class="info-text">篩選：{{ filterLabel }}</span>
-          <span class="info-dot">·</span>
-          <span class="info-text">總大小：{{ totalSizeLabel }}</span>
-        </div>
+        <GalleryToolbar
+          :sourcePath="sourcePath"
+          v-model:searchQuery="gallerySearch"
+          :sortBy="sortBy"
+          :sortDir="sortDir"
+          :sortLabel="sortBtnLabel"
+          v-model:viewMode="viewMode"
+          :isLoading="isLoading"
+          :hasParent="!!parentPath"
+          @refresh="loadAllWithSelected"
+          @goUp="goUp"
+          @sort="handleSort(sortBy)"
+        />
+
+        <GalleryInfoBar
+          v-if="sourcePath || (selectedTagIds?.length ?? 0) > 0"
+          :count="filteredFileItems.length"
+          :totalCount="totalCount"
+          :searchQuery="gallerySearch"
+          :filterLabel="filterLabel"
+          :sizeLabel="totalSizeLabel"
+        />
       </div>
 
       <div class="table-wrapper">
@@ -532,14 +450,12 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         <span class="batch-count">已選取 {{ selectedPaths.length }} 項</span>
         <button class="batch-btn" @click="clearMultiSelect">取消選取</button>
 
-        <!-- 加標籤 -->
         <div class="batch-tag-wrap">
           <button class="batch-btn" :disabled="isBatchTagging" @click="tagPickerMode === 'add' ? closeTagPicker() : openTagPicker('add')">
             ＋ 加標籤
           </button>
           <div v-if="tagPickerMode === 'add'" class="tag-picker-popover">
             <input
-              ref="tagSearchInput"
               v-model="tagPickerSearch"
               class="tag-picker-input"
               placeholder="搜尋標籤…"
@@ -558,7 +474,6 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           </div>
         </div>
 
-        <!-- 移標籤 -->
         <div class="batch-tag-wrap">
           <button class="batch-btn" :disabled="isBatchTagging || !removableTags.length" @click="tagPickerMode === 'remove' ? closeTagPicker() : openTagPicker('remove')">
             － 移標籤
@@ -641,139 +556,34 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .header { margin-bottom: 8px; }
 
-.search-bar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  background: var(--bg-panel);
-  border-radius: 10px;
-  border: 1px solid var(--border-default);
-  margin-bottom: 6px;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.sort-btn {
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-family: var(--font-mono);
-  padding: 3px 10px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.15s, background 0.15s;
-  line-height: 1.6;
-}
-.sort-btn:hover { color: var(--text-primary); background: var(--bg-overlay-strong); }
-
-.info-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 4px 6px;
-}
-.info-text {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-}
-.info-dot {
-  font-size: 11px;
-  color: var(--border-default);
-}
-
-.nav-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  line-height: 1;
-  flex-shrink: 0;
-  transition: color 0.15s, background 0.15s;
-}
-.nav-btn:disabled { opacity: 0.3; cursor: default; }
-.nav-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
-.nav-btn.spinning { animation: spin 0.5s linear; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.dir-name {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.divider {
-  width: 1px;
-  height: 16px;
-  background: var(--border-default);
-  flex-shrink: 0;
-}
-
-.clear-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.clear-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
-
-.search-icon { font-size: 0.95rem; flex-shrink: 0; }
-
-.gallery-search {
+.table-wrapper {
   flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text-primary);
-  font-size: 0.95rem;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.gallery-search::placeholder { color: var(--text-secondary); }
-
-.view-toggle { display: flex; gap: 2px; flex-shrink: 0; }
-.view-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 3px 7px;
-  border-radius: 5px;
-  line-height: 1;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+.no-workspace-state, .loader, .empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
 }
-.view-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
-.view-btn.active { color: var(--text-primary); background: var(--bg-overlay-strong); border-color: var(--border-default); }
 
-.search-count {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
+.no-workspace-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--border-default);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 10px;
 }
+
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .status-bar {
   padding: 6px 4px 0;
@@ -792,95 +602,40 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .page-btn {
   background: transparent;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-default);
   color: var(--text-secondary);
   font-size: 0.9rem;
   cursor: pointer;
   padding: 1px 7px;
   border-radius: 4px;
   line-height: 1.4;
-  transition: color 0.15s, background 0.15s;
 }
+.page-btn:hover:not(:disabled) { background: var(--bg-overlay-soft); color: var(--text-primary); }
 .page-btn:disabled { opacity: 0.3; cursor: default; }
-.page-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
 
-.page-info {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.table-wrapper {
-  flex: 1;
-  background: var(--bg-panel);
-  border-radius: 12px;
-  border: 1px solid var(--border-default);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+.page-info { font-family: var(--font-mono); font-size: 0.75rem; }
 
 .preview-toggle-btn {
-  width: 28px;
-  flex-shrink: 0;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 60px;
   background: var(--bg-panel);
-  border: none;
-  border-left: 1px solid var(--border-default);
+  border: 1px solid var(--border-default);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
   color: var(--text-secondary);
-  font-size: 1rem;
   cursor: pointer;
+  z-index: 110;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 12px;
   transition: background 0.2s, color 0.2s;
 }
-
-.preview-toggle-btn:hover {
-  background: var(--bg-overlay-soft);
-  color: var(--text-primary);
-}
-
-.loader, .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  min-height: 200px;
-  color: var(--text-secondary);
-}
-
-.no-workspace-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-secondary);
-  gap: 12px;
-}
-
-.no-workspace-icon {
-  font-size: 3rem;
-  opacity: 0.4;
-}
-
-.no-workspace-state p {
-  font-size: 0.95rem;
-  opacity: 0.6;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--bg-overlay-strong);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
+.preview-toggle-btn:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
 
 .batch-action-bar {
   position: fixed;
@@ -888,71 +643,69 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  padding: 10px 18px;
+  border: 1px solid var(--accent);
+  padding: 10px 20px;
+  border-radius: 50px;
+  box-shadow: var(--shadow-popover);
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: var(--shadow-modal);
-  z-index: 500;
-  animation: slideUp 0.2s ease;
+  z-index: 2000;
+  animation: slideUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
 }
-@keyframes slideUp {
-  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
-  to   { transform: translateX(-50%) translateY(0);   opacity: 1; }
-}
-.batch-count { font-size: 0.88rem; color: var(--text-primary); font-weight: 600; }
+
+@keyframes slideUp { from { transform: translate(-50%, 100px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+.batch-count { font-weight: 600; color: var(--accent); font-size: 0.9rem; margin-right: 8px; }
 .batch-btn {
   background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
   color: var(--text-primary);
-  font-size: 0.85rem;
-  padding: 6px 14px;
+  padding: 5px 14px;
+  border-radius: 20px;
   cursor: pointer;
-  transition: background 0.15s;
+  font-size: 0.85rem;
+  transition: all 0.2s;
 }
-.batch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.batch-btn:hover:not(:disabled) { background: var(--bg-overlay-strong); }
-.batch-danger { color: var(--color-danger); border-color: var(--color-danger); }
-.batch-danger:hover:not(:disabled) { background: var(--color-danger-bg-subtle); }
+.batch-btn:hover:not(:disabled) { background: var(--bg-overlay-strong); border-color: var(--text-secondary); }
+.batch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.batch-danger { color: var(--color-danger); }
+.batch-danger:hover:not(:disabled) { background: var(--color-danger-bg-subtle); border-color: var(--color-danger); }
 
 .batch-tag-wrap { position: relative; }
 .tag-picker-popover {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 8px;
-  min-width: 180px;
+  border-radius: 12px;
+  width: 220px;
   box-shadow: var(--shadow-popover);
-  z-index: 600;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .tag-picker-input {
-  width: 100%;
-  background: var(--bg-overlay-soft);
+  background: var(--bg-panel);
   border: 1px solid var(--border-default);
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--text-primary);
+  padding: 6px 10px;
   font-size: 0.85rem;
-  padding: 5px 8px;
-  margin-bottom: 6px;
   outline: none;
-  box-sizing: border-box;
 }
-.tag-picker-list { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
+.tag-picker-input:focus { border-color: var(--accent); }
+.tag-picker-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .tag-picker-item {
-  padding: 5px 8px;
-  border-radius: 5px;
-  font-size: 0.85rem;
+  padding: 6px 10px;
+  border-radius: 4px;
   cursor: pointer;
-  color: var(--text-primary);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
-.tag-picker-item:hover { background: var(--bg-overlay-strong); }
-.tag-picker-empty { font-size: 0.8rem; color: var(--text-secondary); padding: 4px 8px; }
-
+.tag-picker-item:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
+.tag-picker-empty { padding: 10px; text-align: center; font-size: 0.8rem; color: var(--text-tertiary); }
 </style>

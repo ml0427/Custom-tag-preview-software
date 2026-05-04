@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
 import { api, type Source, type Folder, type Tag } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import DirTreeNode from './DirTreeNode.vue';
+import LocalDirTree from './LocalDirTree.vue';
 import TypeManageModal from './CategoryManageModal.vue';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
@@ -121,7 +121,6 @@ const submitFolderModal = async () => {
     await loadDbFolders();
     emit('folderCreated');
 
-    // 自動套用類別規則
     const selectedType = itemTypes.value.find(t => t.name === category);
     if (selectedType?.tagRules?.length) {
       try {
@@ -158,7 +157,6 @@ const loadDbFolders = async () => {
 };
 
 const sources = ref<Source[]>([]);
-const isSyncing = ref(false);
 
 const loadSources = async () => {
   sources.value = await api.getSources();
@@ -167,7 +165,6 @@ const loadSources = async () => {
   }
 };
 
-// 同時取得 sources 和 folders，寫入同一 tick 避免圖示閃爍
 const initWorkspace = async () => {
   const [srcs, folders] = await Promise.all([api.getSources(), api.getFolders()]);
   sources.value = srcs;
@@ -200,22 +197,6 @@ const handleRemoveSource = async (source: Source, e: MouseEvent) => {
   await loadSources();
 };
 
-const handleSyncSources = async () => {
-  if (sources.value.length === 0) { showToast('尚未新增任何來源目錄', 'info'); return; }
-  isSyncing.value = true;
-  try {
-    const res = await api.syncSources();
-    const errMsg = res.errors.length ? `\n\n失敗：${res.errors.join('\n')}` : '';
-    showToast(`同步完成（${res.sourceCount} 個來源）　新增 ${res.added}、更新 ${res.updated}、移除 ${res.removed} 本${errMsg}`, 'success');
-    await loadSources();
-    emit('folderCreated'); // 通知父元件刷新 gallery，不需重載整頁
-  } catch (e) {
-    showToast('同步失敗: ' + String(e), 'error');
-  } finally {
-    isSyncing.value = false;
-  }
-};
-
 onMounted(() => {
   initWorkspace();
   loadItemTypes();
@@ -229,32 +210,13 @@ onMounted(() => {
       <h2>工作目錄</h2>
     </div>
 
-    <div class="tree-area">
-      <div v-if="sources.length === 0" class="empty">
-        <p>尚未新增任何目錄</p>
-        <p class="hint">點擊下方「新增目錄」開始</p>
-      </div>
-
-      <!-- 各來源根目錄（可展開樹狀） -->
-      <div v-for="src in sources" :key="src.id" class="source-root">
-        <div class="root-header" :class="{ active: selectedPath === src.path }">
-          <DirTreeNode
-            :path="src.path"
-            :label="src.path.split(/[\\/]/).filter(Boolean).pop() ?? src.path"
-            :depth="0"
-            :selectedPath="selectedPath"
-            :isRoot="true"
-            @select="handleSelectPath"
-            @contextmenu="openCtxMenu"
-          />
-          <button
-            class="remove-btn"
-            :title="`移除 ${src.path}`"
-            @click="handleRemoveSource(src, $event)"
-          >✕</button>
-        </div>
-      </div>
-    </div>
+    <LocalDirTree
+      :sources="sources"
+      :selectedPath="selectedPath"
+      @select="handleSelectPath"
+      @contextmenu="openCtxMenu"
+      @removeSource="handleRemoveSource"
+    />
 
     <!-- 右鍵選單 -->
     <div
@@ -271,8 +233,6 @@ onMounted(() => {
     <!-- 修改類型 / 加入知識庫 Modal -->
     <div v-if="showFolderModal" class="folder-modal-backdrop" @click.self="showFolderModal = false">
       <div class="folder-modal glass-panel">
-
-        <!-- Phase 1：基本設定 -->
         <template v-if="modalPhase === 'edit'">
           <h3>{{ folderInDb ? '修改類別' : '加入知識庫' }}</h3>
           <div class="folder-field">
@@ -303,12 +263,9 @@ onMounted(() => {
           </div>
         </template>
 
-        <!-- Phase 2：標籤設定 -->
         <template v-else>
           <h3>設定標籤</h3>
           <span class="path-text">{{ editFolder.path }}</span>
-
-          <!-- 現有標籤 -->
           <div class="tag-chips">
             <span
               v-for="tag in localTags"
@@ -319,8 +276,6 @@ onMounted(() => {
             >{{ tag.name }} ✕</span>
             <span v-if="localTags.length === 0" class="no-tags">尚無標籤</span>
           </div>
-
-          <!-- 新增標籤輸入 -->
           <div class="tag-input-wrap" @click.stop>
             <input
               v-model="tagInput"
@@ -340,12 +295,10 @@ onMounted(() => {
               >{{ s.name }}</div>
             </div>
           </div>
-
           <div class="folder-actions">
             <button class="btn-confirm" @click="showFolderModal = false">完成</button>
           </div>
         </template>
-
       </div>
     </div>
 
@@ -387,86 +340,6 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.tree-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.all-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  transition: background 0.15s;
-  margin-bottom: 4px;
-}
-
-.all-item:hover { background: var(--bg-overlay-soft); }
-.all-item.active {
-  background: var(--accent-bg-subtle);
-  color: var(--accent-hover);
-  border-left: 3px solid var(--accent);
-  padding-left: 7px;
-}
-
-.all-icon { font-size: 1rem; }
-.all-label { font-size: 0.88rem; }
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 40px 16px;
-  gap: 6px;
-  font-size: 0.85rem;
-}
-
-.hint { font-size: 0.75rem; opacity: 0.6; }
-
-.source-root {
-  margin-bottom: 2px;
-}
-
-.root-header {
-  display: flex;
-  align-items: flex-start;
-  position: relative;
-}
-
-.root-header > :first-child {
-  flex: 1;
-  min-width: 0;
-}
-
-.remove-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  padding: 6px 4px;
-  border-radius: 4px;
-  opacity: 0;
-  flex-shrink: 0;
-  transition: opacity 0.15s, color 0.15s;
-  cursor: pointer;
-  align-self: center;
-}
-
-.root-header:hover .remove-btn { opacity: 0.5; }
-.root-header:hover .remove-btn:hover { opacity: 1; color: var(--color-danger); }
-
 .panel-footer {
   padding: 12px;
   display: flex;
@@ -505,13 +378,6 @@ onMounted(() => {
   color: var(--text-tertiary);
 }
 .btn-manage:hover { background: var(--bg-overlay-soft); color: var(--text-secondary); }
-
-
-.tree-area::-webkit-scrollbar { width: 4px; }
-.tree-area::-webkit-scrollbar-thumb {
-  background: var(--bg-overlay-strong);
-  border-radius: 10px;
-}
 
 .ctx-menu {
   position: fixed;

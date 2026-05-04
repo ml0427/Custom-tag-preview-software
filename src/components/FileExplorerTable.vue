@@ -4,6 +4,8 @@ import { api, type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
+import { useVirtualScroll } from '../composables/useVirtualScroll';
+import { useContextMenu } from '../composables/useContextMenu';
 
 const props = defineProps<{
   items: FileItem[];
@@ -28,15 +30,7 @@ const ROW_HEIGHT = 56;
 const BUFFER = 15;
 
 // Context menu
-const contextMenu = ref<{ visible: boolean; x: number; y: number; item: FileItem | null }>({
-  visible: false, x: 0, y: 0, item: null,
-});
-
-const showContextMenu = (e: MouseEvent, item: FileItem) => {
-  contextMenu.value = { visible: true, x: e.clientX, y: e.clientY, item };
-};
-
-const hideContextMenu = () => { contextMenu.value.visible = false; };
+const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
 
 // Inline rename
 const editingPath = ref<string | null>(null);
@@ -72,24 +66,54 @@ const commitRename = (item: FileItem) => {
 
 const cancelRename = () => { editingPath.value = null; };
 
-// Keyboard navigation
-const outerRef = ref<HTMLDivElement | null>(null);
-const scrollTop = ref(0);
-const containerHeight = ref(0);
+const onOuterScroll = (e: Event) => {
+  scrollTop.value = (e.target as HTMLDivElement).scrollTop;
+};
+
+onMounted(() => {
+  if (outerRef.value) {
+    outerRef.value.addEventListener('keydown', handleKeydown);
+  }
+});
+
+onUnmounted(() => {
+  outerRef.value?.removeEventListener('keydown', handleKeydown);
+});
+
+watch(() => props.selectedItemPath, () => {
+  const idx = currentIndex.value;
+  if (idx < 0) return;
+  nextTick(() => scrollToIndex(idx));
+});
+
+const sortedItems = computed(() => {
+  return [...props.items].sort((a, b) => {
+    let cmp = 0;
+    if (props.sortBy === 'name') {
+      cmp = (a.name || '').localeCompare(b.name || '', 'zh-TW', { sensitivity: 'base' });
+    } else if (props.sortBy === 'size') {
+      cmp = (a.fileSize ?? 0) - (b.fileSize ?? 0);
+    } else if (props.sortBy === 'date') {
+      cmp = (a.modifiedTime ?? '').localeCompare(b.modifiedTime ?? '');
+    }
+    return props.sortDir === 'asc' ? cmp : -cmp;
+  });
+});
+
+const {
+  outerRef,
+  scrollTop,
+  containerHeight,
+  visibleItems,
+  topSpacerHeight,
+  bottomSpacerHeight,
+  scrollToIndex
+} = useVirtualScroll(sortedItems, ROW_HEIGHT, BUFFER);
 
 const currentIndex = computed(() => {
   if (!props.selectedItemPath) return -1;
   return sortedItems.value.findIndex(i => i.path === props.selectedItemPath);
 });
-
-const scrollToIndex = (idx: number) => {
-  if (!outerRef.value) return;
-  const rowTop = idx * ROW_HEIGHT;
-  const rowBottom = rowTop + ROW_HEIGHT;
-  const { scrollTop: st, clientHeight: ch } = outerRef.value;
-  if (rowTop < st) outerRef.value.scrollTop = rowTop;
-  else if (rowBottom > st + ch) outerRef.value.scrollTop = rowBottom - ch;
-};
 
 const navigateTo = (idx: number) => {
   const item = sortedItems.value[idx];
@@ -126,88 +150,6 @@ const handleKeydown = (e: KeyboardEvent) => {
     hideContextMenu();
   }
 };
-
-const onOuterScroll = (e: Event) => {
-  scrollTop.value = (e.target as HTMLDivElement).scrollTop;
-};
-
-let resizeObserver: ResizeObserver | null = null;
-
-onMounted(() => {
-  document.addEventListener('click', hideContextMenu);
-  if (outerRef.value) {
-    containerHeight.value = outerRef.value.clientHeight;
-    outerRef.value.addEventListener('scroll', onOuterScroll, { passive: true });
-    outerRef.value.addEventListener('keydown', handleKeydown);
-    resizeObserver = new ResizeObserver(entries => {
-      containerHeight.value = entries[0].contentRect.height;
-    });
-    resizeObserver.observe(outerRef.value);
-  }
-});
-
-onUnmounted(() => {
-  document.removeEventListener('click', hideContextMenu);
-  outerRef.value?.removeEventListener('scroll', onOuterScroll);
-  outerRef.value?.removeEventListener('keydown', handleKeydown);
-  resizeObserver?.disconnect();
-});
-
-watch(() => props.selectedItemPath, () => {
-  const idx = currentIndex.value;
-  if (idx < 0) return;
-  nextTick(() => scrollToIndex(idx));
-});
-
-// 當 items 改變時，重新測量高度並將滾動歸零
-watch(() => props.items, (newVal) => {
-  if (!newVal) return;
-  scrollTop.value = 0;
-  if (outerRef.value) outerRef.value.scrollTop = 0;
-  
-  // 多層級確保高度被正確捕捉
-  const measure = () => {
-    if (outerRef.value) {
-      const h = outerRef.value.clientHeight;
-      if (h > 0) containerHeight.value = h;
-    }
-  };
-  
-  measure();
-  nextTick(measure);
-  requestAnimationFrame(measure);
-}, { immediate: true, deep: false });
-
-// 必須放在最上面，否則下方的 virtual scroll 與 watch 會引發 ReferenceError (TDZ)
-const sortedItems = computed(() => {
-  return [...props.items].sort((a, b) => {
-    let cmp = 0;
-    if (props.sortBy === 'name') {
-      cmp = (a.name || '').localeCompare(b.name || '', 'zh-TW', { sensitivity: 'base' });
-    } else if (props.sortBy === 'size') {
-      cmp = (a.fileSize ?? 0) - (b.fileSize ?? 0);
-    } else if (props.sortBy === 'date') {
-      cmp = (a.modifiedTime ?? '').localeCompare(b.modifiedTime ?? '');
-    }
-    return props.sortDir === 'asc' ? cmp : -cmp;
-  });
-});
-
-// Virtual scroll
-const visibleStart = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - BUFFER));
-const visibleEnd = computed(() => {
-  const len = sortedItems.value.length;
-  if (containerHeight.value <= 0) return Math.min(len, 30); // 初始沒量到高度時先顯示 30 筆
-  return Math.min(
-    len,
-    Math.ceil((scrollTop.value + containerHeight.value) / ROW_HEIGHT) + BUFFER
-  );
-});
-
-
-const visibleItems = computed(() => sortedItems.value.slice(visibleStart.value, visibleEnd.value));
-const topSpacerHeight = computed(() => visibleStart.value * ROW_HEIGHT);
-const bottomSpacerHeight = computed(() => (sortedItems.value.length - visibleEnd.value) * ROW_HEIGHT);
 
 // Thumbnail loading
 const thumbUrls = reactive(new Map<string, string>());

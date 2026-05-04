@@ -2,6 +2,8 @@
 import { ref, computed, watch } from 'vue';
 import { api, type Source, type TagRuleInput, type ScanPreviewItem } from '../api';
 import { useToast } from '../composables/useToast';
+import TagRuleEditor from './TagRuleEditor.vue';
+import ScanPreviewList from './ScanPreviewList.vue';
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{
@@ -136,7 +138,6 @@ const applyAndClose = async () => {
   <Teleport to="body">
     <div v-if="visible" class="overlay" @click.self="emit('close')">
       <div class="wizard-card">
-
         <!-- Header -->
         <div class="wizard-header">
           <div class="step-bar">
@@ -155,7 +156,6 @@ const applyAndClose = async () => {
           <p class="sub">選擇來源後可進入子目錄精準設定範圍</p>
           <div v-if="sources.length === 0" class="empty-hint">尚未新增任何來源目錄</div>
 
-          <!-- Source roots -->
           <div class="source-list">
             <label
               v-for="s in sources"
@@ -168,7 +168,6 @@ const applyAndClose = async () => {
             </label>
           </div>
 
-          <!-- Subdirectory browser -->
           <div v-if="selectedSourceRoot" class="subdir-browser">
             <div class="subdir-nav-bar">
               <button
@@ -210,32 +209,13 @@ const applyAndClose = async () => {
           <h2>設定標籤規則</h2>
           <p class="sub">符合條件的項目將自動套用標籤</p>
 
-          <div class="rules-table">
-            <div class="rules-header">
-              <span>說明</span>
-              <span>比對方式</span>
-              <span>比對字串</span>
-              <span>套用標籤</span>
-              <span class="rule-del-spacer"></span>
-            </div>
-            <div v-for="(rule, i) in rules" :key="i" class="rule-row">
-              <input v-model="rule.name" placeholder="（選填）" class="rule-input" />
-              <select v-model="rule.matchType" class="rule-select">
-                <option v-for="t in MATCH_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
-              </select>
-              <input v-model="rule.pattern" placeholder="輸入字串或正則" class="rule-input" />
-              <input
-                v-if="rule.matchType !== 'regex_capture'"
-                v-model="rule.tagName"
-                placeholder="標籤名稱"
-                class="rule-input"
-              />
-              <span v-else class="capture-hint">← 自動取括號內文字</span>
-              <button class="btn-del" @click="removeRule(i)">✕</button>
-            </div>
-          </div>
+          <TagRuleEditor
+            :rules="rules"
+            :matchTypes="MATCH_TYPES"
+            @add="addRule"
+            @remove="removeRule"
+          />
 
-          <button class="btn-add-rule" @click="addRule">＋ 新增規則</button>
           <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
           <div class="footer-btns">
             <button class="btn-ghost" @click="step = 1">← 上一步</button>
@@ -248,17 +228,10 @@ const applyAndClose = async () => {
           <h2>預覽結果</h2>
           <p class="sub">以下項目將被套用標籤（共 {{ previewItems.length }} 項）</p>
 
-          <div v-if="isLoading" class="loading-hint">套用中...</div>
-          <div v-else-if="previewItems.length === 0 && !errorMsg" class="empty-hint">沒有項目符合規則</div>
-          <div v-else class="preview-list">
-            <div v-for="item in previewItems" :key="item.path" class="preview-row">
-              <span class="item-icon">{{ item.isDir ? '📁' : '📄' }}</span>
-              <span class="item-name" :title="item.path">{{ item.name }}</span>
-              <div class="tag-chips">
-                <span v-for="tag in item.proposedTags" :key="tag" class="mini-tag">{{ tag }}</span>
-              </div>
-            </div>
-          </div>
+          <ScanPreviewList
+            :previewItems="previewItems"
+            :isLoading="isLoading"
+          />
 
           <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
           <div class="footer-btns">
@@ -268,7 +241,6 @@ const applyAndClose = async () => {
             </button>
           </div>
         </div>
-
       </div>
     </div>
   </Teleport>
@@ -352,7 +324,6 @@ const applyAndClose = async () => {
 h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 .sub { font-size: 0.9rem; color: var(--text-secondary); margin: 0; }
 
-/* Source list */
 .source-list { display: flex; flex-direction: column; gap: 8px; }
 .source-item {
   display: flex;
@@ -369,7 +340,6 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 .source-radio { font-size: 1.1rem; color: var(--accent); }
 .source-path { font-family: monospace; font-size: 0.9rem; color: var(--text-primary); word-break: break-all; }
 
-/* Subdirectory browser */
 .subdir-browser {
   border: 1px solid var(--border-default);
   border-radius: 8px;
@@ -453,138 +423,6 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 
 .empty-hint.small { padding: 10px 12px; font-size: 0.82rem; text-align: left; }
 
-/* Rules table */
-.rules-table { display: flex; flex-direction: column; gap: 6px; }
-.rules-header,
-.rule-row {
-  display: grid;
-  grid-template-columns: 2fr 1.5fr 2fr 2fr 32px;
-  gap: 8px;
-  align-items: center;
-}
-.rules-header {
-  padding: 0 8px;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-}
-.rule-row {
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 8px;
-}
-.rule-input {
-  width: 100%;
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 0.88rem;
-  padding: 6px 10px;
-  outline: none;
-  min-width: 0;
-}
-.rule-input:focus { border-color: var(--accent); }
-.rule-select {
-  width: 100%;
-  background-color: var(--bg-elevated);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237d8590'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  -webkit-appearance: none;
-  appearance: none;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 0.88rem;
-  padding: 6px 28px 6px 8px;
-  outline: none;
-  min-width: 0;
-  cursor: pointer;
-}
-.rule-select:focus { border-color: var(--accent); }
-.rule-select option {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-.capture-hint {
-  font-size: 0.82rem;
-  color: var(--accent);
-  opacity: 0.8;
-  display: flex;
-  align-items: center;
-  padding: 0 4px;
-}
-
-.btn-del {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 0.8rem;
-}
-.btn-del:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); }
-
-.btn-add-rule {
-  align-self: flex-start;
-  background: none;
-  border: 1px dashed var(--border-strong);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-.btn-add-rule:hover { border-color: var(--accent); color: var(--accent); }
-
-/* Preview */
-.preview-list {
-  flex: 1;
-  overflow-y: auto;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  background: var(--bg-input);
-}
-.preview-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.preview-row:last-child { border-bottom: none; }
-.item-icon { flex-shrink: 0; }
-.item-name {
-  flex: 1;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tag-chips { display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
-.mini-tag {
-  background: var(--accent-bg-subtle);
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  padding: 2px 8px;
-  border-radius: 100px;
-  font-size: 0.78rem;
-}
-
-/* Misc */
-.loading-hint, .empty-hint {
-  text-align: center;
-  color: var(--text-secondary);
-  padding: 40px;
-  font-size: 0.9rem;
-}
 .error { color: var(--color-danger); font-size: 0.88rem; }
 
 .footer-btns {
@@ -632,6 +470,4 @@ h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 
 .step-body::-webkit-scrollbar { width: 4px; }
 .step-body::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
-.preview-list::-webkit-scrollbar { width: 4px; }
-.preview-list::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
 </style>

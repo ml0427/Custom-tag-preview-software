@@ -132,3 +132,20 @@ input[type="text"]:focus {
   display: flex;
   height: 100vh;
 }
+
+/* Utilities */
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-v-center { display: flex; align-items: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-col { display: flex; flex-direction: column; }
+
+.scroll-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-select { user-select: none; }
