@@ -19,7 +19,7 @@
 | Phase | 元件 | 狀態 | 版本 |
 |-------|------|------|------|
 | 0 | `style.css` + `themes.css` 主題系統 | ✅ 完成 | v0.46 |
-| 1 | `ActivityBar.vue` | ⬜ 待做 | — |
+| 1 | `ActivityBar.vue` | ✅ 完成 | v0.47 |
 | 2 | `SourcePanel.vue` | ⬜ 待做 | — |
 | 3 | `FileExplorerTable.vue` | ⬜ 待做 | — |
 | 4 | `ThumbnailGridView.vue` | ⬜ 待做 | — |
