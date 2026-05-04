@@ -21,7 +21,7 @@
 | 0 | `style.css` + `themes.css` 主題系統 | ✅ 完成 | v0.46 |
 | 1 | `ActivityBar.vue` | ✅ 完成 | v0.47 |
 | 2 | `SourcePanel.vue` | ✅ 完成 | v0.48 |
-| 3 | `FileExplorerTable.vue` | ⬜ 待做 | — |
+| 3 | `FileExplorerTable.vue` | ✅ 完成 | v0.49 |
 | 4 | `ThumbnailGridView.vue` | ⬜ 待做 | — |
 | 5 | `PreviewPane.vue` | ⬜ 待做 | — |
 | 6 | `TagSidebar.vue` | ⬜ 待做 | — |

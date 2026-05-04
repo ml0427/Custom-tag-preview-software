@@ -379,7 +379,7 @@ const sortedItems = computed(() => {
   outline: none;
 }
 
-.vscroll-outer::-webkit-scrollbar { width: 8px; }
+.vscroll-outer::-webkit-scrollbar { width: 4px; }
 .vscroll-outer::-webkit-scrollbar-thumb {
   background: var(--bg-overlay-strong);
   border-radius: 10px;
@@ -397,12 +397,14 @@ const sortedItems = computed(() => {
   top: 0;
   background: var(--bg-panel);
   z-index: 10;
-  padding: 12px 16px;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-default);
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
 }
 .comic-table th.sortable { cursor: pointer; user-select: none; }
@@ -420,6 +422,7 @@ const sortedItems = computed(() => {
 .comic-table tr { cursor: default; transition: background 0.2s; }
 .comic-table tr:hover { background: var(--bg-overlay-soft); }
 .comic-table tr.selected { background: var(--accent-bg-subtle) !important; }
+.comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .spacer-row td { padding: 0; border: none; }
 
 .col-name  { width: 38%; }
@@ -430,20 +433,41 @@ const sortedItems = computed(() => {
 
 .file-info { display: flex; align-items: center; gap: 10px; }
 .file-icon { font-size: 1rem; flex-shrink: 0; }
-.file-title { font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
+.file-title { font-family: var(--font-jp); font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
 
 .tag-chips { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; }
+
+.col-size, .col-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
 .mini-tag {
-  background: var(--accent-bg-subtle);
-  border: 1px solid var(--accent);
-  padding: 1px 7px;
+  font-family: var(--font-jp);
+  font-size: 10px;
+  padding: 1px 6px 2px;
   border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  color: var(--accent-hover);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   white-space: nowrap;
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: rgba(240, 178, 41, 0.08);
+  border: 1px solid rgba(240, 178, 41, 0.18);
+  color: var(--accent);
+}
+
+.mini-tag::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+  flex-shrink: 0;
 }
 .tag-more { font-size: 0.75rem; color: var(--text-tertiary); flex-shrink: 0; }
 
