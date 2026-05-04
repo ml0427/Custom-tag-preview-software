@@ -120,6 +120,7 @@ fn main() {
             commands::get_duplicate_groups,
             commands::compute_fingerprints,
             // File system
+            commands::quick_import_item,
             commands::open_file,
             commands::list_subdirs,
             commands::list_dir_files,

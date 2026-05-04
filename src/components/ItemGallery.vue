@@ -210,9 +210,17 @@ const handleFileItemDblClick = (item: FileItem) => {
   }
 };
 
-const handleContextDetail = (fileItem: FileItem) => {
-  const dbItem = itemByPath.value.get(fileItem.path);
-  if (!dbItem) return;
+const handleContextDetail = async (fileItem: FileItem) => {
+  let dbItem = itemByPath.value.get(fileItem.path);
+  if (!dbItem) {
+    try {
+      dbItem = await api.quickImportItem(fileItem.path);
+      itemsData.value = [...itemsData.value, dbItem];
+    } catch (e: any) {
+      showToast('匯入失敗：' + (e?.message ?? e), 'error');
+      return;
+    }
+  }
   if (fileItem.isDir) emit('showFolderDetail', dbItem);
   else emit('showDetail', dbItem);
 };

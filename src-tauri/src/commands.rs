@@ -971,6 +971,34 @@ pub async fn open_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Result<Item, String> {
+    use std::time::UNIX_EPOCH;
+    let p = std::path::Path::new(&path);
+    if !p.exists() { return Err(format!("路徑不存在：{}", path)); }
+    let is_dir = p.is_dir();
+    let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let metadata = std::fs::metadata(p).map_err(|e| e.to_string())?;
+    let mtime_unix = metadata.modified().ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64).unwrap_or(0);
+    let file_size: Option<i64> = if is_dir { None } else { Some(metadata.len() as i64) };
+    let item_type = if is_dir { "folder" } else { "file" };
+    let import_at = chrono::Local::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&path).bind(item_type).bind(&name).bind(file_size).bind(mtime_unix).bind(&import_at)
+    .execute(&*pool).await.map_err(|e| e.to_string())?;
+
+    let row = sqlx::query("SELECT * FROM items WHERE path = ?")
+        .bind(&path).fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+    let id: i64 = row.get("id");
+    let tags = fetch_item_tags(&pool, id).await?;
+    Ok(read_item_from_row(&row, tags))
+}
+
+#[tauri::command]
 pub async fn list_dir_files(path: String) -> Result<Vec<crate::models::FileItem>, String> {
     use std::path::Path;
     let dir = Path::new(&path);
