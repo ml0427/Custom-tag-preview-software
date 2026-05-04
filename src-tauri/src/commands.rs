@@ -253,13 +253,14 @@ pub async fn untag_item(item_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) 
 
 #[tauri::command]
 pub async fn rename_item(id: i64, name: String, pool: State<'_, SqlitePool>) -> Result<Item, String> {
-    let row = sqlx::query("SELECT path FROM items WHERE id = ?")
+    let row = sqlx::query("SELECT path, item_type FROM items WHERE id = ?")
         .bind(id)
         .fetch_one(&*pool)
         .await
         .map_err(|e| e.to_string())?;
 
     let old_path_str: String = row.get("path");
+    let item_type: String = row.get("item_type");
     let old_path = std::path::Path::new(&old_path_str);
     let extension = old_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
@@ -279,28 +280,31 @@ pub async fn rename_item(id: i64, name: String, pool: State<'_, SqlitePool>) -> 
 
     let new_path_str = new_path.to_string_lossy().to_string();
 
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
     sqlx::query("UPDATE items SET name = ?, path = ? WHERE id = ?")
         .bind(&name)
         .bind(&new_path_str)
         .bind(id)
-        .execute(&*pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
 
-    // 若重新命名的是資料夾，同步更新所有子項目的路徑前綴
-    if extension.is_empty() {
+    if item_type == "folder" {
         let old_prefix = format!("{}\\", old_path_str);
         let new_prefix = format!("{}\\", new_path_str);
         sqlx::query(
-            "UPDATE items SET path = ? || SUBSTR(path, ? + 1) WHERE path LIKE ?",
+            "UPDATE items SET path = ? || SUBSTR(path, LENGTH(?) + 1) WHERE path LIKE ?",
         )
         .bind(&new_prefix)
-        .bind(old_prefix.len() as i64)
+        .bind(&old_prefix)
         .bind(format!("{}%", old_prefix))
-        .execute(&*pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
     }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
 
     get_item(id, pool).await
 }
