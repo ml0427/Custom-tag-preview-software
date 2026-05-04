@@ -376,7 +376,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :hasParent="!!parentPath"
           @refresh="loadAllWithSelected"
           @goUp="goUp"
-          @sort="handleSort(sortBy)"
+          @updateSortBy="handleSort"
+          @toggleSortDir="handleSort(sortBy)"
         />
 
         <GalleryInfoBar

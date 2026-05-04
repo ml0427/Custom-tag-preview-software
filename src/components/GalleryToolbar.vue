@@ -17,7 +17,8 @@ const emit = defineEmits<{
   (e: 'update:viewMode', val: 'list' | 'grid'): void;
   (e: 'refresh'): void;
   (e: 'goUp'): void;
-  (e: 'sort'): void;
+  (e: 'updateSortBy', col: string): void;
+  (e: 'toggleSortDir'): void;
 }>();
 
 const gallerySearch = computed({
@@ -41,9 +42,16 @@ const gallerySearch = computed({
     />
     <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
     <div class="header-right">
-      <button class="sort-btn" @click="emit('sort')" :title="`目前排序：${sortLabel}`">
-        {{ sortLabel }}
-      </button>
+      <div class="sort-group">
+        <select class="sort-select" :value="sortBy" @change="emit('updateSortBy', ($event.target as HTMLSelectElement).value)">
+          <option value="name">名稱</option>
+          <option value="size">大小</option>
+          <option value="date">時間</option>
+        </select>
+        <button class="sort-dir-btn" @click="emit('toggleSortDir')" title="切換排序方向">
+          {{ sortDir === 'asc' ? '↑' : '↓' }}
+        </button>
+      </div>
       <div class="view-toggle">
         <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="emit('update:viewMode', 'list')" title="列表檢視">☰</button>
         <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="emit('update:viewMode', 'grid')" title="縮圖格子">⊞</button>
@@ -72,20 +80,42 @@ const gallerySearch = computed({
   margin-left: auto;
 }
 
-.sort-btn {
+.sort-group {
+  display: flex;
+  align-items: center;
   background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
   border-radius: 6px;
+  overflow: hidden;
+}
+
+.sort-select {
+  background: transparent;
+  border: none;
   color: var(--text-secondary);
   font-size: 0.8rem;
   font-family: var(--font-mono);
-  padding: 3px 10px;
+  padding: 3px 6px 3px 8px;
+  outline: none;
   cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.15s, background 0.15s;
-  line-height: 1.6;
+  appearance: none;
+  -webkit-appearance: none;
 }
-.sort-btn:hover { color: var(--text-primary); background: var(--bg-overlay-strong); }
+.sort-select:hover { color: var(--text-primary); }
+
+.sort-dir-btn {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  cursor: pointer;
+  line-height: 1.6;
+  transition: color 0.15s, background 0.15s;
+}
+.sort-dir-btn:hover { color: var(--text-primary); background: var(--bg-overlay-strong); }
 
 .nav-btn {
   background: transparent;
