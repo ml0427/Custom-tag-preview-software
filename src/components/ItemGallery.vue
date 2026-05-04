@@ -265,10 +265,9 @@ const handleDelete = async (fileItem: FileItem) => {
   }
 };
 
-const handleRenamed = (updated: Item) => {
+const handleRenamed = async (updated: Item) => {
   selectedItem.value = updated;
-  const idx = itemsData.value.findIndex(i => i.id === updated.id);
-  if (idx !== -1) itemsData.value[idx] = updated;
+  await loadAll();
 };
 
 // View mode

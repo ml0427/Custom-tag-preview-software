@@ -277,13 +277,30 @@ pub async fn rename_item(id: i64, name: String, pool: State<'_, SqlitePool>) -> 
     fs::rename(old_path, &new_path)
         .map_err(|e| format!("Failed to rename file: {}", e))?;
 
+    let new_path_str = new_path.to_string_lossy().to_string();
+
     sqlx::query("UPDATE items SET name = ?, path = ? WHERE id = ?")
         .bind(&name)
-        .bind(new_path.to_string_lossy().to_string())
+        .bind(&new_path_str)
         .bind(id)
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    // 若重新命名的是資料夾，同步更新所有子項目的路徑前綴
+    if extension.is_empty() {
+        let old_prefix = format!("{}\\", old_path_str);
+        let new_prefix = format!("{}\\", new_path_str);
+        sqlx::query(
+            "UPDATE items SET path = ? || SUBSTR(path, ? + 1) WHERE path LIKE ?",
+        )
+        .bind(&new_prefix)
+        .bind(old_prefix.len() as i64)
+        .bind(format!("{}%", old_prefix))
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
 
     get_item(id, pool).await
 }
