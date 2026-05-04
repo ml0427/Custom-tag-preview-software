@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
 import { useContextMenu } from '../composables/useContextMenu';
+import { useThumbnailLoader } from '../composables/useThumbnailLoader';
+import ThumbnailCard from './ThumbnailCard.vue';
 
 const props = defineProps<{
   items: FileItem[];
@@ -21,8 +23,14 @@ const emit = defineEmits<{
   (e: 'delete', item: FileItem): void;
 }>();
 
-const { getTypeConfig, getTypeByExtension, itemTypes } = useItemTypes();
+const { itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
+const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
+const {
+  onImgError, getCoverUrl, showCover, getIcon, getItemType, getTypeColor
+} = useThumbnailLoader();
+
+const cardRefs = ref<Record<string, any>>({});
 
 const applyRulesForFolder = async (item: FileItem) => {
   hideContextMenu();
@@ -36,91 +44,13 @@ const applyRulesForFolder = async (item: FileItem) => {
   } catch (e) { showToast('套用失敗: ' + String(e), 'error'); }
 };
 
-const failedImages = ref(new Set<string>());
-const onImgError = (path: string) => {
-  failedImages.value = new Set(failedImages.value).add(path);
-};
-
-const getCoverUrl = (item: FileItem): string | null => {
-  if (item.isDir) return null;
-  const dbItem = props.itemByPath.get(item.path);
-  if (!dbItem) return null;
-  return `comic-cache://localhost/${dbItem.id}.jpg`;
-};
-
-const showCover = (item: FileItem): boolean => {
-  const url = getCoverUrl(item);
-  return !!url && !failedImages.value.has(item.path);
-};
-
-const getIcon = (item: FileItem): string => {
-  if (item.isDir) {
-    const ft = props.itemByPath.get(item.path)?.category;
-    return getTypeConfig(ft).icon;
-  }
-  const ext = item.extension?.toLowerCase() ?? '';
-  const matched = getTypeByExtension(ext);
-  if (matched) return matched.icon;
-  if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return '🖼️';
-  if (['mp4','mkv','avi','mov','wmv'].includes(ext)) return '🎬';
-  if (ext === 'pdf') return '📄';
-  if (['mp3','flac','wav','ogg'].includes(ext)) return '🎵';
-  if (ext === 'exe') return '⚙️';
-  if (['txt','md'].includes(ext)) return '📝';
-  return '📄';
-};
-
-const getItemType = (item: FileItem): string => {
-  if (item.isDir) {
-    const dbItem = props.itemByPath.get(item.path);
-    if (dbItem) return getTypeConfig(dbItem.category).displayName;
-    return '目錄';
-  }
-  return item.extension?.toUpperCase() ?? '—';
-};
-
-const getTypeColor = (item: FileItem): string | null => {
-  if (!item.isDir) return null;
-  const dbItem = props.itemByPath.get(item.path);
-  return getTypeConfig(dbItem?.category).color ?? null;
-};
-
-const getItemTags = (item: FileItem) => props.itemByPath.get(item.path)?.tags ?? [];
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
 const isSelected = (item: FileItem) => selectedSet.value.has(item.path) || item.path === props.selectedItemPath;
 
-// Highlight search
-const highlightText = (text: string): string => {
-  const q = props.searchQuery?.trim();
-  if (!q) return text;
-  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
-};
-
-// Inline rename
-const editingPath = ref<string | null>(null);
-const editName = ref('');
-
-const startRenameForItem = (item: FileItem) => {
-  editingPath.value = item.path;
-  editName.value = item.name;
-  nextTick(() => {
-    document.querySelector<HTMLInputElement>('.grid-rename-input')?.focus();
-  });
-};
-const commitRename = (item: FileItem) => {
-  const n = editName.value.trim();
-  if (n && n !== item.name) emit('rename', item, n);
-  editingPath.value = null;
-};
-const cancelRename = () => { editingPath.value = null; };
-
-// Context menu
-const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
-
 const startRenameCtx = () => {
-  if (!contextMenu.value.item) return;
-  startRenameForItem(contextMenu.value.item);
+  const item = contextMenu.value.item;
+  if (!item) return;
+  cardRefs.value[item.path]?.startRename();
   hideContextMenu();
 };
 </script>
@@ -128,51 +58,25 @@ const startRenameCtx = () => {
 <template>
   <div class="thumb-grid-outer">
     <div class="thumb-grid">
-      <div
+      <ThumbnailCard
         v-for="item in items"
         :key="item.path"
-        class="thumb-card"
-        :class="{ selected: isSelected(item) }"
+        :ref="el => { if (el) cardRefs[item.path] = el }"
+        :item="item"
+        :dbItem="itemByPath.get(item.path)"
+        :isSelected="isSelected(item)"
+        :coverUrl="getCoverUrl(item, itemByPath)"
+        :showCover="showCover(item, itemByPath)"
+        :icon="getIcon(item, itemByPath)"
+        :typeLabel="getItemType(item, itemByPath)"
+        :typeColor="getTypeColor(item, itemByPath)"
+        :searchQuery="searchQuery"
         @click="emit('click', item, $event)"
         @dblclick="emit('dblclick', item)"
-        @contextmenu.prevent="showContextMenu($event, item)"
-      >
-        <div class="thumb-cover">
-          <img
-            v-if="showCover(item)"
-            :src="getCoverUrl(item)!"
-            :alt="item.name"
-            class="thumb-img"
-            @error="onImgError(item.path)"
-          />
-          <div v-else class="thumb-icon-placeholder">
-            <span class="thumb-icon">{{ getIcon(item) }}</span>
-          </div>
-          <div v-if="getTypeColor(item)" class="thumb-color-bar" :style="{ background: getTypeColor(item)! }"></div>
-        </div>
-
-        <div class="thumb-info">
-          <div v-if="editingPath === item.path" class="thumb-rename-wrap">
-            <input
-              v-model="editName"
-              class="grid-rename-input"
-              @keyup.enter="commitRename(item)"
-              @keyup.escape="cancelRename"
-              @blur="cancelRename"
-              @click.stop
-            />
-          </div>
-          <div v-else class="thumb-name" :title="item.name" v-html="highlightText(item.name)"></div>
-
-          <div class="thumb-meta">
-            <span class="thumb-type">{{ getItemType(item) }}</span>
-            <div class="thumb-tags" v-if="getItemTags(item).length > 0">
-              <span v-for="tag in getItemTags(item).slice(0, 2)" :key="tag.id" class="mini-tag">{{ tag.name }}</span>
-              <span v-if="getItemTags(item).length > 2" class="tag-more">+{{ getItemTags(item).length - 2 }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+        @contextmenu="showContextMenu($event, item)"
+        @rename="emit('rename', item, $event)"
+        @imgError="onImgError(item.path)"
+      />
     </div>
   </div>
 
@@ -223,128 +127,6 @@ const startRenameCtx = () => {
   gap: 12px;
 }
 
-.thumb-card {
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  overflow: hidden;
-  cursor: default;
-  transition: background 0.2s, border-color 0.2s, transform 0.15s;
-  display: flex;
-  flex-direction: column;
-}
-
-.thumb-card:hover {
-  background: var(--bg-overlay-strong);
-  border-color: var(--border-default);
-  transform: translateY(-2px);
-}
-
-.thumb-card.selected {
-  background: var(--accent-bg-subtle) !important;
-  border-color: var(--accent) !important;
-}
-
-.thumb-cover {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 3 / 4;
-  background: var(--bg-image-placeholder);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.thumb-icon-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.thumb-icon { font-size: 3rem; }
-
-.thumb-color-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 4px;
-  height: 100%;
-}
-
-.thumb-info {
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex: 1;
-}
-
-.thumb-name {
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.35;
-  word-break: break-all;
-}
-
-.thumb-meta {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.thumb-type {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  background: var(--bg-overlay-soft);
-  padding: 1px 5px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-
-.thumb-tags { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; overflow: hidden; }
-
-.mini-tag {
-  background: var(--accent-bg-subtle);
-  border: 1px solid var(--accent);
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
-  font-size: 0.68rem;
-  color: var(--accent-hover);
-  white-space: nowrap;
-  max-width: 70px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tag-more { font-size: 0.68rem; color: var(--text-tertiary); flex-shrink: 0; }
-
-.thumb-rename-wrap { padding: 2px 0; }
-.grid-rename-input {
-  width: 100%;
-  background: var(--bg-overlay-strong);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 0.82rem;
-  padding: 2px 6px;
-  outline: none;
-  box-sizing: border-box;
-}
-
 .context-menu {
   position: fixed;
   z-index: 9999;
@@ -372,11 +154,4 @@ const startRenameCtx = () => {
 .ctx-divider { height: 1px; background: var(--border-default); margin: 3px 4px; }
 .ctx-danger { color: var(--color-danger); }
 .ctx-danger:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); }
-
-:deep(mark) {
-  background: var(--color-warning);
-  color: var(--text-primary);
-  border-radius: 2px;
-  padding: 0 1px;
-}
 </style>

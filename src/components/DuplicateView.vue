@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { api, type Item } from '../api';
-import { useToast } from '../composables/useToast';
+import { useDuplicateScanner } from '../composables/useDuplicateScanner';
 
-interface DuplicateGroup { fingerprint: string; items: Item[] }
+const {
+  groups, isLoading, isComputing, progress,
+  loadGroups, runCompute, trashItemInGroup, keepNewestInGroup
+} = useDuplicateScanner();
 
-const { show: showToast, confirm: confirmDialog } = useToast();
-const groups = ref<DuplicateGroup[]>([]);
-const isLoading = ref(false);
-const isComputing = ref(false);
-const progress = ref({ current: 0, total: 0 });
 let unlisten: UnlistenFn | null = null;
 
 const formatSize = (bytes: number | null) => {
@@ -24,57 +21,6 @@ const formatSize = (bytes: number | null) => {
 const formatDate = (unix: number | null) => {
     if (!unix) return '-';
     return new Date(unix * 1000).toLocaleDateString('zh-TW');
-};
-
-const loadGroups = async () => {
-    isLoading.value = true;
-    try {
-        groups.value = await api.getDuplicateGroups();
-    } catch (e) {
-        showToast('載入失敗: ' + String(e), 'error');
-    } finally {
-        isLoading.value = false;
-    }
-};
-
-const runCompute = async () => {
-    isComputing.value = true;
-    progress.value = { current: 0, total: 0 };
-    try {
-        const count = await api.computeFingerprints();
-        showToast(`已計算 ${count} 個項目的指紋`, 'success');
-        await loadGroups();
-    } catch (e) {
-        showToast('計算失敗: ' + String(e), 'error');
-    } finally {
-        isComputing.value = false;
-    }
-};
-
-const trashItem = async (item: Item, gi: number) => {
-    if (!await confirmDialog(`確定將「${item.name}」移至資源回收筒？`)) return;
-    try {
-        await api.trashItem(item.path);
-        groups.value[gi].items = groups.value[gi].items.filter(i => i.id !== item.id);
-        if (groups.value[gi].items.length < 2) groups.value.splice(gi, 1);
-        showToast('已移至資源回收筒', 'success');
-    } catch (e) {
-        showToast('刪除失敗: ' + String(e), 'error');
-    }
-};
-
-const keepNewest = async (gi: number) => {
-    const group = groups.value[gi];
-    // items sorted by import_at ASC → last is newest
-    const toDelete = group.items.slice(0, -1);
-    if (!await confirmDialog(`將保留最新版本，刪除另外 ${toDelete.length} 個重複項目？`)) return;
-    for (const item of toDelete) {
-        try {
-            await api.trashItem(item.path);
-        } catch { /* continue */ }
-    }
-    groups.value.splice(gi, 1);
-    showToast(`已刪除 ${toDelete.length} 個重複項目`, 'success');
 };
 
 onMounted(async () => {
@@ -124,7 +70,7 @@ onUnmounted(() => { unlisten?.(); });
                             <span class="group-fp">{{ group.fingerprint.slice(0, 12) }}…</span>
                             <span class="group-size">{{ formatSize(group.items[0].fileSize) }}</span>
                         </div>
-                        <button class="keep-btn" @click="keepNewest(gi)" title="保留最新，刪除其餘">
+                        <button class="keep-btn" @click="keepNewestInGroup(gi)" title="保留最新，刪除其餘">
                             保留最新
                         </button>
                     </div>
@@ -136,7 +82,7 @@ onUnmounted(() => { unlisten?.(); });
                                 <span class="item-path">{{ item.path }}</span>
                                 <span class="item-date">匯入：{{ formatDate(item.fileModifiedAt) }}</span>
                             </div>
-                            <button class="trash-btn" @click="trashItem(item, gi)" title="移至資源回收筒">
+                            <button class="trash-btn" @click="trashItemInGroup(item, gi)" title="移至資源回收筒">
                                 🗑
                             </button>
                         </div>

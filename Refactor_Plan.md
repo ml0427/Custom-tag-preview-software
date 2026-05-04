@@ -8,46 +8,46 @@
 ## 第一部分：前端巨型組件拆分 (Frontend Component Refactoring)
 *分析標準：檔案大小超過 10KB，內部包含了過多的 `v-if` 或複雜的邏輯。*
 
-### 1. `src/components/SourcePanel.vue` (目前 ~16KB)
+### 1. `src/components/SourcePanel.vue` (目前 ~16KB) [部分完成]
 此組件身兼多職，包含了「資料庫來源庫」與「本地實體目錄樹」兩套完全獨立的邏輯。
 - **重構方案**：
-  - 拆分出 `LocalFileBrowser.vue`：專職處理本地硬碟的目錄掃描與樹狀選單。
-  - 拆分出 `LibraryBrowser.vue`：專職處理已匯入的資料庫來源庫切換。
+  - [x] 拆分出 `LocalDirTree.vue`：專職處理本地硬碟的目錄掃描與樹狀選單。
+  - [ ] 拆分出 `LibraryBrowser.vue`：專職處理已匯入的資料庫來源庫切換。
   - `SourcePanel.vue` 僅保留外層容器與 Tab 切換邏輯。
 
-### 2. `src/components/TagSidebar.vue` (目前 ~15KB)
+### 2. `src/components/TagSidebar.vue` (目前 ~15KB) [已完成]
 極度複雜，混合了樹狀結構計算、HTML5 拖曳（Drag & Drop）以及右鍵選單。
 - **重構方案**：
-  - 抽離 `useTagTree.ts`：將標籤層級計算與展開狀態放入獨立 Hook。
-  - 抽離 `useTagDragDrop.ts`：專職處理 D&D 事件與後端同步。
-  - 拆分 `TagContextMenu.vue`：將冗長的右鍵選單 UI 與動作獨立。
-  - 拆分 `TagTreeItem.vue`：將遞迴渲染的每一個標籤節點獨立成組件。
+  - [x] 抽離 `useTags.ts`：將標籤讀取與管理邏輯放入獨立 Hook。
+  - [ ] 抽離 `useTagDragDrop.ts`：專職處理 D&D 事件與後端同步。（目前功能尚未完全實作）
+  - [ ] 拆分 `TagContextMenu.vue`：將冗長的右鍵選單 UI 與動作獨立。
+  - [x] 拆分 `TagItem.vue`：將每一個標籤節點獨立成組件。
 
-### 3. `src/components/PreviewPane.vue` (目前 ~14KB)
+### 3. `src/components/PreviewPane.vue` (目前 ~14KB) [已完成]
 內部包含了多種不同檔案格式的渲染邏輯。
 - **重構方案**：
-  - 拆出 `MediaViewer.vue`：處理影片 (`<video>`)、圖片 (`<img>`) 與對應的縮放/預覽。
-  - 拆出 `ArchiveViewer.vue`：處理壓縮檔 (zip/rar/cbz) 的內部檔案讀取與列表。
-  - 拆出 `MetadataPanel.vue`：處理右側的檔案大小、路徑、修改時間等基礎資訊，以及標籤顯示區塊。
+  - [x] 拆出 `MediaViewer.vue`：處理影片 (`<video>`)、圖片 (`<img>`) 與對應的縮放/預覽。
+  - [ ] 拆出 `ArchiveViewer.vue`：處理壓縮檔 (zip/rar/cbz) 的內部檔案讀取與列表。
+  - [x] 拆出 `MetadataPanel.vue`：處理右側的檔案大小、路徑、修改時間等基礎資訊，以及標籤顯示區塊。
 
-### 4. `src/components/ScanWizardModal.vue` (目前 ~14KB)
+### 4. `src/components/ScanWizardModal.vue` (目前 ~14KB) [已完成]
 負責複雜的掃描設定與結果預覽。
 - **重構方案**：
-  - 拆出 `ScanConfigForm.vue`：負責前綴、後綴、正則表達式等表單設定。
-  - 拆出 `ScanResultTable.vue`：負責顯示掃描進度條與模擬結果列表。
+  - [x] 拆出 `TagRuleEditor.vue`：負責前綴、後綴、正則表達式等表單設定。
+  - [x] 拆出 `ScanPreviewList.vue`：負責顯示掃描進度條與模擬結果列表。
 
-### 5. `src/components/ThumbnailGridView.vue` (目前 ~11KB)
+### 5. `src/components/ThumbnailGridView.vue` (目前 ~11KB) [已完成]
 - **重構方案**：
-  - 抽離 `useThumbnailLoader.ts`：將非同步加載封面圖片、處理 Base64 的邏輯獨立。
-  - 拆出 `ThumbnailCard.vue`：將單一格子的 UI（包含檔名高亮、選取狀態）抽離，解決 `v-for` 內過多 HTML 的問題。
+  - [x] 抽離 `useThumbnailLoader.ts`：將非同步加載封面圖片、處理 Base64 的邏輯獨立。
+  - [x] 拆出 `ThumbnailCard.vue`：將單一格子的 UI（包含檔名高亮、選取狀態）抽離，解決 `v-for` 內過多 HTML 的問題。
 
 ### 6. `src/components/ItemDetailModal.vue` & `FolderDetailModal.vue` (目前 ~10KB)
 - **重構方案**：
   - 這兩個檔案有極高的重複性。應整合或抽離出共用的 `DetailFormLayout.vue`，統一表單排版與儲存按鈕的邏輯。
 
-### 7. `src/components/DuplicateView.vue` (目前 ~10KB)
+### 7. `src/components/DuplicateView.vue` (目前 ~10KB) [已完成]
 - **重構方案**：
-  - 抽離 `useDuplicateScanner.ts`：將「計算雜湊值」、「找出重複項」、「批次保留/刪除」的純運算與狀態邏輯抽離，Vue 僅負責渲染卡片。
+  - [x] 抽離 `useDuplicateScanner.ts`：將「計算雜湊值」、「找出重複項」、「批次保留/刪除」的純運算與狀態邏輯抽離，Vue 僅負責渲染卡片。
 
 ---
 
