@@ -370,17 +370,21 @@ onMounted(() => {
 }
 
 .panel-header {
-  padding: 20px 16px 12px;
-  border-bottom: 1px solid var(--border-default);
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .panel-header h2 {
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-secondary);
-  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-tertiary);
+  font-weight: 500;
 }
 
 .tree-area {
@@ -474,35 +478,33 @@ onMounted(() => {
 
 .btn-add, .btn-manage, .btn-scan {
   width: 100%;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 0.88rem;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
   font-weight: 500;
-  transition: all 0.15s;
+  font-family: var(--font-mono);
+  transition: background var(--transition-fast), color var(--transition-fast);
   cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--border-default);
 }
 
 .btn-scan {
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--color-success);
   color: var(--color-success);
+  border-color: var(--color-success);
 }
-.btn-scan:disabled { opacity: 0.35; cursor: not-allowed; }
-.btn-scan:hover:not(:disabled) { background: var(--bg-overlay-strong); }
+.btn-scan:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-scan:hover:not(:disabled) { background: var(--bg-overlay-soft); }
 
 .btn-add {
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-}
-.btn-add:hover { background: var(--bg-overlay-strong); }
-
-.btn-manage {
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
   color: var(--text-secondary);
 }
-.btn-manage:hover { background: var(--bg-overlay-strong); color: var(--text-primary); }
+.btn-add:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
+
+.btn-manage {
+  color: var(--text-tertiary);
+}
+.btn-manage:hover { background: var(--bg-overlay-soft); color: var(--text-secondary); }
 
 
 .tree-area::-webkit-scrollbar { width: 4px; }

@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, inject, watch } from 'vue';
-import { api, type Folder } from '../api';
-import { useItemTypes } from '../composables/useItemTypes';
+import { ref, watch } from 'vue';
+import { api } from '../api';
 
 const props = defineProps<{
   path: string;
@@ -20,16 +19,7 @@ const expanded = ref(false);
 const children = ref<string[]>([]);
 const loaded = ref(false);
 const loading = ref(false);
-const hasChildren = ref<boolean | null>(null); // null = 未知
-
-const folderByPath = inject<{ value: Map<string, Folder> }>('folderByPath', { value: new Map() });
-const { getTypeConfig } = useItemTypes();
-
-const nodeIcon = computed(() => {
-  if (props.isRoot) return '📂';
-  const ft = folderByPath.value.get(props.path)?.category;
-  return getTypeConfig(ft).icon;
-});
+const hasChildren = ref<boolean | null>(null);
 
 const getLabel = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
 
@@ -56,7 +46,6 @@ const toggle = async () => {
   }
 };
 
-// Auto-expand when selectedPath is a descendant of this node
 watch(() => props.selectedPath, async (newPath) => {
   if (!newPath || expanded.value) return;
   const selfNorm = props.path.replace(/\\/g, '/');
@@ -74,7 +63,6 @@ const handleClick = () => {
 const onContextMenu = (e: MouseEvent) => {
   emit('contextmenu', { path: props.path, x: e.clientX, y: e.clientY });
 };
-
 </script>
 
 <template>
@@ -85,14 +73,27 @@ const onContextMenu = (e: MouseEvent) => {
       @click="handleClick"
       @contextmenu.prevent="onContextMenu"
     >
+      <!-- Chevron arrow -->
       <span
         class="arrow"
         :class="{ expanded, invisible: hasChildren === false }"
         @click.stop="toggle"
       >
-        {{ loading ? '⏳' : '▶' }}
+        <svg v-if="!loading" viewBox="0 0 24 24">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" class="spin">
+          <circle cx="12" cy="12" r="9" stroke-dasharray="28 56"/>
+        </svg>
       </span>
-      <span class="node-icon">{{ nodeIcon }}</span>
+
+      <!-- Folder SVG icon -->
+      <span class="node-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 9a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"/>
+        </svg>
+      </span>
+
       <span class="node-label" :title="path">{{ label }}</span>
     </div>
 
@@ -119,54 +120,104 @@ const onContextMenu = (e: MouseEvent) => {
 .node-row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 8px;
-  padding-left: calc(8px + var(--depth) * 14px);
-  border-radius: 6px;
+  gap: 4px;
+  padding: 4px 10px;
+  padding-left: calc(10px + var(--depth) * 14px);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
   user-select: none;
+  position: relative;
 }
 
 .node-row:hover { background: var(--bg-overlay-soft); }
 
 .node-row.active {
   background: var(--accent-bg-subtle);
-  color: var(--accent-hover);
-  border-left: 3px solid var(--accent);
-  padding-left: calc(5px + var(--depth) * 14px);
 }
 
-.node-row.root {
+.node-row.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+
+.node-row.active .node-label { color: var(--accent); }
+
+.node-row.root .node-label {
   font-weight: 500;
   color: var(--text-primary);
 }
 
 .arrow {
   width: 14px;
-  font-size: 0.6rem;
+  height: 14px;
   flex-shrink: 0;
-  text-align: center;
-  transition: transform 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  opacity: 0.6;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-fast);
 }
 
-.arrow.expanded { transform: rotate(90deg); }
+.arrow svg {
+  width: 11px;
+  height: 11px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.arrow.expanded svg { transform: rotate(90deg); }
 .arrow.invisible { opacity: 0; pointer-events: none; }
 
-.node-icon { font-size: 0.9rem; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }
+
+.node-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+  opacity: 0.65;
+}
+
+.node-icon svg {
+  width: 11px;
+  height: 11px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 .node-label {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-jp);
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .children {
   width: 100%;
+}
+
+/* used by SourcePanel to insert dividers between source roots */
+.tree-sep {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 6px 10px;
 }
 </style>
