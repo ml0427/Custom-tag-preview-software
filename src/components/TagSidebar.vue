@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { api, type Tag } from '../api';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useToast } from '../composables/useToast';
 import { useTags } from '../composables/useTags';
 import TagItem from './TagItem.vue';
@@ -64,20 +63,13 @@ const handleGlobalClick = (e: MouseEvent) => {
   }
 };
 
-let unlistenFns: UnlistenFn[] = [];
-
-onMounted(async () => {
+onMounted(() => {
   loadTags();
   document.addEventListener('click', handleGlobalClick);
-  unlistenFns.push(await listen('menu-new-tag', async () => {
-    const name = prompt('請輸入新標籤名稱：');
-    if (name?.trim()) await createTag(name.trim());
-  }));
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleGlobalClick);
-  unlistenFns.forEach(fn => fn());
 });
 </script>
 

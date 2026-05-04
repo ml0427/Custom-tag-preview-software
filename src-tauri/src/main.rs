@@ -7,8 +7,7 @@ mod commands;
 mod scanner;
 mod zip_utils;
 
-use tauri::{Manager, Emitter};
-use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
+use tauri::Manager;
 
 fn main() {
     tauri::Builder::default()
@@ -50,21 +49,6 @@ fn main() {
             });
 
             app.manage(pool);
-
-            let menu = Menu::with_items(app, &[
-                &Submenu::with_items(app, "標籤", true, &[
-                    &MenuItem::with_id(app, "new-tag", "新增標籤", true, None::<&str>)?,
-                    &PredefinedMenuItem::separator(app)?,
-                ])?,
-            ])?;
-            app.set_menu(menu)?;
-
-            app.on_menu_event(|app, event| {
-                match event.id().as_ref() {
-                    "new-tag" => { let _ = app.emit("menu-new-tag", ()); }
-                    _ => {}
-                }
-            });
 
             Ok(())
         })
