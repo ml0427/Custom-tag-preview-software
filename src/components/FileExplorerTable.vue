@@ -160,22 +160,51 @@ watch(() => props.selectedItemPath, () => {
 });
 
 // 當 items 改變時，重新測量高度並將滾動歸零
-watch(() => props.items, () => {
+watch(() => props.items, (newVal) => {
+  if (!newVal) return;
   scrollTop.value = 0;
   if (outerRef.value) outerRef.value.scrollTop = 0;
-  nextTick(() => {
+  
+  // 多層級確保高度被正確捕捉
+  const measure = () => {
     if (outerRef.value) {
-      containerHeight.value = outerRef.value.clientHeight;
+      const h = outerRef.value.clientHeight;
+      if (h > 0) containerHeight.value = h;
     }
+  };
+  
+  measure();
+  nextTick(measure);
+  requestAnimationFrame(measure);
+}, { immediate: true, deep: false });
+
+// 必須放在最上面，否則下方的 virtual scroll 與 watch 會引發 ReferenceError (TDZ)
+const sortedItems = computed(() => {
+  return [...props.items].sort((a, b) => {
+    let cmp = 0;
+    if (props.sortBy === 'name') {
+      cmp = (a.name || '').localeCompare(b.name || '', 'zh-TW', { sensitivity: 'base' });
+    } else if (props.sortBy === 'size') {
+      cmp = (a.fileSize ?? 0) - (b.fileSize ?? 0);
+    } else if (props.sortBy === 'date') {
+      cmp = (a.modifiedTime ?? '').localeCompare(b.modifiedTime ?? '');
+    }
+    return props.sortDir === 'asc' ? cmp : -cmp;
   });
-}, { deep: false });
+});
 
 // Virtual scroll
 const visibleStart = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - BUFFER));
-const visibleEnd = computed(() => Math.min(
-  sortedItems.value.length,
-  Math.ceil((scrollTop.value + containerHeight.value) / ROW_HEIGHT) + BUFFER
-));
+const visibleEnd = computed(() => {
+  const len = sortedItems.value.length;
+  if (containerHeight.value <= 0) return Math.min(len, 30); // 初始沒量到高度時先顯示 30 筆
+  return Math.min(
+    len,
+    Math.ceil((scrollTop.value + containerHeight.value) / ROW_HEIGHT) + BUFFER
+  );
+});
+
+
 const visibleItems = computed(() => sortedItems.value.slice(visibleStart.value, visibleEnd.value));
 const topSpacerHeight = computed(() => visibleStart.value * ROW_HEIGHT);
 const bottomSpacerHeight = computed(() => (sortedItems.value.length - visibleEnd.value) * ROW_HEIGHT);
@@ -259,19 +288,6 @@ const highlightText = (text: string | null | undefined): string => {
   return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
 };
 
-const sortedItems = computed(() => {
-  return [...props.items].sort((a, b) => {
-    let cmp = 0;
-    if (props.sortBy === 'name') {
-      cmp = (a.name || '').localeCompare(b.name || '', 'zh-TW', { sensitivity: 'base' });
-    } else if (props.sortBy === 'size') {
-      cmp = (a.fileSize ?? 0) - (b.fileSize ?? 0);
-    } else if (props.sortBy === 'date') {
-      cmp = (a.modifiedTime ?? '').localeCompare(b.modifiedTime ?? '');
-    }
-    return props.sortDir === 'asc' ? cmp : -cmp;
-  });
-});
 
 const sortIcon = (col: string) => {
   if (props.sortBy !== col) return '';
@@ -282,7 +298,7 @@ const sortIcon = (col: string) => {
 <template>
   <div class="vscroll-outer" ref="outerRef" tabindex="0">
     <table class="comic-table">
-      <thead>
+      <thead class="sticky-header">
         <tr>
           <th class="col-thumb"></th>
           <th class="col-name sortable" @click="emit('sort', 'name')">
@@ -396,10 +412,11 @@ const sortIcon = (col: string) => {
 <style scoped>
 .vscroll-outer {
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  height: 100%; /* 改用 100% 配合父層 flex */
   overflow-y: auto;
   outline: none;
+  background: var(--bg-panel);
+  position: relative;
 }
 
 .vscroll-outer::-webkit-scrollbar { width: 4px; }
@@ -419,16 +436,21 @@ const sortIcon = (col: string) => {
   position: sticky;
   top: 0;
   background: var(--bg-panel);
-  z-index: 10;
-  padding: 8px 12px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
+  padding: 12px 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  border-bottom: 1px solid var(--border-subtle);
-  white-space: nowrap;
+  letter-spacing: 0.05em;
+  z-index: 30;
+  border-bottom: 1px solid var(--border-strong);
+  user-select: none;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 .comic-table th.sortable { cursor: pointer; user-select: none; }
 .comic-table th.sortable:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }

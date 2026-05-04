@@ -37,18 +37,20 @@ const filteredFileItems = computed(() => {
   // Tag mode (any): use backend-filtered itemsData converted to FileItem
   // No-tag source mode: use raw filesystem listing
   const base: FileItem[] = ((props.selectedTagIds?.length ?? 0) > 0)
-    ? itemsData.value.map(item => ({
-        name: item.name,
-        path: item.path,
-        isDir: item.itemType === 'folder',
-        fileSize: item.fileSize,
-        modifiedTime: item.fileModifiedAt
-          ? new Date(item.fileModifiedAt * 1000).toLocaleDateString('zh-TW')
-          : null,
-        extension: item.itemType === 'file'
-          ? item.path.split('.').pop()?.toLowerCase() ?? null
-          : null,
-      }))
+    ? itemsData.value.map(item => {
+        const ext = item.itemType === 'folder' ? '' : item.path.split('.').pop() || '';
+        const mtime = item.fileModifiedAt
+          ? new Date(item.fileModifiedAt * 1000).toISOString().replace('T', ' ').slice(0, 16)
+          : '';
+        return {
+          name: item.name,
+          path: item.path,
+          isDir: item.itemType === 'folder',
+          fileSize: item.fileSize,
+          modifiedTime: mtime,
+          extension: ext,
+        };
+      })
     : fileItems.value;
 
   let items = base;
@@ -486,6 +488,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
         <FileExplorerTable
           v-else-if="viewMode === 'list'"
+          :key="'list-' + props.sourcePath + '-' + (props.selectedTagIds || []).join(',')"
           :items="filteredFileItems"
           :itemByPath="itemByPath"
           :selectedItemPath="selectedFileItemPath"
