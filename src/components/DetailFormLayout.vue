@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-content glass-panel">
+    <div class="modal-content">
       <button v-if="showClose !== false" class="close-btn" @click="emit('close')">✖</button>
       
       <div class="modal-body">
@@ -55,6 +55,9 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
 }
 
 @keyframes slideUp {

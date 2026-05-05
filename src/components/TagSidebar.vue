@@ -152,11 +152,12 @@ onUnmounted(() => {
 }
 
 .panel-header h2 {
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-secondary);
-  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-tertiary);
+  font-weight: 500;
 }
 
 .search-box {
@@ -202,6 +203,7 @@ onUnmounted(() => {
   font-size: 0.85rem;
   outline: none;
   transition: border-color 0.2s;
+  font-family: var(--font-mono);
 }
 
 .search-input::placeholder { color: var(--text-secondary); }
@@ -210,7 +212,7 @@ onUnmounted(() => {
 .all-item {
   margin: 0 12px 6px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
@@ -237,7 +239,7 @@ onUnmounted(() => {
   gap: 2px;
 }
 
-.tag-list::-webkit-scrollbar { width: 8px; }
+.tag-list::-webkit-scrollbar { width: 4px; }
 .tag-list::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
 
 .panel-footer {
@@ -249,7 +251,7 @@ onUnmounted(() => {
 .btn-add-tag {
   width: 100%;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-weight: 500;
   background: var(--bg-overlay-soft);

@@ -101,18 +101,17 @@ const tags = props.dbItem?.tags ?? [];
 .thumb-card {
   background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   cursor: default;
-  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  transition: background 0.2s, border-color 0.2s;
   display: flex;
   flex-direction: column;
 }
 
 .thumb-card:hover {
-  background: var(--bg-overlay-strong);
-  border-color: var(--border-default);
-  transform: translateY(-2px);
+  background: var(--accent-bg-subtle);
+  border-color: var(--accent);
 }
 
 .thumb-card.selected {
@@ -142,6 +141,7 @@ const tags = props.dbItem?.tags ?? [];
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--bg-elevated);
 }
 
 .thumb-icon { font-size: 3rem; }
@@ -193,16 +193,30 @@ const tags = props.dbItem?.tags ?? [];
 .thumb-tags { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; overflow: hidden; }
 
 .mini-tag {
-  background: var(--accent-bg-subtle);
-  border: 1px solid var(--accent);
-  padding: 1px 5px;
+  font-family: var(--font-jp);
+  font-size: 10px;
+  padding: 1px 5px 2px;
   border-radius: var(--radius-sm);
-  font-size: 0.68rem;
-  color: var(--accent-hover);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   white-space: nowrap;
   max-width: 70px;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+}
+
+.mini-tag::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+  flex-shrink: 0;
 }
 
 .tag-more { font-size: 0.68rem; color: var(--text-tertiary); flex-shrink: 0; }

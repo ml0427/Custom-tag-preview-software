@@ -134,14 +134,15 @@ watch(() => props.item, (item) => {
   width: 100%;
   max-height: 300px;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-image-placeholder);
   box-shadow: var(--shadow-modal);
   flex-shrink: 0;
   cursor: zoom-in;
-  transition: opacity 0.15s;
+  transition: opacity var(--transition-fast), border var(--transition-fast);
+  border: 2px solid transparent;
 }
-.large-cover:hover { opacity: 0.85; }
+.large-cover:hover { border-color: var(--accent); opacity: 1; }
 
 .cover-zoom-overlay {
   position: fixed;
@@ -189,6 +190,11 @@ watch(() => props.item, (item) => {
 }
 
 .image-preview-section h3 {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-default);

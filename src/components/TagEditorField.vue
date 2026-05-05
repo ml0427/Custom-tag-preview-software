@@ -50,7 +50,14 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-.tag-editor h3 { font-size: 1rem; margin-bottom: 10px; color: var(--accent-hover); }
+.tag-editor h3 {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+}
 
 .current-tags {
   display: flex;
@@ -60,15 +67,17 @@ const emit = defineEmits<{
 }
 
 .edit-tag {
-  background: var(--accent-bg-subtle);
-  border: 1px solid var(--accent);
-  color: var(--text-on-accent);
-  padding: 4px 10px;
-  border-radius: 15px;
-  font-size: 0.85rem;
-  display: flex;
+  font-family: var(--font-jp);
+  font-size: 10px;
+  padding: 1px 6px 2px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  white-space: nowrap;
 }
 
 .edit-tag .remove { cursor: pointer; color: var(--color-danger); font-weight: bold; }
@@ -82,9 +91,10 @@ const emit = defineEmits<{
   background: var(--bg-input);
   color: var(--text-primary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   outline: none;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
   box-sizing: border-box;
   transition: border-color 0.2s;
 }
@@ -96,7 +106,7 @@ const emit = defineEmits<{
   left: 0; right: 0;
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   list-style: none;
   padding: 4px 0;
   z-index: 200;

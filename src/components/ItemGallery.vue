@@ -671,7 +671,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   border: 1px solid var(--border-default);
   color: var(--text-primary);
   padding: 5px 14px;
-  border-radius: 20px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.85rem;
   transition: all 0.2s;
@@ -689,7 +689,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   transform: translateX(-50%);
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   width: 220px;
   box-shadow: var(--shadow-popover);
   padding: 8px;
@@ -700,7 +700,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .tag-picker-input {
   background: var(--bg-panel);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   padding: 6px 10px;
   font-size: 0.85rem;
