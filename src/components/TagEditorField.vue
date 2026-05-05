@@ -96,7 +96,7 @@ const emit = defineEmits<{
   font-size: 0.85rem;
   font-family: var(--font-mono);
   box-sizing: border-box;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-base);
 }
 .tag-text-input:focus { border-color: var(--accent); }
 

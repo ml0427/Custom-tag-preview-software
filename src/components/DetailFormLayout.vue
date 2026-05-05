@@ -58,6 +58,7 @@ const emit = defineEmits<{
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
 }
 
 @keyframes slideUp {

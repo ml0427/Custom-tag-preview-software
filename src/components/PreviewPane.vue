@@ -247,4 +247,17 @@ const formatDate = (unix: number | null) => {
     background: var(--accent-bg-strong);
 }
 
+.btn-open {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg-app);
+    font-weight: 600;
+}
+
+.btn-open:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--bg-app);
+}
+
 </style>

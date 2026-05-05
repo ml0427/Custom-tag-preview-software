@@ -48,8 +48,8 @@ const COLOR_PRESETS = [
 }
 
 .color-swatch {
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid transparent;
