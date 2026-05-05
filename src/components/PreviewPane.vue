@@ -211,34 +211,40 @@ const formatDate = (unix: number | null) => {
 .pane-footer {
     display: flex;
     gap: 8px;
-    padding: 12px 16px;
+    padding: 14px 16px;
     border-top: 1px solid var(--border-subtle);
     flex-shrink: 0;
 }
 
 .footer-btn {
     flex: 1;
-    padding: 8px 12px;
-    border-radius: 7px;
-    font-size: 0.85rem;
-    font-weight: 500;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-radius: var(--radius-sm);
     cursor: pointer;
+    transition: all var(--transition-fast);
+    background: transparent;
     border: 1px solid var(--border-default);
-    transition: background 0.15s, color 0.15s;
-    white-space: nowrap;
+    color: var(--text-secondary);
+}
+
+.footer-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-bg-subtle);
 }
 
 .btn-edit {
-    background: var(--bg-overlay-soft);
-    color: var(--text-primary);
-}
-.btn-edit:hover { background: var(--bg-overlay-strong); }
-
-.btn-open {
-    background: var(--accent);
-    color: var(--bg-app);
     border-color: var(--accent);
-    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-bg-subtle);
 }
-.btn-open:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+.btn-edit:hover {
+    background: var(--accent-bg-strong);
+}
+
 </style>

@@ -37,10 +37,10 @@ const COLOR_PRESETS = [
   top: calc(100% + 4px);
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px;
   display: flex;
-  gap: 5px;
+  gap: 4px;
   flex-wrap: wrap;
   width: 144px;
   z-index: 200;
@@ -48,8 +48,8 @@ const COLOR_PRESETS = [
 }
 
 .color-swatch {
-  width: 20px;
-  height: 20px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid transparent;

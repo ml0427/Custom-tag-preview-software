@@ -34,7 +34,9 @@ const gallerySearch = computed({
       <button class="nav-btn" @click="emit('refresh')" :class="{ spinning: isLoading }" title="重新整理">↺</button>
       <span class="divider"></span>
     </template>
-    <span class="search-icon">🔍</span>
+    <span class="search-icon">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+    </span>
     <input
       v-model="gallerySearch"
       class="gallery-search"
@@ -67,7 +69,7 @@ const gallerySearch = computed({
   gap: 10px;
   padding: 8px 14px;
   background: var(--bg-panel);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   margin-bottom: 6px;
 }
@@ -154,7 +156,20 @@ const gallerySearch = computed({
 }
 .clear-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
 
-.search-icon { font-size: 0.95rem; flex-shrink: 0; }
+.search-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+.search-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
 
 .gallery-search {
   flex: 1;
@@ -162,23 +177,35 @@ const gallerySearch = computed({
   border: none;
   outline: none;
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 .gallery-search::placeholder { color: var(--text-secondary); }
 
-.view-toggle { display: flex; gap: 2px; flex-shrink: 0; }
+.view-toggle {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
 .view-btn {
   background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-secondary);
-  font-size: 1rem;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
   cursor: pointer;
   padding: 3px 7px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   line-height: 1;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 .view-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
-.view-btn.active { color: var(--text-primary); background: var(--bg-overlay-strong); border-color: var(--border-default); }
+.view-btn.active {
+  color: var(--accent);
+  background: var(--accent-bg-subtle);
+  box-shadow: 0 0 6px var(--accent-border);
+}
 </style>

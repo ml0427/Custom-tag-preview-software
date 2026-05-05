@@ -47,6 +47,18 @@ const placeholderIcon = computed(() => {
   background: var(--bg-image-placeholder);
   flex-shrink: 0;
   max-height: 45%;
+  border-radius: var(--radius-md);
+}
+
+.cover-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(to top, rgba(0,0,0,0.45), transparent);
+  pointer-events: none;
 }
 
 .preview-cover {

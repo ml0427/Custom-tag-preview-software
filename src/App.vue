@@ -185,7 +185,7 @@ onUnmounted(() => {
 
 .panel-slide-enter-active,
 .panel-slide-leave-active {
-  transition: width 0.25s ease, opacity 0.2s ease;
+  transition: width var(--transition-base), opacity var(--transition-base);
   overflow: hidden;
 }
 
@@ -207,7 +207,7 @@ onUnmounted(() => {
   right: 24px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 10px 16px;
   display: flex;
   align-items: center;
@@ -215,6 +215,7 @@ onUnmounted(() => {
   box-shadow: var(--shadow-popover);
   z-index: 1200;
   max-width: 360px;
+  font-family: var(--font-mono);
 }
 
 .scan-spinner {
@@ -229,20 +230,22 @@ onUnmounted(() => {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .scan-text {
-  font-size: 0.82rem;
+  font-size: 11px;
   color: var(--text-primary);
   white-space: nowrap;
   flex-shrink: 0;
+  font-family: var(--font-mono);
 }
 
 .scan-name {
-  font-size: 0.78rem;
+  font-size: 10px;
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-mono);
 }
 
-.scan-bar-enter-active, .scan-bar-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.scan-bar-enter-active, .scan-bar-leave-active { transition: opacity var(--transition-fast), transform var(--transition-fast); }
 .scan-bar-enter-from, .scan-bar-leave-to { opacity: 0; transform: translateY(10px); }
 </style>

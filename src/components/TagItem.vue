@@ -88,7 +88,7 @@ const tagStyle = (color?: string | null) => {
 <style scoped>
 li {
   padding: 7px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
   font-size: 0.9rem;
@@ -110,8 +110,8 @@ li.active {
 }
 
 .tag-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: rgba(255,255,255,0.2);
   flex-shrink: 0;
@@ -131,7 +131,7 @@ li.active {
   gap: 4px;
 }
 
-.tag-count { font-size: 0.78rem; color: var(--text-tertiary); flex-shrink: 0; }
+.tag-count { font-size: 0.78rem; color: var(--text-tertiary); flex-shrink: 0; font-family: var(--font-mono); }
 li.active .tag-count { color: var(--text-secondary); }
 
 .tag-actions { display: none; gap: 2px; flex-shrink: 0; }

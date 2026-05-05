@@ -19,7 +19,10 @@
       "Bash(find *)",
       "Bash(taskkill *)",
       "Write(*)",
-      "Edit(*)"
+      "Edit(*)",
+      "mcp__pinecone__search-records",
+      "mcp__pinecone__list-indexes",
+      "mcp__pinecone__describe-index-stats"
     ],
     "deny": [
       "Bash(rm *)",

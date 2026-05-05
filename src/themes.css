@@ -64,6 +64,9 @@
 
   --font-sans: 'Syne', 'Noto Sans JP', sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --font-jp:   'Noto Sans JP', sans-serif;
+
+  --accent-border: rgba(240,178,41,0.2);
 }
 
 
@@ -128,6 +131,9 @@
 
   --font-sans: 'Barlow Condensed', 'Noto Sans JP', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+  --font-jp:   'Noto Sans JP', sans-serif;
+
+  --accent-border: rgba(255,107,53,0.2);
 }
 
 
@@ -193,6 +199,9 @@
 
   --font-sans: 'Bitter', 'Noto Sans JP', serif;
   --font-mono: 'DM Mono', monospace;
+  --font-jp:   'Noto Sans JP', sans-serif;
+
+  --accent-border: rgba(176,67,30,0.2);
 }
 
 
@@ -260,6 +269,9 @@
 
   --font-sans: 'Share Tech Mono', monospace;
   --font-mono: 'Share Tech Mono', monospace;
+  --font-jp:   'Share Tech Mono', monospace;
+
+  --accent-border: rgba(0,255,65,0.2);
 }
 
 
