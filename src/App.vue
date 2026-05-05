@@ -21,9 +21,6 @@ const allTags = ref<Tag[]>([])
 const galleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 
 const handleActivitySelect = (id: string) => {
-  if (id === 'workspace' && activePanel.value !== 'workspace') {
-    selectedTagIds.value = []
-  }
   activePanel.value = activePanel.value === id ? null : id
 }
 
@@ -93,7 +90,7 @@ onUnmounted(() => {
 
 <template>
   <div class="layout">
-    <ActivityBar :active="activePanel" :hasSource="allTags.length > 0" @select="handleActivitySelect" />
+    <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
       <div v-if="activePanel && activePanel !== 'duplicates'" class="side-panel glass-panel">

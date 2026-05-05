@@ -36,37 +36,32 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
 
 <template>
   <div class="activity-bar">
-    <!-- Amber logo block -->
-    <div class="app-logo">
-      <svg viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2 4a1 1 0 0 1 1-1h3l1.5 1.5H12a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"
-          stroke="#060609" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
+
 
     <button
       v-for="item in items"
       :key="item.id"
       class="activity-btn"
-      :class="{ active: active === item.id, disabled: !item.alwaysEnabled && !hasSource }"
-      :title="!item.alwaysEnabled && !hasSource ? '請先選擇工作目錄' : item.label"
-      :disabled="!item.alwaysEnabled && !hasSource"
+      :class="{ active: active === item.id }"
+      :title="item.label"
       @click="emit('select', item.id)"
     >
-      <!-- workspace: folder -->
-      <svg v-if="item.id === 'workspace'" viewBox="0 0 24 24">
-        <path d="M3 9a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"/>
-      </svg>
-      <!-- tags: label -->
-      <svg v-else-if="item.id === 'tags'" viewBox="0 0 24 24">
-        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-        <circle cx="7" cy="7" r="1" fill="currentColor"/>
-      </svg>
-      <!-- duplicates: copy -->
-      <svg v-else viewBox="0 0 24 24">
-        <rect x="9" y="9" width="13" height="13" rx="2"/>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-      </svg>
+      <div class="icon-container">
+        <!-- workspace: folder -->
+        <svg v-if="item.id === 'workspace'" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        </svg>
+        
+        <!-- tags: tag -->
+        <svg v-else-if="item.id === 'tags'" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 8.25c-.97 0-1.75-.78-1.75-1.75s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.75-1.75 1.75z"/>
+        </svg>
+        
+        <!-- duplicates: layers -->
+        <svg v-else viewBox="0 0 24 24" fill="currentColor">
+          <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/>
+        </svg>
+      </div>
     </button>
 
     <div class="spacer"></div>
@@ -139,7 +134,8 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
   border-radius: var(--radius-md);
   background: transparent;
   border: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
+  opacity: 0.8;
   cursor: pointer;
   transition: color var(--transition-fast), background var(--transition-fast);
   position: relative;
@@ -174,7 +170,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
 }
 
 .activity-btn.disabled {
-  opacity: 0.3;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -183,14 +179,20 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
   color: var(--text-tertiary);
 }
 
-.activity-btn svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.icon-container {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-container svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  display: block;
 }
 
 .spacer { flex: 1; }

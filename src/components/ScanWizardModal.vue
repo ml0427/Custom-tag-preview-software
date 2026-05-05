@@ -27,8 +27,8 @@ const MATCH_TYPES = [
   { value: 'prefix',        label: '前綴' },
   { value: 'suffix',        label: '後綴' },
   { value: 'contains',      label: '包含' },
-  { value: 'regex',         label: '正則比對' },
-  { value: 'regex_capture', label: '正則擷取' },
+  { value: 'regex',         label: '正規比對' },
+  { value: 'regex_capture', label: '正規擷取' },
 ];
 
 const getLabel = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;

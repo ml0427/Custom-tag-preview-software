@@ -148,14 +148,12 @@ pub async fn get_items(
     macro_rules! build_query {
         ($select:expr) => {{
             let mut qb = sqlx::QueryBuilder::new($select);
-            // AND-logic multi-tag filter via subquery
+            // OR-logic multi-tag filter: show items that have ANY of the selected tags
             if with_tags {
-                qb.push(" WHERE i.id IN (SELECT item_id FROM item_tags WHERE tag_id IN (");
+                qb.push(" WHERE i.id IN (SELECT DISTINCT item_id FROM item_tags WHERE tag_id IN (");
                 let mut sep = qb.separated(", ");
                 for id in &active_tags { sep.push_bind(*id); }
-                qb.push(") GROUP BY item_id HAVING COUNT(DISTINCT tag_id) = ");
-                qb.push_bind(active_tags.len() as i64);
-                qb.push(")");
+                qb.push("))");
             }
             let mut need_and = with_tags;
             if has_source {
@@ -702,7 +700,7 @@ fn apply_rules_to_name(name: &str, rules: &[crate::models::TagRuleInput]) -> Vec
     for rule in rules {
         if rule.pattern.is_empty() { continue; }
 
-        // 正則擷取：把 (group1) 抓到的文字直接當標籤名（支援逗號分隔多個）
+        // 正規擷取：把 (group1) 抓到的文字直接當標籤名（支援逗號分隔多個）
         if rule.match_type == "regex_capture" {
             if let Ok(re) = regex::Regex::new(&rule.pattern) {
                 if let Some(caps) = re.captures(name) {

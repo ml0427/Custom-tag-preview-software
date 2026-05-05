@@ -26,7 +26,7 @@ const emit = defineEmits<{
       <select v-model="rule.matchType" class="rule-select">
         <option v-for="t in matchTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
       </select>
-      <input v-model="rule.pattern" placeholder="輸入字串或正則" class="rule-input" />
+      <input v-model="rule.pattern" placeholder="輸入字串或正規" class="rule-input" />
       <input
         v-if="rule.matchType !== 'regex_capture'"
         v-model="rule.tagName"

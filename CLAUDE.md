@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **.** (1011 symbols, 1464 relationships, 30 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Custom-tag-preview-software** (1108 symbols, 1655 relationships, 33 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -24,10 +24,10 @@ This project is indexed by GitNexus as **.** (1011 symbols, 1464 relationships, 
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/./context` | Codebase overview, check index freshness |
-| `gitnexus://repo/./clusters` | All functional areas |
-| `gitnexus://repo/./processes` | All execution flows |
-| `gitnexus://repo/./process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/Custom-tag-preview-software/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/Custom-tag-preview-software/clusters` | All functional areas |
+| `gitnexus://repo/Custom-tag-preview-software/processes` | All execution flows |
+| `gitnexus://repo/Custom-tag-preview-software/process/{name}` | Step-by-step execution trace |
 
 ## CLI
 

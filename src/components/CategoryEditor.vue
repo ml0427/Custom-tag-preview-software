@@ -92,8 +92,8 @@ const localExtInput = computed({
                     <option value="prefix">前綴</option>
                     <option value="suffix">後綴</option>
                     <option value="contains">包含</option>
-                    <option value="regex">正則</option>
-                    <option value="regex_capture">正則擷取</option>
+                    <option value="regex">正規表達式</option>
+                    <option value="regex_capture">正規擷取</option>
                 </select>
                 <input v-model="rule.pattern" class="rule-input" placeholder="模式" />
                 <input
@@ -101,7 +101,7 @@ const localExtInput = computed({
                     class="rule-input"
                     placeholder="標籤名稱"
                     :disabled="rule.matchType === 'regex_capture'"
-                    :title="rule.matchType === 'regex_capture' ? '正則擷取模式下，標籤名稱由括號捕捉組決定' : ''"
+                    :title="rule.matchType === 'regex_capture' ? '正規擷取模式下，標籤名稱由括號擷取組決定' : ''"
                 />
                 <button class="rule-del" @click="emit('removeRule', i)" title="刪除">✕</button>
             </div>

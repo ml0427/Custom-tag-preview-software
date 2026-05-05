@@ -76,7 +76,7 @@ export function useGalleryData(
       const tagIds = selectedTagIds();
       const sTagIds = tagIds?.length ? tagIds : undefined;
       const pageSize = sTagIds ? TAG_PAGE_SIZE : 9999;
-      const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sPath ?? undefined);
+      const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sTagIds ? undefined : (sPath ?? undefined));
       itemsData.value = res.content;
       tagPage.value = page;
       tagTotalPages.value = Math.max(1, res.totalPages);

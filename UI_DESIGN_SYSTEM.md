@@ -507,7 +507,7 @@ HTML class 約定：`.badge`, `.tag-chip`
 
 > ⚠️ **資料層約定（防破版）**：字串拼接 hex alpha（`22` / `66`）**僅對 `#rrggbb` 6 碼格式有效**。若 `tag.color` 是 3 碼縮寫（`#f00`）、`rgb(...)`、`hsl(...)` 或不含 `#`，拼接結果會變成無效 CSS 字串導致破版。
 >
-> - 存入資料庫前**必須**正規化為 `#rrggbb`，建議共用以下函數（前後端皆可）：
+> - 存入資料庫前**必須**正規化為 `#rrggbb`，建議共用以下函式（前後端皆可）：
 >   ```ts
 >   export function normalizeHex(c: string): string | null {
 >     const m = c.trim().toLowerCase().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/);

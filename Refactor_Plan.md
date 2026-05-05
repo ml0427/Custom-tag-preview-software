@@ -33,7 +33,7 @@
 ### 4. `src/components/ScanWizardModal.vue` (目前 ~14KB) [已完成]
 負責複雜的掃描設定與結果預覽。
 - **重構方案**：
-  - [x] 拆出 `TagRuleEditor.vue`：負責前綴、後綴、正則表達式等表單設定。
+  - [x] 拆出 `TagRuleEditor.vue`：負責前綴、後綴、正規表達式等表單設定。
   - [x] 拆出 `ScanPreviewList.vue`：負責顯示掃描進度條與模擬結果列表。
 
 ### 5. `src/components/ThumbnailGridView.vue` (目前 ~11KB) [已完成]
@@ -76,7 +76,7 @@
 
 ### 3. `src-tauri/src/scanner.rs` (目前 ~8.8KB)
 - **重構方案**：
-  - 將「規則匹配引擎 (Rule Matching Engine)」獨立為 `rule_engine.rs`。專門處理正則表達式、前綴、後綴的字串比對與標籤名稱推導，並補上單元測試 (`#[cfg(test)]`)，確保掃描規則不會被意外改壞。
+  - 將「規則符合引擎 (Rule Matching Engine)」獨立為 `rule_engine.rs`。專門處理正規表達式、前綴、後綴的字串比對與標籤名稱推導，並補上單元測試 (`#[cfg(test)]`)，確保掃描規則不會被意外改壞。
 
 ---
 
