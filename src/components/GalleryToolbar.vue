@@ -44,7 +44,7 @@ const gallerySearch = computed({
     />
     <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
     <div class="header-right">
-      <div class="sort-group">
+      <div v-if="viewMode === 'grid'" class="sort-group">
         <select class="sort-select" :value="sortBy" @change="emit('updateSortBy', ($event.target as HTMLSelectElement).value)">
           <option value="name">名稱</option>
           <option value="size">大小</option>

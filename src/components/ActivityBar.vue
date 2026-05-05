@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useThemeStore, type ThemeId } from '../stores/themeStore';
 
 defineProps<{ active: string | null; hasSource: boolean }>();
@@ -12,19 +13,25 @@ const items = [
 
 const themeStore = useThemeStore();
 
-const themes: { id: ThemeId; label: string; color: string; ring?: string }[] = [
+const themes: { id: ThemeId; label: string; color: string }[] = [
   { id: 'obsidian',  label: 'Obsidian · Amber',    color: '#f0b429' },
   { id: 'forge',     label: 'Forge · Industrial',  color: '#ff6b35' },
-  { id: 'parchment', label: 'Parchment · Archive', color: '#b0431e', ring: '#8c6a55' },
-  { id: 'phosphor',  label: 'Phosphor · Terminal', color: '#00ff41', ring: '#1a3820' },
+  { id: 'parchment', label: 'Parchment · Archive', color: '#b0431e' },
+  { id: 'phosphor',  label: 'Phosphor · Terminal', color: '#00ff41' },
 ];
 
-function dotStyle(t: typeof themes[0], isActive: boolean) {
-  const style: Record<string, string> = { background: t.color };
-  if (t.ring) style.border = `1px solid ${t.ring}`;
-  if (isActive) style.boxShadow = `0 0 0 2px var(--bg-panel), 0 0 0 3.5px ${t.color}`;
-  return style;
-}
+const themePopupOpen = ref(false);
+const themeAreaRef = ref<HTMLElement | null>(null);
+
+const currentColor = () => themes.find(t => t.id === themeStore.current)?.color ?? '#f0b429';
+
+const onDocClick = (e: MouseEvent) => {
+  if (themePopupOpen.value && themeAreaRef.value && !themeAreaRef.value.contains(e.target as Node)) {
+    themePopupOpen.value = false;
+  }
+};
+onMounted(() => document.addEventListener('click', onDocClick));
+onUnmounted(() => document.removeEventListener('click', onDocClick));
 </script>
 
 <template>
@@ -64,18 +71,28 @@ function dotStyle(t: typeof themes[0], isActive: boolean) {
 
     <div class="spacer"></div>
 
-    <div class="theme-dots" role="group" aria-label="切換主題風格">
+    <div class="theme-area" ref="themeAreaRef">
       <button
-        v-for="t in themes"
-        :key="t.id"
-        class="theme-dot"
-        :class="{ active: themeStore.current === t.id }"
-        :style="dotStyle(t, themeStore.current === t.id)"
-        :title="t.label"
-        :aria-label="`套用 ${t.label} 主題`"
-        :aria-pressed="themeStore.current === t.id"
-        @click="themeStore.setTheme(t.id)"
-      ></button>
+        class="theme-toggle-btn"
+        :title="'主題：' + (themes.find(t => t.id === themeStore.current)?.label ?? '')"
+        @click="themePopupOpen = !themePopupOpen"
+      >
+        <span class="theme-dot-indicator" :style="{ background: currentColor() }"></span>
+      </button>
+      <div v-if="themePopupOpen" class="theme-popup">
+        <div class="theme-popup-title">主題風格</div>
+        <button
+          v-for="t in themes"
+          :key="t.id"
+          class="theme-option"
+          :class="{ active: themeStore.current === t.id }"
+          @click="themeStore.setTheme(t.id); themePopupOpen = false"
+        >
+          <span class="theme-swatch" :style="{ background: t.color }"></span>
+          <span class="theme-label">{{ t.label }}</span>
+          <span v-if="themeStore.current === t.id" class="theme-check">✓</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -178,28 +195,90 @@ function dotStyle(t: typeof themes[0], isActive: boolean) {
 
 .spacer { flex: 1; }
 
-.theme-dots {
+.theme-area {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 7px;
-  padding-top: 12px;
+  justify-content: center;
+  padding-top: 10px;
   border-top: 1px solid var(--border-subtle);
   width: 100%;
 }
 
-.theme-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: none;
-  padding: 0;
+.theme-toggle-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.theme-toggle-btn:hover {
+  background: var(--bg-overlay-soft);
+  border-color: var(--border-strong);
+}
+
+.theme-dot-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
-.theme-dot:hover {
-  transform: scale(1.25);
+.theme-popup {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% + 8px);
+  z-index: 9999;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  padding: 6px 4px;
+  min-width: 200px;
+  box-shadow: var(--shadow-popover);
+}
+
+.theme-popup-title {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 12px 6px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  transition: background 0.15s;
+}
+.theme-option:hover { background: var(--bg-overlay-soft); }
+.theme-option.active { background: var(--accent-bg-subtle); }
+
+.theme-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.theme-label { flex: 1; text-align: left; }
+
+.theme-check {
+  color: var(--accent);
+  font-size: 0.85rem;
+  flex-shrink: 0;
 }
 </style>

@@ -235,6 +235,38 @@ const sortIcon = (col: string) => {
   if (props.sortBy !== col) return '';
   return props.sortDir === 'asc' ? '↑' : '↓';
 };
+
+// Column visibility
+const storedCols = localStorage.getItem('gallery-col-visibility');
+const visibleCols = reactive(new Set<string>(
+  storedCols ? JSON.parse(storedCols) : ['thumb', 'tags', 'size', 'date']
+));
+const colPickerOpen = ref(false);
+const colPickerRef = ref<HTMLElement | null>(null);
+
+const toggleCol = (col: string) => {
+  if (visibleCols.has(col)) visibleCols.delete(col);
+  else visibleCols.add(col);
+  localStorage.setItem('gallery-col-visibility', JSON.stringify([...visibleCols]));
+};
+
+const colCount = computed(() =>
+  2 + // name + settings always visible
+  (visibleCols.has('thumb') ? 1 : 0) +
+  (visibleCols.has('tags') ? 1 : 0) +
+  (visibleCols.has('size') ? 1 : 0) +
+  (visibleCols.has('date') ? 1 : 0)
+);
+
+const onDocClick = (e: MouseEvent) => {
+  if (colPickerOpen.value && colPickerRef.value && !colPickerRef.value.contains(e.target as Node)) {
+    colPickerOpen.value = false;
+  }
+};
+onMounted(() => document.addEventListener('click', onDocClick));
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick);
+});
 </script>
 
 <template>
@@ -242,19 +274,31 @@ const sortIcon = (col: string) => {
     <table class="comic-table">
       <thead class="sticky-header">
         <tr>
-          <th class="col-thumb"></th>
+          <th v-if="visibleCols.has('thumb')" class="col-thumb"></th>
           <th class="col-name sortable" @click="emit('sort', 'name')">
             檔名 <span class="sort-icon">{{ sortIcon('name') }}</span>
           </th>
-          <th class="col-tags">標籤</th>
-          <th class="col-size sortable" @click="emit('sort', 'size')">
+          <th v-if="visibleCols.has('tags')" class="col-tags">標籤</th>
+          <th v-if="visibleCols.has('size')" class="col-size sortable" @click="emit('sort', 'size')">
             大小 <span class="sort-icon">{{ sortIcon('size') }}</span>
+          </th>
+          <th v-if="visibleCols.has('date')" class="col-date sortable" @click="emit('sort', 'date')">
+            日期 <span class="sort-icon">{{ sortIcon('date') }}</span>
+          </th>
+          <th class="col-settings" ref="colPickerRef">
+            <button class="col-settings-btn" @click="colPickerOpen = !colPickerOpen" title="欄位顯示設定">⚙</button>
+            <div v-if="colPickerOpen" class="col-picker-popup" @click.stop>
+              <label><input type="checkbox" :checked="visibleCols.has('thumb')" @change="toggleCol('thumb')"> 縮圖</label>
+              <label><input type="checkbox" :checked="visibleCols.has('tags')" @change="toggleCol('tags')"> 標籤</label>
+              <label><input type="checkbox" :checked="visibleCols.has('size')" @change="toggleCol('size')"> 大小</label>
+              <label><input type="checkbox" :checked="visibleCols.has('date')" @change="toggleCol('date')"> 日期</label>
+            </div>
           </th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="topSpacerHeight > 0" class="spacer-row" :style="{ height: topSpacerHeight + 'px' }">
-          <td colspan="4"></td>
+          <td :colspan="colCount"></td>
         </tr>
         <tr
           v-for="item in visibleItems"
@@ -265,7 +309,7 @@ const sortIcon = (col: string) => {
           @contextmenu.prevent="showContextMenu($event, item)"
         >
           <!-- Thumbnail -->
-          <td class="col-thumb">
+          <td v-if="visibleCols.has('thumb')" class="col-thumb">
             <div class="thumb-wrap">
               <img
                 v-if="thumbUrls.get(item.path)"
@@ -277,7 +321,7 @@ const sortIcon = (col: string) => {
             </div>
           </td>
 
-          <!-- Name + date stacked -->
+          <!-- Name -->
           <td class="col-name">
             <div class="name-cell">
               <input
@@ -295,14 +339,14 @@ const sortIcon = (col: string) => {
                 :title="item.path"
                 v-html="highlightText(item.name)"
               ></span>
-              <span v-if="editingPath !== item.path" class="file-meta">
-                {{ item.modifiedTime ?? '' }}{{ item.extension ? ' · ' + item.extension.toUpperCase() : '' }}
+              <span v-if="editingPath !== item.path && item.extension" class="file-meta">
+                {{ item.extension.toUpperCase() }}
               </span>
             </div>
           </td>
 
           <!-- Tags -->
-          <td class="col-tags">
+          <td v-if="visibleCols.has('tags')" class="col-tags">
             <div class="tag-chips">
               <span
                 v-for="tag in getItemTags(item).slice(0, 3)"
@@ -317,10 +361,16 @@ const sortIcon = (col: string) => {
           </td>
 
           <!-- Size -->
-          <td class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
+          <td v-if="visibleCols.has('size')" class="col-size">{{ item.fileSize ? formatSize(item.fileSize) : '—' }}</td>
+
+          <!-- Date -->
+          <td v-if="visibleCols.has('date')" class="col-date">{{ item.modifiedTime ?? '' }}</td>
+
+          <!-- Settings spacer -->
+          <td class="col-settings"></td>
         </tr>
         <tr v-if="bottomSpacerHeight > 0" class="spacer-row" :style="{ height: bottomSpacerHeight + 'px' }">
-          <td colspan="4"></td>
+          <td :colspan="colCount"></td>
         </tr>
       </tbody>
     </table>
@@ -415,11 +465,58 @@ const sortIcon = (col: string) => {
 .comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .spacer-row td { padding: 0; border: none; }
 
-/* Column widths — all % so table-layout:fixed doesn't collapse auto column */
-.col-thumb { width: 7%; min-width: 56px; padding: 8px; }
-.col-name  { width: 53%; }
-.col-tags  { width: 28%; }
-.col-size  { width: 12%; min-width: 72px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+/* Column widths */
+.col-thumb    { width: 5%; min-width: 52px; padding: 8px; }
+.col-name     { width: 38%; }
+.col-tags     { width: 22%; }
+.col-size     { width: 10%; min-width: 64px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+.col-date     { width: 15%; min-width: 100px; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+.col-settings { width: 5%; min-width: 36px; text-align: center; position: relative; padding: 4px; }
+
+.col-settings-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.col-settings-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
+
+.col-picker-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 200;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 8px 4px;
+  min-width: 120px;
+  box-shadow: var(--shadow-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.col-picker-popup label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  transition: background 0.15s;
+}
+.col-picker-popup label:hover { background: var(--bg-overlay-soft); }
+.col-picker-popup input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
 
 /* Thumbnail */
 .thumb-wrap {

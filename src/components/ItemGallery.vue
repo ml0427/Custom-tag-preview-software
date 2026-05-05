@@ -226,8 +226,16 @@ const handleContextDetail = async (fileItem: FileItem) => {
 };
 
 const handleContextRename = async (fileItem: FileItem, newName: string) => {
-  const dbItem = itemByPath.value.get(fileItem.path);
-  if (!dbItem) return;
+  let dbItem = itemByPath.value.get(fileItem.path);
+  if (!dbItem) {
+    try {
+      dbItem = await api.quickImportItem(fileItem.path);
+      itemsData.value = [...itemsData.value, dbItem];
+    } catch (e: any) {
+      showToast('匯入失敗：' + (e?.message ?? e), 'error');
+      return;
+    }
+  }
   try {
     const updated = await api.renameItem(dbItem.id, newName);
     handleRenamed(updated);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
@@ -26,9 +26,38 @@ const emit = defineEmits<{
 const { itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
 const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
-const {
-  onImgError, getCoverUrl, showCover, getIcon, getItemType, getTypeColor
-} = useThumbnailLoader();
+const { getIcon, getItemType, getTypeColor } = useThumbnailLoader();
+
+// IPC-based thumbnail loading (same approach as FileExplorerTable)
+const thumbUrls = reactive(new Map<string, string>());
+const thumbLoading = new Set<string>();
+const ARCHIVE_EXTS = new Set(['zip', 'cbz', 'cbr', 'rar', '7z']);
+const IMAGE_EXTS_THUMB = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+
+const loadThumb = async (item: FileItem) => {
+  const path = item.path;
+  if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
+  thumbLoading.add(path);
+  try {
+    const dbItem = props.itemByPath.get(path);
+    let url = '';
+    if (dbItem?.id) {
+      url = await api.getCoverBase64(dbItem.id).catch(() => '');
+    } else {
+      const ext = item.extension?.toLowerCase() ?? '';
+      if (ARCHIVE_EXTS.has(ext)) {
+        url = await api.getZipCoverByPath(path).catch(() => '');
+      } else if (IMAGE_EXTS_THUMB.has(ext)) {
+        url = await api.getImageBase64ByPath(path).catch(() => '');
+      }
+    }
+    if (url) thumbUrls.set(path, url);
+  } finally {
+    thumbLoading.delete(path);
+  }
+};
+
+watch(() => props.items, items => items.forEach(loadThumb), { immediate: true });
 
 const cardRefs = ref<Record<string, any>>({});
 
@@ -65,8 +94,8 @@ const startRenameCtx = () => {
         :item="item"
         :dbItem="itemByPath.get(item.path)"
         :isSelected="isSelected(item)"
-        :coverUrl="getCoverUrl(item, itemByPath)"
-        :showCover="showCover(item, itemByPath)"
+        :coverUrl="thumbUrls.get(item.path) ?? null"
+        :showCover="!!thumbUrls.get(item.path)"
         :icon="getIcon(item, itemByPath)"
         :typeLabel="getItemType(item, itemByPath)"
         :typeColor="getTypeColor(item, itemByPath)"
@@ -75,7 +104,6 @@ const startRenameCtx = () => {
         @dblclick="emit('dblclick', item)"
         @contextmenu="showContextMenu($event, item)"
         @rename="emit('rename', item, $event)"
-        @imgError="onImgError(item.path)"
       />
     </div>
   </div>
