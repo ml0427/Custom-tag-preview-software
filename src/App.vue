@@ -18,10 +18,15 @@ const selectedSourcePath = ref<string | null>(null)
 const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
-const galleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
+const workspaceGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
+const tagGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
+const lastMainView = ref<'workspace' | 'tags'>('workspace')
 
 const handleActivitySelect = (id: string) => {
   activePanel.value = activePanel.value === id ? null : id
+  if (activePanel.value === 'workspace' || activePanel.value === 'tags') {
+    lastMainView.value = activePanel.value
+  }
 }
 
 const handleTagSelect = (tagIds: number[]) => {
@@ -51,7 +56,8 @@ const handleFileItemUpdated = async () => {
       selectedFileItem.value = await api.getItem(selectedFileItem.value.id)
     } catch { /* ignore */ }
   }
-  galleryRef.value?.refresh()
+  workspaceGalleryRef.value?.refresh()
+  tagGalleryRef.value?.refresh()
   loadGlobalTags()
 }
 
@@ -103,7 +109,7 @@ onUnmounted(() => {
           v-else-if="activePanel === 'workspace'"
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"
-          @folderCreated="() => { galleryRef?.refresh(); loadGlobalTags(); }"
+          @folderCreated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); loadGlobalTags(); }"
 
         />
       </div>
@@ -111,16 +117,28 @@ onUnmounted(() => {
 
     <main class="main-content">
       <DuplicateView v-if="activePanel === 'duplicates'" />
-      <ItemGallery
-        v-else
-        ref="galleryRef"
-        :sourcePath="selectedSourcePath"
-        :selectedTagIds="selectedTagIds"
-        @showDetail="handleFileItemSelect"
-        @showFolderDetail="handleFolderItemSelect"
-        @navigateDir="(path) => { selectedSourcePath = path; }"
-        @jumpToTag="handleJumpToTag"
-      />
+      <template v-else>
+        <ItemGallery
+          v-show="activePanel === 'workspace' || (!activePanel && lastMainView === 'workspace')"
+          ref="workspaceGalleryRef"
+          :sourcePath="selectedSourcePath"
+          :selectedTagIds="[]"
+          @showDetail="handleFileItemSelect"
+          @showFolderDetail="handleFolderItemSelect"
+          @navigateDir="(path) => { selectedSourcePath = path; }"
+          @jumpToTag="handleJumpToTag"
+        />
+        <ItemGallery
+          v-show="activePanel === 'tags' || (!activePanel && lastMainView === 'tags')"
+          ref="tagGalleryRef"
+          :sourcePath="null"
+          :selectedTagIds="selectedTagIds"
+          @showDetail="handleFileItemSelect"
+          @showFolderDetail="handleFolderItemSelect"
+          @navigateDir="(path) => { selectedSourcePath = path; activePanel = 'workspace'; }"
+          @jumpToTag="handleJumpToTag"
+        />
+      </template>
     </main>
 
     <ItemDetailModal
@@ -134,8 +152,8 @@ onUnmounted(() => {
       :item="selectedFolderItem"
       :allTags="allTags"
       @close="selectedFolderItem = null"
-      @updated="galleryRef?.refresh()"
-      @deleted="galleryRef?.refresh()"
+      @updated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
+      @deleted="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
     />
 
     <ToastContainer />
