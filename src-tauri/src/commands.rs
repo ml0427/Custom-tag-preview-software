@@ -233,6 +233,7 @@ pub async fn get_item_by_path(path: String, pool: State<'_, SqlitePool>) -> Resu
 pub async fn tag_item(item_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
     db::add_tag_to_item(&pool, item_id, tag_id)
         .await
+        .map(|_| ())
         .map_err(|e| e.to_string())
 }
 
@@ -561,6 +562,7 @@ pub async fn untrack_item(path: String, pool: State<'_, SqlitePool>, app: AppHan
 pub async fn add_tag_to_folder(folder_id: i64, tag_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
     db::add_tag_to_item(&pool, folder_id, tag_id)
         .await
+        .map(|_| ())
         .map_err(|e| e.to_string())
 }
 
