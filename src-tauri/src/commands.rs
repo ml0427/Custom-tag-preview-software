@@ -830,7 +830,9 @@ pub async fn apply_tag_scan(
         let name: String = item.get("name");
         
         // 1. 重新執行檔名標籤擷取 (例如 [Tag] 格式)
-        let _ = scanner::extract_and_apply_tags(&pool, item_id, &name).await;
+        if let Ok(c) = scanner::extract_and_apply_tags(&pool, item_id, &name).await {
+            tagged += c as i32;
+        }
 
         // 2. 套用自定義類別規則
         for tag_name in apply_rules_to_name(&name, &rules) {
@@ -1295,7 +1297,9 @@ pub async fn reapply_all_category_rules(pool: State<'_, SqlitePool>) -> Result<s
         let folder_name: String = folder.get("name");
 
         // 1. 處理資料夾本身
-        let _ = scanner::extract_and_apply_tags(&pool, folder_id, &folder_name).await;
+        if let Ok(c) = scanner::extract_and_apply_tags(&pool, folder_id, &folder_name).await {
+            total_tagged += c;
+        }
         for tag_name in apply_rules_to_name(&folder_name, &rules) {
             let _ = sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
                 .bind(&tag_name).execute(&*pool).await;
@@ -1325,7 +1329,9 @@ pub async fn reapply_all_category_rules(pool: State<'_, SqlitePool>) -> Result<s
             let item_id: i64 = item.get("id");
             let name: String = item.get("name");
 
-            let _ = scanner::extract_and_apply_tags(&pool, item_id, &name).await;
+            if let Ok(c) = scanner::extract_and_apply_tags(&pool, item_id, &name).await {
+                total_tagged += c;
+            }
             for tag_name in apply_rules_to_name(&name, &rules) {
                 let _ = sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
                     .bind(&tag_name).execute(&*pool).await;

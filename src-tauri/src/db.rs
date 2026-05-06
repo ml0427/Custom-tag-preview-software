@@ -309,13 +309,13 @@ pub async fn update_source_sync_time(pool: &SqlitePool, id: i64) -> Result<()> {
     Ok(())
 }
 
-pub async fn add_tag_to_item(pool: &SqlitePool, item_id: i64, tag_id: i64) -> Result<()> {
-    sqlx::query(
+pub async fn add_tag_to_item(pool: &SqlitePool, item_id: i64, tag_id: i64) -> Result<u64> {
+    let res = sqlx::query(
         "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'direct')"
     )
     .bind(item_id)
     .bind(tag_id)
     .execute(pool)
     .await?;
-    Ok(())
+    Ok(res.rows_affected())
 }

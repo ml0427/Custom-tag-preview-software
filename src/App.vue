@@ -103,7 +103,7 @@ onUnmounted(() => {
           v-else-if="activePanel === 'workspace'"
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"
-          @folderCreated="galleryRef?.refresh()"
+          @folderCreated="() => { galleryRef?.refresh(); loadGlobalTags(); }"
 
         />
       </div>

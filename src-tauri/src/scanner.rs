@@ -247,7 +247,8 @@ pub async fn incremental_scan_directory(
     Ok((added, updated, removed))
 }
 
-pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str) -> Result<()> {
+pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str) -> Result<i64> {
+    let mut count = 0;
     let re = Regex::new(r"^\s*[\[【](.*?)[\]】]")?;
     if let Some(caps) = re.captures(title) {
         let content = &caps[1];
@@ -265,8 +266,8 @@ pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str
                 db::create_tag(pool, clean_name).await?.id
             };
 
-            db::add_tag_to_item(pool, item_id, tag_id).await?;
+            count += db::add_tag_to_item(pool, item_id, tag_id).await? as i64;
         }
     }
-    Ok(())
+    Ok(count)
 }
