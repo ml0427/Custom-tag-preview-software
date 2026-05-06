@@ -811,8 +811,15 @@ pub async fn apply_tag_scan(
         .await
         .map_err(|e| e.to_string())?;
 
-    let items = sqlx::query("SELECT id, name FROM items WHERE path LIKE ?")
-        .bind(format!("{}%", scope_path))
+    let folder_prefix = if scope_path.ends_with('\\') || scope_path.ends_with('/') {
+        scope_path.clone()
+    } else {
+        format!("{}\\", scope_path)
+    };
+
+    let items = sqlx::query("SELECT id, name, item_type FROM items WHERE path = ? OR path LIKE ?")
+        .bind(&scope_path)
+        .bind(format!("{}%", folder_prefix))
         .fetch_all(&*pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -821,6 +828,11 @@ pub async fn apply_tag_scan(
     for item in &items {
         let item_id: i64 = item.get("id");
         let name: String = item.get("name");
+        
+        // 1. 重新執行檔名標籤擷取 (例如 [Tag] 格式)
+        let _ = scanner::extract_and_apply_tags(&pool, item_id, &name).await;
+
+        // 2. 套用自定義類別規則
         for tag_name in apply_rules_to_name(&name, &rules) {
             sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
                 .bind(&tag_name)
@@ -1277,13 +1289,34 @@ pub async fn reapply_all_category_rules(pool: State<'_, SqlitePool>) -> Result<s
         let path: String = folder.get("path");
         let category: String = folder.get("category");
 
-        let rules = fetch_category_tag_rules(&pool, &category).await?;
-        if rules.is_empty() { continue; }
+        let rules = fetch_category_tag_rules(&pool, &category).await.unwrap_or_default();
+        
+        let folder_id: i64 = folder.get("id");
+        let folder_name: String = folder.get("name");
+
+        // 1. 處理資料夾本身
+        let _ = scanner::extract_and_apply_tags(&pool, folder_id, &folder_name).await;
+        for tag_name in apply_rules_to_name(&folder_name, &rules) {
+            let _ = sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
+                .bind(&tag_name).execute(&*pool).await;
+            if let Ok(row) = sqlx::query("SELECT id FROM tags WHERE name = ?").bind(&tag_name).fetch_one(&*pool).await {
+                let tag_id: i64 = row.get("id");
+                let _ = sqlx::query("INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'rule')")
+                    .bind(folder_id).bind(tag_id).execute(&*pool).await;
+            }
+        }
+
+        // 2. 處理子項目
+        let folder_prefix = if path.ends_with('\\') || path.ends_with('/') {
+            path.clone()
+        } else {
+            format!("{}\\", path)
+        };
 
         let items = sqlx::query(
-            "SELECT id, name FROM items WHERE item_type = 'file' AND path LIKE ?"
+            "SELECT id, name FROM items WHERE path LIKE ? AND item_type = 'file'"
         )
-        .bind(format!("{}%", path))
+        .bind(format!("{}%", folder_prefix))
         .fetch_all(&*pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -1292,19 +1325,18 @@ pub async fn reapply_all_category_rules(pool: State<'_, SqlitePool>) -> Result<s
             let item_id: i64 = item.get("id");
             let name: String = item.get("name");
 
+            let _ = scanner::extract_and_apply_tags(&pool, item_id, &name).await;
             for tag_name in apply_rules_to_name(&name, &rules) {
-                sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
-                    .bind(&tag_name).execute(&*pool).await.map_err(|e| e.to_string())?;
-
-                let tag_id: i64 = sqlx::query("SELECT id FROM tags WHERE name = ?")
-                    .bind(&tag_name).fetch_one(&*pool).await.map_err(|e| e.to_string())?.get("id");
-
-                let inserted = sqlx::query(
-                    "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'rule')"
-                )
-                .bind(item_id).bind(tag_id).execute(&*pool).await.map_err(|e| e.to_string())?.rows_affected();
-
-                total_tagged += inserted as i64;
+                let _ = sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
+                    .bind(&tag_name).execute(&*pool).await;
+                if let Ok(row) = sqlx::query("SELECT id FROM tags WHERE name = ?").bind(&tag_name).fetch_one(&*pool).await {
+                    let tag_id: i64 = row.get("id");
+                    let inserted = sqlx::query(
+                        "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'rule')"
+                    )
+                    .bind(item_id).bind(tag_id).execute(&*pool).await.map_err(|e| e.to_string())?.rows_affected();
+                    total_tagged += inserted as i64;
+                }
             }
         }
     }
