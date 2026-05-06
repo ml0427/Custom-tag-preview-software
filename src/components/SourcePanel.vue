@@ -15,7 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
-const { itemTypes, load: loadItemTypes } = useItemTypes();
+const { itemTypes, load: loadItemTypes, getTypeConfig } = useItemTypes();
 const showTypeManage = ref(false);
 
 // 右鍵選單
@@ -121,8 +121,9 @@ const submitFolderModal = async () => {
     await loadDbFolders();
     emit('folderCreated');
 
-    const selectedType = itemTypes.value.find(t => t.name === category);
-    if (selectedType?.tagRules?.length) {
+    await loadItemTypes();
+    const selectedType = getTypeConfig(category);
+    if (selectedType.tagRules?.length) {
       try {
         const result = await api.applyTagScan(path, selectedType.tagRules);
         if (result.tagged > 0) showToast(`已自動套用 ${result.tagged} 個標籤`, 'success');

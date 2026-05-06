@@ -12,6 +12,7 @@ const DEFAULT_TYPE: ItemType = {
     color: null,
     isBuiltin: true,
     extensions: [],
+    tagRules: [],
 };
 
 export function useItemTypes() {
