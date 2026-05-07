@@ -39,7 +39,7 @@ const loadThumb = async (item: FileItem) => {
   if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
   thumbLoading.add(path);
   try {
-    const dbItem = props.itemByPath.get(path);
+    const dbItem = props.itemByPath.get(path.toLowerCase());
     let url = '';
     if (dbItem?.id) {
       url = await api.getCoverBase64(dbItem.id).catch(() => '');
@@ -63,7 +63,7 @@ const cardRefs = ref<Record<string, any>>({});
 
 const applyRulesForFolder = async (item: FileItem) => {
   hideContextMenu();
-  const dbItem = props.itemByPath.get(item.path);
+  const dbItem = props.itemByPath.get(item.path.toLowerCase());
   if (!dbItem) return;
   const type = itemTypes.value.find(t => t.name === (dbItem.category ?? 'default'));
   if (!type?.tagRules?.length) { showToast('此類別沒有設定掃描規則', 'info'); return; }
@@ -92,7 +92,7 @@ const startRenameCtx = () => {
         :key="item.path"
         :ref="el => { if (el) cardRefs[item.path] = el }"
         :item="item"
-        :dbItem="itemByPath.get(item.path)"
+        :dbItem="itemByPath.get(item.path.toLowerCase())"
         :isSelected="isSelected(item)"
         :coverUrl="thumbUrls.get(item.path) ?? null"
         :showCover="!!thumbUrls.get(item.path)"

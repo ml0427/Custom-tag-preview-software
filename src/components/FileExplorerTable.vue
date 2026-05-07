@@ -162,7 +162,7 @@ const loadThumb = async (item: FileItem) => {
   if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
   thumbLoading.add(path);
   try {
-    const dbItem = props.itemByPath.get(path);
+    const dbItem = props.itemByPath.get(path.toLowerCase());
     let url = '';
     if (dbItem?.id) {
       url = await api.getCoverBase64(dbItem.id).catch(() => '');
@@ -189,7 +189,7 @@ const { show: showToast } = useToast();
 
 const applyRulesForFolder = async (item: FileItem) => {
   hideContextMenu();
-  const dbItem = props.itemByPath.get(item.path);
+  const dbItem = props.itemByPath.get(item.path.toLowerCase());
   if (!dbItem) return;
   const type = itemTypes.value.find(t => t.name === (dbItem.category ?? 'default'));
   if (!type?.tagRules?.length) { showToast('此類別沒有設定掃描規則', 'info'); return; }
@@ -201,7 +201,7 @@ const applyRulesForFolder = async (item: FileItem) => {
 
 const getFileIcon = (item: FileItem): string => {
   if (item.isDir) {
-    const ft = props.itemByPath.get(item.path)?.category;
+    const ft = props.itemByPath.get(item.path.toLowerCase())?.category;
     return getTypeConfig(ft).icon;
   }
   const ext = item.extension?.toLowerCase() ?? '';
@@ -216,7 +216,7 @@ const getFileIcon = (item: FileItem): string => {
 };
 
 const getItemTags = (item: FileItem) => {
-  return props.itemByPath.get(item.path)?.tags ?? [];
+  return props.itemByPath.get(item.path.toLowerCase())?.tags ?? [];
 };
 
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));

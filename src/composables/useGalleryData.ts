@@ -16,32 +16,32 @@ export function useGalleryData(
   const TAG_PAGE_SIZE = 200;
 
   const itemByPath = computed(() =>
-    new Map(itemsData.value.map(i => [i.path, i]))
+    new Map(itemsData.value.map(i => [i.path.toLowerCase(), i]))
   );
 
   const filteredFileItems = computed(() => {
     const sTagIds = selectedTagIds();
     const base: FileItem[] = (sTagIds?.length ?? 0) > 0
       ? itemsData.value.map(item => {
-          const ext = item.itemType === 'folder' ? '' : item.path.split('.').pop() || '';
-          const mtime = item.fileModifiedAt
-            ? new Date(item.fileModifiedAt * 1000).toISOString().replace('T', ' ').slice(0, 16)
-            : '';
-          return {
-            name: item.name,
-            path: item.path,
-            isDir: item.itemType === 'folder',
-            fileSize: item.fileSize,
-            modifiedTime: mtime,
-            extension: ext,
-          };
-        })
+        const ext = item.itemType === 'folder' ? '' : item.path.split('.').pop() || '';
+        const mtime = item.fileModifiedAt
+          ? new Date(item.fileModifiedAt * 1000).toISOString().replace('T', ' ').slice(0, 16)
+          : '';
+        return {
+          name: item.name,
+          path: item.path,
+          isDir: item.itemType === 'folder',
+          fileSize: item.fileSize,
+          modifiedTime: mtime,
+          extension: ext,
+        };
+      })
       : fileItems.value;
 
     let items = [...base];
     const q = gallerySearch().trim().toLowerCase();
     if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
-    
+
     // 排序邏輯也應該在這裡執行，確保 grid view 也是排序過的
     const by = sortBy();
     const dir = sortDir();
@@ -106,7 +106,7 @@ export function useGalleryData(
   };
 
   // Watchers moved to ItemGallery for better control over related states (like selected items)
-  
+
   return {
     itemsData,
     fileItems,

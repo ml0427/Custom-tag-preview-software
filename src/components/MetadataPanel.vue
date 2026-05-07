@@ -105,10 +105,11 @@ const tagStyle = (color?: string | null) => {
 .tag {
   background: var(--accent-bg-subtle);
   color: var(--accent);
-  padding: 3px 10px;
+  padding: 3px 12px;
+  font-size: 0.85rem;
   border-radius: 100px;
-  font-size: 0.82rem;
   border: 1px solid var(--accent);
+  white-space: nowrap;
 }
 .clickable-tag { cursor: pointer; transition: background 0.15s, border-color 0.15s; }
 .clickable-tag:hover { background: var(--accent-bg-strong); border-color: var(--accent-hover); }

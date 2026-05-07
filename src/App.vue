@@ -122,7 +122,6 @@ onUnmounted(() => {
           v-show="activePanel === 'workspace' || (!activePanel && lastMainView === 'workspace')"
           ref="workspaceGalleryRef"
           :sourcePath="selectedSourcePath"
-          :selectedTagIds="[]"
           @showDetail="handleFileItemSelect"
           @showFolderDetail="handleFolderItemSelect"
           @navigateDir="(path) => { selectedSourcePath = path; }"

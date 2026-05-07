@@ -86,7 +86,7 @@ let tagDebounce: ReturnType<typeof setTimeout> | null = null;
 
 const selectedItemsData = computed(() =>
   selectedPaths.value.flatMap(p => {
-    const item = itemByPath.value.get(p);
+    const item = itemByPath.value.get(p.toLowerCase());
     return item ? [item] : [];
   })
 );
@@ -171,7 +171,7 @@ const handleFileItemClick = (item: FileItem, event?: MouseEvent) => {
   }
 
   selectedFileItemPath.value = item.path;
-  selectedItem.value = itemByPath.value.get(item.path) ?? null;
+  selectedItem.value = itemByPath.value.get(item.path.toLowerCase()) ?? null;
 };
 
 const clearMultiSelect = () => {
@@ -204,14 +204,14 @@ const handleFileItemDblClick = (item: FileItem) => {
   } else if (ARCHIVE_EXTS.includes(item.extension?.toLowerCase() ?? '')) {
     api.openFile(item.path);
   } else {
-    const dbItem = itemByPath.value.get(item.path);
+    const dbItem = itemByPath.value.get(item.path.toLowerCase());
     if (dbItem) emit('showDetail', dbItem);
     else api.openFile(item.path);
   }
 };
 
 const handleContextDetail = async (fileItem: FileItem) => {
-  let dbItem = itemByPath.value.get(fileItem.path);
+  let dbItem = itemByPath.value.get(fileItem.path.toLowerCase());
   if (!dbItem) {
     try {
       dbItem = await api.quickImportItem(fileItem.path);
@@ -226,7 +226,7 @@ const handleContextDetail = async (fileItem: FileItem) => {
 };
 
 const handleContextRename = async (fileItem: FileItem, newName: string) => {
-  let dbItem = itemByPath.value.get(fileItem.path);
+  let dbItem = itemByPath.value.get(fileItem.path.toLowerCase());
   if (!dbItem) {
     try {
       dbItem = await api.quickImportItem(fileItem.path);
@@ -330,16 +330,15 @@ const stopResizing = () => {
 const loadAllWithSelected = async () => {
   const prevPath = selectedFileItemPath.value;
   await loadAll();
-  if (prevPath) {
-    selectedItem.value = itemByPath.value.get(prevPath) ?? null;
-  } else if (props.sourcePath) {
-    const folderItem = await api.getItemByPath(props.sourcePath).catch(() => null);
-    if (folderItem) selectedItem.value = folderItem;
+  // 只在路徑未被使用者變更的情況下更新，避免覆蓋新選擇
+  if (prevPath && prevPath === selectedFileItemPath.value) {
+    selectedItem.value = itemByPath.value.get(prevPath.toLowerCase()) ?? null;
   }
 };
 
 watch(() => props.sourcePath, () => {
   selectedFileItemPath.value = null;
+  selectedItem.value = null;
   selectedPaths.value = [];
   lastClickIdx.value = -1;
   loadAllWithSelected();
@@ -365,7 +364,7 @@ const onDocClick = (e: MouseEvent) => {
   }
 };
 
-defineExpose({ refresh: () => loadAll() });
+defineExpose({ refresh: () => loadAllWithSelected() });
 
 const parentPath = computed(() => {
   if (!props.sourcePath) return null;
