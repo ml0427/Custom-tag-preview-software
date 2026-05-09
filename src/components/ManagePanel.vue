@@ -1,45 +1,18 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { api } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
-import { useToast } from '../composables/useToast';
 import CategoryManageModal from './CategoryManageModal.vue';
 
 const emit = defineEmits<{ (e: 'categorySaved'): void }>();
 
-const { itemTypes, load: loadItemTypes } = useItemTypes();
-const { show: showToast } = useToast();
+const { load: loadItemTypes } = useItemTypes();
 
 const showCategoryManage = ref(false);
-const applying = ref(false);
 
 const handleCategoryClose = () => {
   showCategoryManage.value = false;
   loadItemTypes(true);
   emit('categorySaved');
-};
-
-const applyAllRules = async () => {
-  if (applying.value) return;
-  applying.value = true;
-  try {
-    await loadItemTypes(true);
-    const folders = await api.getFolders();
-    let totalTagged = 0;
-    for (const folder of folders) {
-      const type = itemTypes.value.find(t => t.name === folder.category);
-      if (!type?.tagRules?.length) continue;
-      try {
-        const result = await api.applyTagScan(folder.path, type.tagRules);
-        totalTagged += result.tagged;
-      } catch { /* skip failed folders */ }
-    }
-    showToast(`全域套用完成，共 ${totalTagged} 個標籤`, 'success');
-  } catch (e) {
-    showToast('套用失敗: ' + String(e), 'error');
-  } finally {
-    applying.value = false;
-  }
 };
 </script>
 
@@ -54,12 +27,6 @@ const applyAllRules = async () => {
           <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
         </svg>
         管理類別
-      </button>
-      <button class="manage-btn" :disabled="applying" @click="applyAllRules">
-        <svg viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
-          <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-        </svg>
-        {{ applying ? '套用中…' : '全域重新套用規則' }}
       </button>
     </div>
   </div>
