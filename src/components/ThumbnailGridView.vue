@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
-import { api, type Item, type FileItem } from '../api';
+import { type Item, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
 import { useContextMenu } from '../composables/useContextMenu';
 import { useThumbnailLoader } from '../composables/useThumbnailLoader';
-import { pathKey } from '../utils/pathKey';
+import { useFolderRuleActions } from '../composables/useFolderRuleActions';
 import ThumbnailCard from './ThumbnailCard.vue';
 
 const props = defineProps<{
@@ -27,31 +27,18 @@ const emit = defineEmits<{
 const { itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
 const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
-const { getIcon, getItemType, getTypeColor } = useThumbnailLoader();
+const { getDbItem, getIcon, getItemType, getTypeColor, loadThumbUrl } = useThumbnailLoader();
 
 // IPC-based thumbnail loading (same approach as FileExplorerTable)
 const thumbUrls = reactive(new Map<string, string>());
 const thumbLoading = new Set<string>();
-const ARCHIVE_EXTS = new Set(['zip', 'cbz', 'cbr', 'rar', '7z']);
-const IMAGE_EXTS_THUMB = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
 
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
   if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
   thumbLoading.add(path);
   try {
-    const dbItem = props.itemByPath.get(pathKey(path));
-    let url = '';
-    if (dbItem?.id) {
-      url = await api.getCoverBase64(dbItem.id).catch(() => '');
-    } else {
-      const ext = item.extension?.toLowerCase() ?? '';
-      if (ARCHIVE_EXTS.has(ext)) {
-        url = await api.getZipCoverByPath(path).catch(() => '');
-      } else if (IMAGE_EXTS_THUMB.has(ext)) {
-        url = await api.getImageBase64ByPath(path).catch(() => '');
-      }
-    }
+    const url = await loadThumbUrl(item, props.itemByPath);
     if (url) thumbUrls.set(path, url);
   } finally {
     thumbLoading.delete(path);
@@ -62,17 +49,12 @@ watch(() => props.items, items => items.forEach(loadThumb), { immediate: true })
 
 const cardRefs = ref<Record<string, any>>({});
 
-const applyRulesForFolder = async (item: FileItem) => {
-  hideContextMenu();
-  const dbItem = props.itemByPath.get(pathKey(item.path));
-  if (!dbItem) return;
-  const type = itemTypes.value.find(t => t.name === (dbItem.category ?? 'default'));
-  if (!type?.tagRules?.length) { showToast('此類別沒有設定掃描規則', 'info'); return; }
-  try {
-    const result = await api.applyTagScan(item.path, type.tagRules);
-    showToast(`已套用 ${result.tagged} 個標籤`, 'success');
-  } catch (e) { showToast('套用失敗: ' + String(e), 'error'); }
-};
+const { applyRulesForFolder } = useFolderRuleActions(
+  () => props.itemByPath,
+  () => itemTypes.value,
+  showToast,
+  hideContextMenu
+);
 
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
 const isSelected = (item: FileItem) => selectedSet.value.has(item.path) || item.path === props.selectedItemPath;
@@ -93,7 +75,7 @@ const startRenameCtx = () => {
         :key="item.path"
         :ref="el => { if (el) cardRefs[item.path] = el }"
         :item="item"
-        :dbItem="itemByPath.get(pathKey(item.path))"
+        :dbItem="getDbItem(item, itemByPath)"
         :isSelected="isSelected(item)"
         :coverUrl="thumbUrls.get(item.path) ?? null"
         :showCover="!!thumbUrls.get(item.path)"

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue';
-import { api, type Item, type FileItem } from '../api';
+import { type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
 import { useVirtualScroll } from '../composables/useVirtualScroll';
 import { useContextMenu } from '../composables/useContextMenu';
-import { pathKey } from '../utils/pathKey';
+import { useThumbnailLoader } from '../composables/useThumbnailLoader';
+import { useFolderRuleActions } from '../composables/useFolderRuleActions';
 
 const props = defineProps<{
   items: FileItem[];
@@ -155,26 +156,14 @@ const handleKeydown = (e: KeyboardEvent) => {
 // Thumbnail loading
 const thumbUrls = reactive(new Map<string, string>());
 const thumbLoading = new Set<string>();
-const ARCHIVE_EXTS = new Set(['zip', 'cbz', 'cbr', 'rar', '7z']);
-const IMAGE_EXTS_THUMB = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+const { getDbItem, loadThumbUrl } = useThumbnailLoader();
 
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
   if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
   thumbLoading.add(path);
   try {
-    const dbItem = props.itemByPath.get(pathKey(path));
-    let url = '';
-    if (dbItem?.id) {
-      url = await api.getCoverBase64(dbItem.id).catch(() => '');
-    } else {
-      const ext = item.extension?.toLowerCase() ?? '';
-      if (ARCHIVE_EXTS.has(ext)) {
-        url = await api.getZipCoverByPath(path).catch(() => '');
-      } else if (IMAGE_EXTS_THUMB.has(ext)) {
-        url = await api.getImageBase64ByPath(path).catch(() => '');
-      }
-    }
+    const url = await loadThumbUrl(item, props.itemByPath);
     if (url) thumbUrls.set(path, url);
   } finally {
     thumbLoading.delete(path);
@@ -187,22 +176,16 @@ watch(visibleItems, items => {
 
 const { getTypeConfig, itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
-
-const applyRulesForFolder = async (item: FileItem) => {
-  hideContextMenu();
-  const dbItem = props.itemByPath.get(pathKey(item.path));
-  if (!dbItem) return;
-  const type = itemTypes.value.find(t => t.name === (dbItem.category ?? 'default'));
-  if (!type?.tagRules?.length) { showToast('此類別沒有設定掃描規則', 'info'); return; }
-  try {
-    const result = await api.applyTagScan(item.path, type.tagRules);
-    showToast(`已套用 ${result.tagged} 個標籤`, 'success');
-  } catch (e) { showToast('套用失敗: ' + String(e), 'error'); }
-};
+const { applyRulesForFolder } = useFolderRuleActions(
+  () => props.itemByPath,
+  () => itemTypes.value,
+  showToast,
+  hideContextMenu
+);
 
 const getFileIcon = (item: FileItem): string => {
   if (item.isDir) {
-    const ft = props.itemByPath.get(pathKey(item.path))?.category;
+    const ft = getDbItem(item, props.itemByPath)?.category;
     return getTypeConfig(ft).icon;
   }
   const ext = item.extension?.toLowerCase() ?? '';
@@ -217,7 +200,7 @@ const getFileIcon = (item: FileItem): string => {
 };
 
 const getItemTags = (item: FileItem) => {
-  return props.itemByPath.get(pathKey(item.path))?.tags ?? [];
+  return getDbItem(item, props.itemByPath)?.tags ?? [];
 };
 
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
