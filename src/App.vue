@@ -10,6 +10,7 @@ import ItemGallery from './components/ItemGallery.vue'
 import ItemDetailModal from './components/ItemDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
 import DuplicateView from './components/DuplicateView.vue'
+import ManagePanel from './components/ManagePanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
 const activePanel = ref<string | null>('workspace')
@@ -110,7 +111,10 @@ onUnmounted(() => {
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"
           @folderCreated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); loadGlobalTags(); }"
-
+        />
+        <ManagePanel
+          v-else-if="activePanel === 'manage'"
+          @categorySaved="loadItemTypes()"
         />
       </div>
     </transition>

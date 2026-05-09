@@ -3,7 +3,6 @@ import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
 import { api, type Source, type Folder, type Tag, type Item } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import LocalDirTree from './LocalDirTree.vue';
-import TypeManageModal from './CategoryManageModal.vue';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
 import { useItemTypes } from '../composables/useItemTypes';
@@ -17,8 +16,6 @@ const emit = defineEmits<{
 
 const { show: showToast, confirm: confirmDialog } = useToast();
 const { itemTypes, load: loadItemTypes, getTypeConfig } = useItemTypes();
-const showTypeManage = ref(false);
-
 // 右鍵選單
 const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const showFolderModal = ref(false);
@@ -312,11 +309,8 @@ onMounted(() => {
 
     <div class="panel-footer">
       <button class="btn-add" @click="handleAddSource">＋ 新增目錄</button>
-      <button class="btn-manage" @click="showTypeManage = true">⚙ 管理類別</button>
     </div>
   </div>
-
-  <TypeManageModal :visible="showTypeManage" @close="showTypeManage = false; loadItemTypes(true)" />
 </template>
 
 <style scoped>
