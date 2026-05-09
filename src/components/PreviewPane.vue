@@ -1,7 +1,5 @@
-
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import { api, type Item, type Tag } from '../api';
 import MediaViewer from './MediaViewer.vue';
 import MetadataPanel from './MetadataPanel.vue';
@@ -50,20 +48,7 @@ const loadCover = async () => {
     }
 };
 
-watch(() => props.item, (newItem) => {
-    invoke('debug_log', { msg: `🖼️ [PreviewPane] received item: ${newItem?.path || 'null'}` });
-    if (newItem) {
-        invoke('debug_log', { msg: `   -> Tags: ${newItem.tags?.map(t => t.name).join(', ')}` });
-    }
-}, { immediate: true });
-
-watch(() => props.item, (item) => {
-    console.log('🔍 [PreviewPane] Selection Changed:', { 
-        hasItem: !!item, 
-        itemName: item?.name,
-        tagsCount: item?.tags?.length || 0,
-        itemData: item 
-    });
+watch(() => props.item, () => {
     loadCover();
 }, { immediate: true });
 

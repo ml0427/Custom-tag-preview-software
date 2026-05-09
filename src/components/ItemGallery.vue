@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import { api, type Item, type FileItem } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
@@ -74,16 +73,7 @@ const selectedPaths = ref<string[]>([]);
 const selectedItem = computed<Item | null>(() => {
   if (!selectedFileItemPath.value) return null;
   const target = pathKey(selectedFileItemPath.value);
-  const item = itemByPath.value.get(target) ?? null;
-  
-  if (!item) {
-    invoke('debug_log', { msg: `❌ [Match Fail] Could not find item in Map for path: ${target}` });
-    invoke('debug_log', { msg: `   Available keys sample: ${Array.from(itemByPath.value.keys()).slice(0, 3).join(', ')}` });
-  } else {
-    invoke('debug_log', { msg: `✅ [Match Success] Found item for path: ${target}` });
-  }
-  
-  return item;
+  return itemByPath.value.get(target) ?? null;
 });
 
 const lastClickIdx = ref(-1);

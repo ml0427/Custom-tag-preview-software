@@ -13,7 +13,6 @@ import DuplicateView from './components/DuplicateView.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
 const activePanel = ref<string | null>('workspace')
-console.log('%c🚀 [DEBUG] App Initialized - Debug Logs Active', 'color: #00ff00; font-weight: bold; font-size: 14px;');
 const selectedTagIds = ref<number[]>([])
 const selectedSourcePath = ref<string | null>(null)
 const selectedFileItem = ref<Item | null>(null)

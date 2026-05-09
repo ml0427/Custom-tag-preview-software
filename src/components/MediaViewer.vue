@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { type Item, type FileItem } from '../api';
+import { type Item } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 
 const props = defineProps<{
   item: Item | null;
-  fileItem?: FileItem | null;
   coverUrl: string;
 }>();
 
@@ -18,10 +17,8 @@ const { getTypeByExtension } = useItemTypes();
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
 const placeholderIcon = computed(() => {
-  if (props.item?.itemType === 'folder' || props.fileItem?.isDir) return '📁';
-  const ext = props.item
-    ? (props.item.path.split('.').pop() ?? '')
-    : (props.fileItem?.extension ?? '');
+  if (props.item?.itemType === 'folder') return '📁';
+  const ext = props.item?.path.split('.').pop() ?? '';
   const matched = getTypeByExtension(ext);
   if (matched) return matched.icon;
   if (IMAGE_EXTS.includes(ext.toLowerCase())) return '🖼️';
@@ -31,7 +28,7 @@ const placeholderIcon = computed(() => {
 
 <template>
   <div class="cover-wrapper" @click="emit('click')">
-    <img v-if="coverUrl" :src="coverUrl" :alt="item?.name || fileItem?.name" class="preview-cover" />
+    <img v-if="coverUrl" :src="coverUrl" :alt="item?.name" class="preview-cover" />
     <div v-else class="cover-placeholder">{{ placeholderIcon }}</div>
     <div v-if="item" class="zoom-overlay"><span>點擊查看詳情</span></div>
   </div>

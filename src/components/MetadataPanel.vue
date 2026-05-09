@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import { type Tag } from '../api';
 
-const props = defineProps<{
+defineProps<{
   title: string;
   size?: string;
   date?: string;
   tags: Tag[];
   note?: string | null;
 }>();
-
-import { watch } from 'vue';
-watch(() => props.tags, (newTags) => {
-  console.log(`🏷️ [MetadataPanel] Tags Updated for "${props.title}":`, newTags);
-}, { immediate: true });
 
 const emit = defineEmits<{
   (e: 'tagClick', tag: Tag): void;

@@ -1,4 +1,4 @@
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import { pathKey } from '../utils/pathKey';
 
@@ -17,9 +17,7 @@ export function useGalleryData(
   const TAG_PAGE_SIZE = 200;
 
   const itemByPath = computed(() => {
-    const map = new Map(itemsData.value.map(i => [pathKey(i.path), i]));
-    console.log('📦 [useGalleryData] Map updated, items count:', map.size);
-    return map;
+    return new Map(itemsData.value.map(i => [pathKey(i.path), i]));
   });
 
   const filteredFileItems = computed(() => {
@@ -80,13 +78,9 @@ export function useGalleryData(
       const sTagIds = tagIds?.length ? tagIds : undefined;
       const pageSize = sTagIds ? TAG_PAGE_SIZE : 9999;
       
-      console.log('📡 [useGalleryData] Fetching items from API...', { sPath, sTagIds });
-      
       const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sTagIds ? undefined : (sPath ?? undefined));
       itemsData.value = res.content;
-      
-      console.log(`✅ [useGalleryData] API returned ${res.content.length} database items.`);
-      
+
       tagPage.value = page;
       tagTotalPages.value = Math.max(1, res.totalPages);
     } catch (e) {
@@ -128,6 +122,5 @@ export function useGalleryData(
     filteredFileItems,
     loadAll,
     gotoTagPage,
-    loadItemsBackground,
   };
 }

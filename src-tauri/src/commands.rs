@@ -45,18 +45,13 @@ fn read_item_from_row(row: &sqlx::sqlite::SqliteRow, tags: Vec<Tag>) -> Item {
 }
 
 async fn fetch_item_tags(pool: &SqlitePool, item_id: i64) -> Result<Vec<Tag>, String> {
-    let tags = sqlx::query_as::<_, Tag>(
+    sqlx::query_as::<_, Tag>(
         "SELECT t.id, t.name, t.color FROM tags t JOIN item_tags it ON t.id = it.tag_id WHERE it.item_id = ?"
     )
     .bind(item_id)
     .fetch_all(pool)
     .await
-    .map_err(|e| e.to_string())?;
-    
-    if !tags.is_empty() {
-        log::info!("🏷️ [fetch_item_tags] Item ID: {}, Tags found: {:?}", item_id, tags.iter().map(|t| &t.name).collect::<Vec<_>>());
-    }
-    Ok(tags)
+    .map_err(|e| e.to_string())
 }
 
 // ── Scan ──────────────────────────────────────────────────────────────────────
@@ -202,9 +197,7 @@ pub async fn get_items(
     let mut items = Vec::new();
     for row in rows {
         let id: i64 = row.get("id");
-        let path: String = row.get("path");
         let tags = fetch_item_tags(&pool, id).await?;
-        println!("📂 [DB-Item] Path: \"{}\", Tags: {}", path, tags.len());
         items.push(read_item_from_row(&row, tags));
     }
 
@@ -231,27 +224,17 @@ pub async fn get_item(id: i64, pool: State<'_, SqlitePool>) -> Result<Item, Stri
 }
 
 #[tauri::command]
-pub fn debug_log(msg: String) {
-    log::info!("🖥️ [FE-Log] {}", msg);
-}
-
-#[tauri::command]
 pub async fn get_item_by_path(path: String, pool: State<'_, SqlitePool>) -> Result<Option<Item>, String> {
-    log::info!("🔍 [Preview] Request path: {}", path);
     let row = sqlx::query("SELECT * FROM items WHERE path = ?")
         .bind(&path)
         .fetch_optional(&*pool)
         .await
         .map_err(|e| e.to_string())?;
     match row {
-        None => {
-            println!("⚠️ [Rust] Path NOT found in DB");
-            Ok(None)
-        },
+        None => Ok(None),
         Some(r) => {
             let id: i64 = r.get("id");
             let tags = fetch_item_tags(&pool, id).await?;
-            println!("✅ [Rust] Found item ID: {}, Tags count: {}", id, tags.len());
             Ok(Some(read_item_from_row(&r, tags)))
         }
     }
@@ -1050,8 +1033,6 @@ pub async fn list_dir_files(path: String) -> Result<Vec<crate::models::FileItem>
     let mut dirs: Vec<crate::models::FileItem> = Vec::new();
     let mut files: Vec<crate::models::FileItem> = Vec::new();
 
-    println!("🔍 [FS-Scan] Listing directory: {}", path);
-    let mut count = 0;
     for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let metadata = entry.metadata().map_err(|e| e.to_string())?;
@@ -1059,10 +1040,6 @@ pub async fn list_dir_files(path: String) -> Result<Vec<crate::models::FileItem>
         let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let is_dir = metadata.is_dir();
 
-        if count < 5 {
-            println!("   📄 [FS-Item] Found: \"{}\"", p.to_string_lossy());
-            count += 1;
-        }
         let extension = if is_dir { None } else {
             p.extension().map(|e| e.to_string_lossy().to_string())
         };

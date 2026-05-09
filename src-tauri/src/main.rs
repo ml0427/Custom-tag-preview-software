@@ -65,7 +65,6 @@ fn main() {
             commands::get_items,
             commands::get_item,
             commands::get_item_by_path,
-            commands::debug_log,
             commands::tag_item,
             commands::untag_item,
             commands::rename_item,
