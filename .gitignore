@@ -38,3 +38,4 @@ test.mjs
 
 # GitNexus repo-specific skills (auto-generated from indexed graph, per-machine)
 .claude/skills/
+.agents/

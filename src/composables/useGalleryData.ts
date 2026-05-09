@@ -1,5 +1,6 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { api, type Item, type FileItem } from '../api';
+import { pathKey } from '../utils/pathKey';
 
 export function useGalleryData(
   sourcePath: () => string | null,
@@ -15,9 +16,11 @@ export function useGalleryData(
   const tagTotalPages = ref(1);
   const TAG_PAGE_SIZE = 200;
 
-  const itemByPath = computed(() =>
-    new Map(itemsData.value.map(i => [i.path.toLowerCase(), i]))
-  );
+  const itemByPath = computed(() => {
+    const map = new Map(itemsData.value.map(i => [pathKey(i.path), i]));
+    console.log('📦 [useGalleryData] Map updated, items count:', map.size);
+    return map;
+  });
 
   const filteredFileItems = computed(() => {
     const sTagIds = selectedTagIds();
@@ -76,19 +79,26 @@ export function useGalleryData(
       const tagIds = selectedTagIds();
       const sTagIds = tagIds?.length ? tagIds : undefined;
       const pageSize = sTagIds ? TAG_PAGE_SIZE : 9999;
+      
+      console.log('📡 [useGalleryData] Fetching items from API...', { sPath, sTagIds });
+      
       const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sTagIds ? undefined : (sPath ?? undefined));
       itemsData.value = res.content;
+      
+      console.log(`✅ [useGalleryData] API returned ${res.content.length} database items.`);
+      
       tagPage.value = page;
       tagTotalPages.value = Math.max(1, res.totalPages);
-    } catch {
+    } catch (e) {
+      console.error('❌ [useGalleryData] API getItems error:', e);
       itemsData.value = [];
     }
   };
 
   const loadAll = async () => {
     isLoading.value = true;
-    fileItems.value = [];
-    itemsData.value = [];
+    // 不在開始時清空資料，避免 computed selectedItem 瞬間變 null 造成預覽閃爍
+    // 直接用新資料覆蓋舊資料
     try {
       await Promise.all([loadFileItems(), loadItemsBackground()]);
     } catch (e) {
@@ -97,6 +107,7 @@ export function useGalleryData(
       isLoading.value = false;
     }
   };
+
 
   const gotoTagPage = async (page: number) => {
     isLoading.value = true;

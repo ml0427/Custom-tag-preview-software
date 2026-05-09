@@ -5,7 +5,10 @@ pub fn run() {
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
+            .clear_targets()
+            .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout))
             .level(log::LevelFilter::Info)
+            .level_for("sqlx", log::LevelFilter::Warn)
             .build(),
         )?;
       }

@@ -1,12 +1,13 @@
+
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { api, type Item, type Tag, type FileItem } from '../api';
+import { invoke } from '@tauri-apps/api/core';
+import { api, type Item, type Tag } from '../api';
 import MediaViewer from './MediaViewer.vue';
 import MetadataPanel from './MetadataPanel.vue';
 
 const props = defineProps<{
     item: Item | null;
-    fileItem?: FileItem | null;
 }>();
 
 const emit = defineEmits<{
@@ -27,7 +28,6 @@ const loadCover = async () => {
     coverUrl.value = '';
 
     const item = props.item;
-    const fi = props.fileItem;
 
     if (item) {
         if (item.itemType === 'file') {
@@ -47,34 +47,25 @@ const loadCover = async () => {
                 }
             } catch {}
         }
-    } else if (fi && !fi.isDir) {
-        const ext = fi.extension?.toLowerCase() ?? '';
-        try {
-            let url: string;
-            if (ZIP_EXTS.includes(ext)) {
-                url = await api.getZipCoverByPath(fi.path);
-            } else if (IMAGE_EXTS.includes(ext)) {
-                url = await api.getImageBase64ByPath(fi.path);
-            } else {
-                return;
-            }
-            if (coverLoadToken.value === token) coverUrl.value = url;
-        } catch {}
-    } else if (fi?.isDir) {
-        try {
-            const files = await api.listDirFiles(fi.path);
-            const firstImage = files.find(f =>
-                !f.isDir && IMAGE_EXTS.includes(f.extension?.toLowerCase() ?? '')
-            );
-            if (firstImage) {
-                const url = await api.getImageBase64ByPath(firstImage.path);
-                if (coverLoadToken.value === token) coverUrl.value = url;
-            }
-        } catch {}
     }
 };
 
-watch([() => props.item, () => props.fileItem], loadCover, { immediate: true });
+watch(() => props.item, (newItem) => {
+    invoke('debug_log', { msg: `🖼️ [PreviewPane] received item: ${newItem?.path || 'null'}` });
+    if (newItem) {
+        invoke('debug_log', { msg: `   -> Tags: ${newItem.tags?.map(t => t.name).join(', ')}` });
+    }
+}, { immediate: true });
+
+watch(() => props.item, (item) => {
+    console.log('🔍 [PreviewPane] Selection Changed:', { 
+        hasItem: !!item, 
+        itemName: item?.name,
+        tagsCount: item?.tags?.length || 0,
+        itemData: item 
+    });
+    loadCover();
+}, { immediate: true });
 
 const formatSize = (bytes: number | null) => {
     if (!bytes) return '-';
@@ -95,7 +86,7 @@ const formatDate = (unix: number | null) => {
 </script>
 
 <template>
-    <div class="preview-pane" :class="{ 'empty': !item && !fileItem }">
+    <div class="preview-pane" :class="{ 'empty': !item }">
         <div class="pane-header">
             <span class="pane-title">PREVIEW</span>
             <button class="pane-close" @click="emit('close')" title="關閉預覽">✕</button>
@@ -123,27 +114,9 @@ const formatDate = (unix: number | null) => {
             </div>
         </div>
 
-        <div v-else-if="fileItem" class="content">
-            <MediaViewer
-              :item="null"
-              :fileItem="fileItem"
-              :coverUrl="coverUrl"
-            />
-            <MetadataPanel
-              :title="fileItem.name"
-              :size="!fileItem.isDir ? formatSize(fileItem.fileSize) : undefined"
-              :date="!fileItem.isDir ? fileItem.modifiedTime || undefined : undefined"
-              :tags="[]"
-              :scanned="false"
-            />
-            <div class="pane-footer" v-if="!fileItem.isDir">
-                <button class="footer-btn btn-open" @click="api.openFile(fileItem.path)">▶ 開啟</button>
-            </div>
-        </div>
-
         <div v-else class="empty-state">
             <div class="empty-icon">📂</div>
-            <p>選取一個檔案來預覽詳細資訊</p>
+            <p>選取工作目錄中的已匯入項目來預覽詳細資訊</p>
         </div>
     </div>
 </template>

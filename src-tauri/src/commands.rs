@@ -45,13 +45,18 @@ fn read_item_from_row(row: &sqlx::sqlite::SqliteRow, tags: Vec<Tag>) -> Item {
 }
 
 async fn fetch_item_tags(pool: &SqlitePool, item_id: i64) -> Result<Vec<Tag>, String> {
-    sqlx::query_as::<_, Tag>(
+    let tags = sqlx::query_as::<_, Tag>(
         "SELECT t.id, t.name, t.color FROM tags t JOIN item_tags it ON t.id = it.tag_id WHERE it.item_id = ?"
     )
     .bind(item_id)
     .fetch_all(pool)
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    
+    if !tags.is_empty() {
+        log::info!("🏷️ [fetch_item_tags] Item ID: {}, Tags found: {:?}", item_id, tags.iter().map(|t| &t.name).collect::<Vec<_>>());
+    }
+    Ok(tags)
 }
 
 // ── Scan ──────────────────────────────────────────────────────────────────────
@@ -140,6 +145,14 @@ pub async fn get_items(
     };
     let dir = if sort_dir.as_deref() == Some("asc") { "ASC" } else { "DESC" };
     let source_like = source_path.as_deref().map(|p| format!("{}%", p));
+    let source_like_alt = source_path.as_deref().map(|p| {
+        let alt = if p.contains('\\') {
+            p.replace('\\', "/")
+        } else {
+            p.replace('/', "\\")
+        };
+        format!("{}%", alt)
+    });
     let active_tags: Vec<i64> = tag_ids.unwrap_or_default();
     let with_tags = !active_tags.is_empty();
     let has_source = source_path.is_some();
@@ -158,8 +171,11 @@ pub async fn get_items(
             let mut need_and = with_tags;
             if has_source {
                 qb.push(if need_and { " AND" } else { " WHERE" });
-                qb.push(" i.path LIKE ");
+                qb.push(" (i.path LIKE ");
                 qb.push_bind(source_like.clone().expect("source_like is Some when has_source is true"));
+                qb.push(" OR i.path LIKE ");
+                qb.push_bind(source_like_alt.clone().expect("source_like_alt is Some when has_source is true"));
+                qb.push(")");
                 need_and = true;
             } else if !with_tags {
                 qb.push(" WHERE EXISTS (SELECT 1 FROM sources s WHERE i.path LIKE s.path || '%')");
@@ -186,7 +202,9 @@ pub async fn get_items(
     let mut items = Vec::new();
     for row in rows {
         let id: i64 = row.get("id");
+        let path: String = row.get("path");
         let tags = fetch_item_tags(&pool, id).await?;
+        println!("📂 [DB-Item] Path: \"{}\", Tags: {}", path, tags.len());
         items.push(read_item_from_row(&row, tags));
     }
 
@@ -213,17 +231,27 @@ pub async fn get_item(id: i64, pool: State<'_, SqlitePool>) -> Result<Item, Stri
 }
 
 #[tauri::command]
+pub fn debug_log(msg: String) {
+    log::info!("🖥️ [FE-Log] {}", msg);
+}
+
+#[tauri::command]
 pub async fn get_item_by_path(path: String, pool: State<'_, SqlitePool>) -> Result<Option<Item>, String> {
+    log::info!("🔍 [Preview] Request path: {}", path);
     let row = sqlx::query("SELECT * FROM items WHERE path = ?")
         .bind(&path)
         .fetch_optional(&*pool)
         .await
         .map_err(|e| e.to_string())?;
     match row {
-        None => Ok(None),
+        None => {
+            println!("⚠️ [Rust] Path NOT found in DB");
+            Ok(None)
+        },
         Some(r) => {
             let id: i64 = r.get("id");
             let tags = fetch_item_tags(&pool, id).await?;
+            println!("✅ [Rust] Found item ID: {}, Tags count: {}", id, tags.len());
             Ok(Some(read_item_from_row(&r, tags)))
         }
     }
@@ -1022,12 +1050,19 @@ pub async fn list_dir_files(path: String) -> Result<Vec<crate::models::FileItem>
     let mut dirs: Vec<crate::models::FileItem> = Vec::new();
     let mut files: Vec<crate::models::FileItem> = Vec::new();
 
+    println!("🔍 [FS-Scan] Listing directory: {}", path);
+    let mut count = 0;
     for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let metadata = entry.metadata().map_err(|e| e.to_string())?;
         let p = entry.path();
         let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let is_dir = metadata.is_dir();
+
+        if count < 5 {
+            println!("   📄 [FS-Item] Found: \"{}\"", p.to_string_lossy());
+            count += 1;
+        }
         let extension = if is_dir { None } else {
             p.extension().map(|e| e.to_string_lossy().to_string())
         };

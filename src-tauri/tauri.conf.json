@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Custom Tag Preview v0.50 · 2026-05-07 21:24",
+        "title": "Custom Tag Preview v0.57 · 2026-05-09 13:33",
         "width": 800,
         "height": 600,
         "resizable": true,
@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: https://tauri.localhost http://localhost:5173 ws://localhost:5173; img-src 'self' comic-cache: data: blob: https://tauri.localhost; style-src 'self' 'unsafe-inline'; script-src 'self' http://localhost:5173 'unsafe-inline'"
+      "csp": "default-src 'self' tauri: https://tauri.localhost http://localhost:5173 ws://localhost:5173 http://ipc.localhost; img-src 'self' comic-cache: data: blob: https://tauri.localhost; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' http://localhost:5173 'unsafe-inline'"
     }
   },
   "bundle": {

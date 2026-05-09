@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { type Item, type FileItem } from '../api';
 import { useItemTypes } from './useItemTypes';
+import { pathKey } from '../utils/pathKey';
 
 export function useThumbnailLoader() {
   const { getTypeConfig, getTypeByExtension } = useItemTypes();
@@ -12,7 +13,7 @@ export function useThumbnailLoader() {
 
   const getCoverUrl = (item: FileItem, itemByPath: Map<string, Item>): string | null => {
     if (item.isDir) return null;
-    const dbItem = itemByPath.get(item.path);
+    const dbItem = itemByPath.get(pathKey(item.path));
     if (!dbItem) return null;
     return `comic-cache://localhost/${dbItem.id}.jpg`;
   };
@@ -24,7 +25,7 @@ export function useThumbnailLoader() {
 
   const getIcon = (item: FileItem, itemByPath: Map<string, Item>): string => {
     if (item.isDir) {
-      const ft = itemByPath.get(item.path)?.category;
+      const ft = itemByPath.get(pathKey(item.path))?.category;
       return getTypeConfig(ft).icon;
     }
     const ext = item.extension?.toLowerCase() ?? '';
@@ -43,7 +44,7 @@ export function useThumbnailLoader() {
 
   const getItemType = (item: FileItem, itemByPath: Map<string, Item>): string => {
     if (item.isDir) {
-      const dbItem = itemByPath.get(item.path);
+      const dbItem = itemByPath.get(pathKey(item.path));
       if (dbItem) return getTypeConfig(dbItem.category).displayName;
       return '目錄';
     }
@@ -52,7 +53,7 @@ export function useThumbnailLoader() {
 
   const getTypeColor = (item: FileItem, itemByPath: Map<string, Item>): string | null => {
     if (!item.isDir) return null;
-    const dbItem = itemByPath.get(item.path);
+    const dbItem = itemByPath.get(pathKey(item.path));
     return getTypeConfig(dbItem?.category).color ?? null;
   };
 

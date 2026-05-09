@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { type Tag } from '../api';
 
-defineProps<{
+const props = defineProps<{
   title: string;
   size?: string;
   date?: string;
   tags: Tag[];
   note?: string | null;
-  scanned?: boolean;
 }>();
+
+import { watch } from 'vue';
+watch(() => props.tags, (newTags) => {
+  console.log(`🏷️ [MetadataPanel] Tags Updated for "${props.title}":`, newTags);
+}, { immediate: true });
 
 const emit = defineEmits<{
   (e: 'tagClick', tag: Tag): void;
@@ -33,16 +37,13 @@ const tagStyle = (color?: string | null) => {
     <div class="section">
       <div class="section-label">標籤</div>
       <div class="tags-container">
-        <template v-if="scanned !== false">
-          <span
-            v-for="tag in tags" :key="tag.id"
-            class="tag clickable-tag"
-            :style="tagStyle(tag.color)"
-            @click="emit('tagClick', tag)"
-          >{{ tag.name }}</span>
-          <span v-if="tags.length === 0" class="no-tags">尚未添加標籤</span>
-        </template>
-        <span v-else class="no-tags">尚未掃描</span>
+        <span
+          v-for="tag in tags" :key="tag.id"
+          class="tag clickable-tag"
+          :style="tagStyle(tag.color)"
+          @click="emit('tagClick', tag)"
+        >{{ tag.name }}</span>
+        <span v-if="tags.length === 0" class="no-tags">尚未添加標籤</span>
       </div>
     </div>
 

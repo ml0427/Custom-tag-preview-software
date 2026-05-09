@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { api, type Item, type FileItem } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
@@ -9,6 +10,7 @@ import GalleryInfoBar from './GalleryInfoBar.vue';
 import { useToast } from '../composables/useToast';
 import { useGalleryData } from '../composables/useGalleryData';
 import { formatSize } from '../utils/format';
+import { pathKey } from '../utils/pathKey';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -54,7 +56,6 @@ const {
   filteredFileItems,
   loadAll,
   gotoTagPage,
-  loadItemsBackground,
 } = useGalleryData(
   () => props.sourcePath,
   () => props.selectedTagIds,
@@ -64,13 +65,25 @@ const {
 );
 
 const selectedFileItemPath = ref<string | null>(null);
-const selectedItem = ref<Item | null>(null);
 const selectedPaths = ref<string[]>([]);
 
-const selectedFileItem = computed<FileItem | null>(() => {
-  if (selectedItem.value) return null;
+// selectedItem 直接從資料庫自動推導，不需要手動管理
+// 使用者點擊時 selectedFileItemPath 改變→ computed 自動更新
+// 背景 reload 時 itemByPath 更新 → computed 自動更新
+// 完全不影響彼此，永遠正確
+const selectedItem = computed<Item | null>(() => {
   if (!selectedFileItemPath.value) return null;
-  return filteredFileItems.value.find(fi => fi.path === selectedFileItemPath.value) ?? null;
+  const target = pathKey(selectedFileItemPath.value);
+  const item = itemByPath.value.get(target) ?? null;
+  
+  if (!item) {
+    invoke('debug_log', { msg: `❌ [Match Fail] Could not find item in Map for path: ${target}` });
+    invoke('debug_log', { msg: `   Available keys sample: ${Array.from(itemByPath.value.keys()).slice(0, 3).join(', ')}` });
+  } else {
+    invoke('debug_log', { msg: `✅ [Match Success] Found item for path: ${target}` });
+  }
+  
+  return item;
 });
 
 const lastClickIdx = ref(-1);
@@ -86,7 +99,7 @@ let tagDebounce: ReturnType<typeof setTimeout> | null = null;
 
 const selectedItemsData = computed(() =>
   selectedPaths.value.flatMap(p => {
-    const item = itemByPath.value.get(p.toLowerCase());
+    const item = itemByPath.value.get(pathKey(p));
     return item ? [item] : [];
   })
 );
@@ -170,9 +183,10 @@ const handleFileItemClick = (item: FileItem, event?: MouseEvent) => {
     lastClickIdx.value = idx;
   }
 
+  // 只記錄路徑，selectedItem 由 computed 自動推導
   selectedFileItemPath.value = item.path;
-  selectedItem.value = itemByPath.value.get(item.path.toLowerCase()) ?? null;
 };
+
 
 const clearMultiSelect = () => {
   selectedPaths.value = selectedFileItemPath.value ? [selectedFileItemPath.value] : [];
@@ -186,8 +200,7 @@ const batchDelete = async () => {
   try {
     await Promise.all(paths.map(p => api.trashItem(p)));
     selectedPaths.value = [];
-    selectedFileItemPath.value = null;
-    selectedItem.value = null;
+    selectedFileItemPath.value = null; // computed 會自動返回 null
     await loadAll();
   } catch (e: any) {
     showToast('批次刪除失敗：' + (e?.message ?? e), 'error');
@@ -195,6 +208,7 @@ const batchDelete = async () => {
     isBatchDeleting.value = false;
   }
 };
+
 
 const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'cbz', 'cbr'];
 
@@ -204,37 +218,41 @@ const handleFileItemDblClick = (item: FileItem) => {
   } else if (ARCHIVE_EXTS.includes(item.extension?.toLowerCase() ?? '')) {
     api.openFile(item.path);
   } else {
-    const dbItem = itemByPath.value.get(item.path.toLowerCase());
+    const dbItem = itemByPath.value.get(pathKey(item.path));
     if (dbItem) emit('showDetail', dbItem);
     else api.openFile(item.path);
   }
 };
 
 const handleContextDetail = async (fileItem: FileItem) => {
-  let dbItem = itemByPath.value.get(fileItem.path.toLowerCase());
+  let dbItem = itemByPath.value.get(pathKey(fileItem.path));
   if (!dbItem) {
     try {
       dbItem = await api.quickImportItem(fileItem.path);
-      itemsData.value = [...itemsData.value, dbItem];
+      await loadAll();
     } catch (e: any) {
       showToast('匯入失敗：' + (e?.message ?? e), 'error');
       return;
     }
+    dbItem = itemByPath.value.get(pathKey(fileItem.path));
+    if (!dbItem) return;
   }
   if (fileItem.isDir) emit('showFolderDetail', dbItem);
   else emit('showDetail', dbItem);
 };
 
 const handleContextRename = async (fileItem: FileItem, newName: string) => {
-  let dbItem = itemByPath.value.get(fileItem.path.toLowerCase());
+  let dbItem = itemByPath.value.get(pathKey(fileItem.path));
   if (!dbItem) {
     try {
       dbItem = await api.quickImportItem(fileItem.path);
-      itemsData.value = [...itemsData.value, dbItem];
+      await loadAll();
     } catch (e: any) {
       showToast('匯入失敗：' + (e?.message ?? e), 'error');
       return;
     }
+    dbItem = itemByPath.value.get(pathKey(fileItem.path));
+    if (!dbItem) return;
   }
   try {
     const updated = await api.renameItem(dbItem.id, newName);
@@ -249,9 +267,9 @@ const handleDelete = async (fileItem: FileItem) => {
   if (!await confirmDialog(`確定將 ${label} 移至資源回收筒？`)) return;
   try {
     await api.trashItem(fileItem.path);
+    // 刪除後清除選取
     if (selectedFileItemPath.value === fileItem.path) {
       selectedFileItemPath.value = null;
-      selectedItem.value = null;
     }
     selectedPaths.value = selectedPaths.value.filter(p => p !== fileItem.path);
     await loadAll();
@@ -261,9 +279,11 @@ const handleDelete = async (fileItem: FileItem) => {
 };
 
 const handleRenamed = async (updated: Item) => {
-  selectedItem.value = updated;
+  // 更新路徑，selectedItem computed 會在 loadAll 後自動取得新資料
+  selectedFileItemPath.value = updated.path;
   await loadAll();
 };
+
 
 const handleSort = (col: 'name' | 'size' | 'date') => {
   if (sortBy.value === col) {
@@ -327,29 +347,22 @@ const stopResizing = () => {
   document.body.style.userSelect = '';
 };
 
-const loadAllWithSelected = async () => {
-  const prevPath = selectedFileItemPath.value;
-  await loadAll();
-  // 只在路徑未被使用者變更的情況下更新，避免覆蓋新選擇
-  if (prevPath && prevPath === selectedFileItemPath.value) {
-    selectedItem.value = itemByPath.value.get(prevPath.toLowerCase()) ?? null;
-  }
-};
+// loadAll 後 selectedItem 由 computed 自動更新，不需要任何額外操作
+const refresh = () => loadAll();
 
 watch(() => props.sourcePath, () => {
   selectedFileItemPath.value = null;
-  selectedItem.value = null;
   selectedPaths.value = [];
   lastClickIdx.value = -1;
-  loadAllWithSelected();
+  loadAll();
 });
 
-watch(() => props.selectedTagIds, async () => {
-  loadAllWithSelected();
+watch(() => props.selectedTagIds, () => {
+  loadAll();
 });
 
 onMounted(() => {
-  loadAllWithSelected();
+  loadAll();
   document.addEventListener('click', onDocClick);
 });
 
@@ -364,7 +377,8 @@ const onDocClick = (e: MouseEvent) => {
   }
 };
 
-defineExpose({ refresh: () => loadAllWithSelected() });
+defineExpose({ refresh });
+
 
 const parentPath = computed(() => {
   if (!props.sourcePath) return null;
@@ -389,7 +403,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           v-model:viewMode="viewMode"
           :isLoading="isLoading"
           :hasParent="!!parentPath"
-          @refresh="loadAllWithSelected"
+          @refresh="loadAll"
           @goUp="goUp"
           @updateSortBy="handleSort"
           @toggleSortDir="handleSort(sortBy)"
@@ -527,7 +541,6 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
     <PreviewPane
       v-if="isPreviewOpen"
       :item="selectedItem"
-      :fileItem="selectedFileItem"
       :style="{ width: previewWidth + 'px', minWidth: previewWidth + 'px' }"
       @show-detail="emit('showDetail', $event)"
       @show-folder-detail="emit('showFolderDetail', $event)"

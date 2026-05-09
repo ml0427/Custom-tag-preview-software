@@ -8,10 +8,18 @@ mod scanner;
 mod zip_utils;
 
 use tauri::Manager;
+use tauri_plugin_log::{Target, TargetKind};
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets()
+                .target(Target::new(TargetKind::Stdout))
+                .level(log::LevelFilter::Info)
+                .level_for("sqlx", log::LevelFilter::Warn)
+                .build()
+        )
         .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("comic-cache", |_app_handle, request| {
             let app_data_dir = _app_handle.app_handle().path().app_data_dir().expect("failed to get app data dir");
@@ -57,6 +65,7 @@ fn main() {
             commands::get_items,
             commands::get_item,
             commands::get_item_by_path,
+            commands::debug_log,
             commands::tag_item,
             commands::untag_item,
             commands::rename_item,
