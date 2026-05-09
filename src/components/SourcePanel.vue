@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { api, type Source, type Folder, type Tag } from '../api';
+import { api, type Source, type Folder, type Tag, type Item } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import LocalDirTree from './LocalDirTree.vue';
 import TypeManageModal from './CategoryManageModal.vue';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
 import { useItemTypes } from '../composables/useItemTypes';
+import { useFolderRuleActions } from '../composables/useFolderRuleActions';
 
 const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
@@ -136,22 +137,27 @@ const submitFolderModal = async () => {
   }
 };
 
-const handleReapplyRules = async () => {
-  if (sources.value.length === 0) { showToast('尚未新增任何來源目錄', 'info'); return; }
-  try {
-    const result = await api.reapplyAllCategoryRules();
-    showToast(`重新套用完成，共標記 ${result.tagged} 次`, 'success');
-    emit('folderCreated');
-  } catch (e) {
-    showToast('重新套用失敗: ' + String(e), 'error');
-  }
-};
-
 onUnmounted(() => document.removeEventListener('click', closeCtxMenu));
 
 const dbFolders = ref<Folder[]>([]);
 const folderByPath = computed(() => new Map(dbFolders.value.map(f => [f.path, f])));
 provide('folderByPath', folderByPath);
+const emptyItemByPath = new Map<string, Item>();
+const { applyRulesForTarget } = useFolderRuleActions(
+  () => emptyItemByPath,
+  () => itemTypes.value,
+  showToast,
+  closeCtxMenu
+);
+
+const applyRulesFromCtx = async () => {
+  const path = ctxMenu.value.path;
+  await applyRulesForTarget({
+    path,
+    category: folderByPath.value.get(path)?.category,
+  });
+  emit('folderCreated');
+};
 
 const loadDbFolders = async () => {
   dbFolders.value = await api.getFolders();
@@ -227,6 +233,7 @@ onMounted(() => {
       @click.stop
     >
       <div class="ctx-item" @click="openModifyTypeFromCtx">✏️ 修改類別</div>
+      <div class="ctx-item" @click="applyRulesFromCtx">🔄 重新套用規則</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">🗑 移除追蹤記錄</div>
     </div>
@@ -306,9 +313,6 @@ onMounted(() => {
     <div class="panel-footer">
       <button class="btn-add" @click="handleAddSource">＋ 新增目錄</button>
       <button class="btn-manage" @click="showTypeManage = true">⚙ 管理類別</button>
-      <button class="btn-scan" @click="handleReapplyRules" :disabled="sources.length === 0" title="對所有資料夾重新套用類別規則">
-        🔄 重新套用規則
-      </button>
     </div>
   </div>
 

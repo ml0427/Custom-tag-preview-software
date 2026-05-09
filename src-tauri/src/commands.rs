@@ -829,10 +829,16 @@ pub async fn apply_tag_scan(
     } else {
         format!("{}\\", scope_path)
     };
+    let folder_prefix_alt = if folder_prefix.contains('\\') {
+        folder_prefix.replace('\\', "/")
+    } else {
+        folder_prefix.replace('/', "\\")
+    };
 
-    let items = sqlx::query("SELECT id, name, item_type FROM items WHERE path = ? OR path LIKE ?")
+    let items = sqlx::query("SELECT id, name, item_type FROM items WHERE path = ? OR path LIKE ? OR path LIKE ?")
         .bind(&scope_path)
         .bind(format!("{}%", folder_prefix))
+        .bind(format!("{}%", folder_prefix_alt))
         .fetch_all(&*pool)
         .await
         .map_err(|e| e.to_string())?;
