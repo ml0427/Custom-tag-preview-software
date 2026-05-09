@@ -354,7 +354,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.btn-add, .btn-manage, .btn-scan {
+.btn-add, .btn-manage {
   width: 100%;
   padding: 7px 10px;
   border-radius: var(--radius-md);
@@ -366,13 +366,6 @@ onMounted(() => {
   background: transparent;
   border: 1px solid var(--border-default);
 }
-
-.btn-scan {
-  color: var(--color-success);
-  border-color: var(--color-success);
-}
-.btn-scan:disabled { opacity: 0.3; cursor: not-allowed; }
-.btn-scan:hover:not(:disabled) { background: var(--bg-overlay-soft); }
 
 .btn-add {
   color: var(--text-secondary);

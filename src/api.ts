@@ -305,7 +305,4 @@ export const api = {
         await invoke('delete_item_type', { id });
     },
 
-    async reapplyAllCategoryRules(): Promise<{ tagged: number }> {
-        return await invoke('reapply_all_category_rules');
-    },
 }
