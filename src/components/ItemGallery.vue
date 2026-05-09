@@ -8,6 +8,7 @@ import GalleryToolbar from './GalleryToolbar.vue';
 import GalleryInfoBar from './GalleryInfoBar.vue';
 import { useToast } from '../composables/useToast';
 import { useGalleryData } from '../composables/useGalleryData';
+import { useGallerySelection } from '../composables/useGallerySelection';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
 
@@ -63,21 +64,18 @@ const {
   () => sortDir.value
 );
 
-const selectedFileItemPath = ref<string | null>(null);
-const selectedPaths = ref<string[]>([]);
-
-// selectedItem 直接從資料庫自動推導，不需要手動管理
-// 使用者點擊時 selectedFileItemPath 改變→ computed 自動更新
-// 背景 reload 時 itemByPath 更新 → computed 自動更新
-// 完全不影響彼此，永遠正確
-const selectedItem = computed<Item | null>(() => {
-  if (!selectedFileItemPath.value) return null;
-  const target = pathKey(selectedFileItemPath.value);
-  return itemByPath.value.get(target) ?? null;
-});
-
-const lastClickIdx = ref(-1);
 const isBatchDeleting = ref(false);
+const {
+  selectedFileItemPath,
+  selectedPaths,
+  selectedItem,
+  selectedItemsData,
+  handleFileItemClick,
+  clearMultiSelect,
+  clearSelection,
+  removeSelectedPath,
+  selectPath,
+} = useGallerySelection(filteredFileItems, itemByPath);
 
 // Batch tag logic
 type TagPickerMode = 'add' | 'remove' | null;
@@ -86,13 +84,6 @@ const tagPickerSearch = ref('');
 const tagPickerSuggestions = ref<{ id: number; name: string }[]>([]);
 const isBatchTagging = ref(false);
 let tagDebounce: ReturnType<typeof setTimeout> | null = null;
-
-const selectedItemsData = computed(() =>
-  selectedPaths.value.flatMap(p => {
-    const item = itemByPath.value.get(pathKey(p));
-    return item ? [item] : [];
-  })
-);
 
 const removableTags = computed(() => {
   const map = new Map<number, string>();
@@ -153,35 +144,6 @@ const batchRemoveTag = async (tag: { id: number; name: string }) => {
   }
 };
 
-const handleFileItemClick = (item: FileItem, event?: MouseEvent) => {
-  const list = filteredFileItems.value;
-  const idx = list.findIndex(i => i.path === item.path);
-
-  if (event?.ctrlKey || event?.metaKey) {
-    const newSet = new Set(selectedPaths.value);
-    if (newSet.has(item.path)) newSet.delete(item.path);
-    else { newSet.add(item.path); lastClickIdx.value = idx; }
-    selectedPaths.value = [...newSet];
-  } else if (event?.shiftKey && lastClickIdx.value >= 0) {
-    const start = Math.min(lastClickIdx.value, idx);
-    const end = Math.max(lastClickIdx.value, idx);
-    const newSet = new Set(selectedPaths.value);
-    for (let i = start; i <= end; i++) newSet.add(list[i].path);
-    selectedPaths.value = [...newSet];
-  } else {
-    selectedPaths.value = [item.path];
-    lastClickIdx.value = idx;
-  }
-
-  // 只記錄路徑，selectedItem 由 computed 自動推導
-  selectedFileItemPath.value = item.path;
-};
-
-
-const clearMultiSelect = () => {
-  selectedPaths.value = selectedFileItemPath.value ? [selectedFileItemPath.value] : [];
-};
-
 const batchDelete = async () => {
   const paths = selectedPaths.value;
   if (!paths.length) return;
@@ -189,8 +151,7 @@ const batchDelete = async () => {
   isBatchDeleting.value = true;
   try {
     await Promise.all(paths.map(p => api.trashItem(p)));
-    selectedPaths.value = [];
-    selectedFileItemPath.value = null; // computed 會自動返回 null
+    clearSelection();
     await loadAll();
   } catch (e: any) {
     showToast('批次刪除失敗：' + (e?.message ?? e), 'error');
@@ -257,11 +218,7 @@ const handleDelete = async (fileItem: FileItem) => {
   if (!await confirmDialog(`確定將 ${label} 移至資源回收筒？`)) return;
   try {
     await api.trashItem(fileItem.path);
-    // 刪除後清除選取
-    if (selectedFileItemPath.value === fileItem.path) {
-      selectedFileItemPath.value = null;
-    }
-    selectedPaths.value = selectedPaths.value.filter(p => p !== fileItem.path);
+    removeSelectedPath(fileItem.path);
     await loadAll();
   } catch (e: any) {
     showToast('刪除失敗：' + (e?.message ?? e), 'error');
@@ -269,8 +226,7 @@ const handleDelete = async (fileItem: FileItem) => {
 };
 
 const handleRenamed = async (updated: Item) => {
-  // 更新路徑，selectedItem computed 會在 loadAll 後自動取得新資料
-  selectedFileItemPath.value = updated.path;
+  selectPath(updated.path);
   await loadAll();
 };
 
@@ -341,9 +297,7 @@ const stopResizing = () => {
 const refresh = () => loadAll();
 
 watch(() => props.sourcePath, () => {
-  selectedFileItemPath.value = null;
-  selectedPaths.value = [];
-  lastClickIdx.value = -1;
+  clearSelection();
   loadAll();
 });
 
