@@ -9,12 +9,14 @@ import GalleryInfoBar from './GalleryInfoBar.vue';
 import { useToast } from '../composables/useToast';
 import { useGalleryData } from '../composables/useGalleryData';
 import { useGallerySelection } from '../composables/useGallerySelection';
+import { useGalleryViewState } from '../composables/useGalleryViewState';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
 
 const props = defineProps<{
   sourcePath: string | null;
   selectedTagIds?: number[];
+  viewStateKey?: string;
 }>();
 
 const emit = defineEmits<{
@@ -26,24 +28,9 @@ const emit = defineEmits<{
 
 const { show: showToast, confirm: confirmDialog } = useToast();
 
-// Sort state
-const VALID_SORT_BY = ['name', 'size', 'date'] as const;
-const VALID_SORT_DIR = ['asc', 'desc'] as const;
-const savedSortBy = localStorage.getItem('gallery-sort-by');
-const savedSortDir = localStorage.getItem('gallery-sort-dir');
-
-const sortBy = ref<'name' | 'size' | 'date'>(
-  VALID_SORT_BY.includes(savedSortBy as any) ? (savedSortBy as any) : 'name'
+const { sortBy, sortDir, viewMode, gallerySearch } = useGalleryViewState(
+  props.viewStateKey ?? 'default'
 );
-const sortDir = ref<'asc' | 'desc'>(
-  VALID_SORT_DIR.includes(savedSortDir as any) ? (savedSortDir as any) : 'asc'
-);
-const gallerySearch = ref('');
-
-watch([sortBy, sortDir], ([by, dir]) => {
-  localStorage.setItem('gallery-sort-by', by);
-  localStorage.setItem('gallery-sort-dir', dir);
-});
 
 // Gallery logic composable
 const {
@@ -261,9 +248,6 @@ const filterLabel = computed(() => {
   if (gallerySearch.value.trim()) return `"${gallerySearch.value.trim()}"`;
   return '全部';
 });
-
-// View mode
-const viewMode = ref<'list' | 'grid'>('list');
 
 // Preview logic
 const isPreviewOpen = ref(false);

@@ -121,6 +121,7 @@ onUnmounted(() => {
         <ItemGallery
           v-show="activePanel === 'workspace' || (!activePanel && lastMainView === 'workspace')"
           ref="workspaceGalleryRef"
+          viewStateKey="workspace"
           :sourcePath="selectedSourcePath"
           @showDetail="handleFileItemSelect"
           @showFolderDetail="handleFolderItemSelect"
@@ -130,6 +131,7 @@ onUnmounted(() => {
         <ItemGallery
           v-show="activePanel === 'tags' || (!activePanel && lastMainView === 'tags')"
           ref="tagGalleryRef"
+          viewStateKey="tags"
           :sourcePath="null"
           :selectedTagIds="selectedTagIds"
           @showDetail="handleFileItemSelect"
