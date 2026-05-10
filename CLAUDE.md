@@ -1,3 +1,31 @@
+## 前端開發規範
+
+### Vue 寫法
+- Vue SFC 一律使用 `<script setup lang="ts">`
+- props / emits 必須明確定義型別
+- 不在 template 內寫複雜邏輯，超過一行判斷請抽成 computed
+- 元件命名使用 PascalCase
+- composable 使用 `useXxx` 命名
+
+### CSS / Layout 規則
+- flex container 內的可收縮子元素必須設定 `min-width: 0`
+- input、textarea、select 若位於 flex/grid 內，必須設定 `min-width: 0`
+- 禁止用固定 `min-width: <px>` 當作換行斷點
+- 需要換行時使用 `flex-wrap`、`flex-basis`、`grid-template-columns` 或 container 結構處理
+- chip + input、tag editor、toolbar、modal footer 這類常見結構必須使用既有元件或專案固定樣板
+- 修 UI overflow / 跑版時，必須修結構原因，不可只靠縮短文字、改 placeholder、微調寬度數字
+
+### UI 元件規則
+- button、input、select、modal、tag、tabs、dropdown 優先使用專案既有元件
+- 不新增與既有元件功能重複的 UI 元件
+- 新增可重用 UI 元件時，必須提供基本狀態：default、hover、disabled、error、loading
+
+### 驗證規則
+- 修改前端後必須執行：
+  1. `npm run build`
+  2. `npm run tauri dev`
+- 若有 lint / build 錯誤，必須修到通過
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
