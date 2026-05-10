@@ -11,8 +11,8 @@ export function useCategoryManage() {
     const isNew = ref(false);
     const saving = ref(false);
 
-    const form = ref<{ name: string; icon: string; displayName: string; color: string; extensions: string[]; tagRules: Array<{ matchType: string; pattern: string; tagName: string }> }>({
-        name: '', icon: '📁', displayName: '', color: '', extensions: [], tagRules: [],
+    const form = ref<{ name: string; icon: string; displayName: string; color: string; example: string; extensions: string[]; tagRules: Array<{ matchType: string; pattern: string; tagName: string }> }>({
+        name: '', icon: '📁', displayName: '', color: '', example: '', extensions: [], tagRules: [],
     });
     const extInput = ref('');
 
@@ -26,6 +26,7 @@ export function useCategoryManage() {
         isNew.value = false;
         form.value = {
             name: t.name, icon: t.icon, displayName: t.displayName, color: t.color ?? '',
+            example: t.example ?? '',
             extensions: [...t.extensions],
             tagRules: (t.tagRules ?? []).map(r => ({ matchType: r.matchType, pattern: r.pattern, tagName: r.tagName })),
         };
@@ -35,7 +36,7 @@ export function useCategoryManage() {
     const startNew = () => {
         selected.value = null;
         isNew.value = true;
-        form.value = { name: '', icon: '📁', displayName: '', color: '', extensions: [], tagRules: [] };
+        form.value = { name: '', icon: '📁', displayName: '', color: '', example: '', extensions: [], tagRules: [] };
         extInput.value = '';
     };
 
@@ -74,6 +75,7 @@ export function useCategoryManage() {
                 icon: form.value.icon || '📁',
                 displayName: form.value.displayName,
                 color: form.value.color || null,
+                example: form.value.example,
                 extensions: form.value.extensions,
                 tagRules: form.value.tagRules.map(r => ({ name: '', matchType: r.matchType, pattern: r.pattern, tagName: r.tagName })),
             };

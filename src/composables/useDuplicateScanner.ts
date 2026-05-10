@@ -1,8 +1,8 @@
 import { ref } from 'vue';
-import { api, type Item } from '../api';
+import { api, type DuplicateGroup, type DuplicateItem } from '../api';
 import { useToast } from './useToast';
 
-export interface DuplicateGroup { fingerprint: string; items: Item[] }
+export type { DuplicateGroup, DuplicateItem };
 
 export function useDuplicateScanner() {
   const { show: showToast, confirm: confirmDialog } = useToast();
@@ -36,7 +36,7 @@ export function useDuplicateScanner() {
     }
   };
 
-  const trashItemInGroup = async (item: Item, gi: number) => {
+  const trashItemInGroup = async (item: DuplicateItem, gi: number) => {
     if (!await confirmDialog(`確定將「${item.name}」移至資源回收筒？`)) return false;
     try {
       await api.trashItem(item.path);
@@ -63,6 +63,19 @@ export function useDuplicateScanner() {
     showToast(`已刪除 ${toDelete.length} 個重複項目`, 'success');
   };
 
+  /// 對「疑似已移動」群組：清理 DB 內已不存在的失效紀錄
+  const cleanupMovedInGroup = async (gi: number) => {
+    const group = groups.value[gi];
+    const missing = group.items.filter(i => !i.pathExists);
+    if (missing.length === 0) return;
+    if (!await confirmDialog(`此群組有 ${missing.length} 筆檔案已不存在，是否清理對應的 DB 紀錄？`)) return;
+    for (const item of missing) {
+      try { await api.untrackItem(item.path); } catch { /* continue */ }
+    }
+    await loadGroups();
+    showToast(`已清理 ${missing.length} 筆失效紀錄`, 'success');
+  };
+
   return {
     groups,
     isLoading,
@@ -72,5 +85,6 @@ export function useDuplicateScanner() {
     runCompute,
     trashItemInGroup,
     keepNewestInGroup,
+    cleanupMovedInGroup,
   };
 }

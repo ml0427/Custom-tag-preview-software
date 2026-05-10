@@ -65,7 +65,7 @@ async fn save_category_tag_rules(
 #[tauri::command]
 pub async fn get_item_types(pool: State<'_, SqlitePool>) -> Result<Vec<ItemType>, String> {
     let rows = sqlx::query(
-        "SELECT id, name, icon, display_name, color, is_builtin FROM item_types ORDER BY id ASC",
+        "SELECT id, name, icon, display_name, color, COALESCE(example,'') AS example, is_builtin FROM item_types ORDER BY id ASC",
     )
     .fetch_all(&*pool)
     .await
@@ -84,6 +84,7 @@ pub async fn get_item_types(pool: State<'_, SqlitePool>) -> Result<Vec<ItemType>
             icon: row.get("icon"),
             display_name: row.get("display_name"),
             color: row.get("color"),
+            example: row.get("example"),
             is_builtin: is_builtin_int != 0,
             extensions,
             tag_rules,
@@ -97,16 +98,18 @@ pub async fn create_item_type(
     input: ItemTypeInput,
     pool: State<'_, SqlitePool>,
 ) -> Result<ItemType, String> {
-    let id =
-        sqlx::query("INSERT INTO item_types (name, icon, display_name, color) VALUES (?, ?, ?, ?)")
-            .bind(&input.name)
-            .bind(&input.icon)
-            .bind(&input.display_name)
-            .bind(&input.color)
-            .execute(&*pool)
-            .await
-            .map_err(|e| e.to_string())?
-            .last_insert_rowid();
+    let id = sqlx::query(
+        "INSERT INTO item_types (name, icon, display_name, color, example) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(&input.name)
+    .bind(&input.icon)
+    .bind(&input.display_name)
+    .bind(&input.color)
+    .bind(&input.example)
+    .execute(&*pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .last_insert_rowid();
 
     for ext in &input.extensions {
         sqlx::query("INSERT OR IGNORE INTO type_extensions (type_id, extension) VALUES (?, ?)")
@@ -125,6 +128,7 @@ pub async fn create_item_type(
         icon: input.icon,
         display_name: input.display_name,
         color: input.color,
+        example: input.example,
         is_builtin: false,
         extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
         tag_rules: input.tag_rules,
@@ -152,12 +156,13 @@ pub async fn update_item_type(
     }
 
     sqlx::query(
-        "UPDATE item_types SET name = ?, icon = ?, display_name = ?, color = ? WHERE id = ?",
+        "UPDATE item_types SET name = ?, icon = ?, display_name = ?, color = ?, example = ? WHERE id = ?",
     )
     .bind(&input.name)
     .bind(&input.icon)
     .bind(&input.display_name)
     .bind(&input.color)
+    .bind(&input.example)
     .bind(id)
     .execute(&*pool)
     .await
@@ -186,6 +191,7 @@ pub async fn update_item_type(
         icon: input.icon,
         display_name: input.display_name,
         color: input.color,
+        example: input.example,
         is_builtin: is_builtin_int != 0,
         extensions: input.extensions.iter().map(|e| e.to_lowercase()).collect(),
         tag_rules: input.tag_rules,

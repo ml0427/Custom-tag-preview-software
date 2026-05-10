@@ -125,12 +125,15 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             icon         TEXT NOT NULL DEFAULT '📁',
             display_name TEXT NOT NULL,
             color        TEXT,
+            example      TEXT NOT NULL DEFAULT '',
             is_builtin   INTEGER NOT NULL DEFAULT 0
         );"
     ).execute(&pool).await?;
 
     // Add color column if upgrading from previous version
     let _ = sqlx::query("ALTER TABLE item_types ADD COLUMN color TEXT")
+        .execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE item_types ADD COLUMN example TEXT NOT NULL DEFAULT ''")
         .execute(&pool).await;
     let _ = sqlx::query("ALTER TABLE tags ADD COLUMN color TEXT")
         .execute(&pool).await;

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { api, type Source, type TagRuleInput, type ScanPreviewItem } from '../api';
 import { useToast } from '../composables/useToast';
 import TagRuleEditor from './TagRuleEditor.vue';
+import RuleTester from './RuleTester.vue';
 import ScanPreviewList from './ScanPreviewList.vue';
 
 const props = defineProps<{ visible: boolean }>();
@@ -215,6 +216,8 @@ const applyAndClose = async () => {
             @add="addRule"
             @remove="removeRule"
           />
+
+          <RuleTester :rules="rules" />
 
           <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
           <div class="footer-btns">

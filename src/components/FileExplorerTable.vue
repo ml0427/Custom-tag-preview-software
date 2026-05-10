@@ -398,6 +398,7 @@ onUnmounted(() => {
   outline: none;
   background: var(--bg-panel);
   position: relative;
+  isolation: isolate; /* 隔離 sticky-header stacking context，避免 row hit-test 穿透 */
 }
 
 .vscroll-outer::-webkit-scrollbar { width: 4px; }
@@ -408,7 +409,10 @@ onUnmounted(() => {
 
 .comic-table {
   width: 100%;
-  border-collapse: collapse;
+  /* separate + 0 spacing 修復 sticky <th> 在 webkit/blink 下的 hit-test 漏洞，
+     避免 hover 落到捲出畫面的 row 觸發其 :title tooltip */
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
   table-layout: fixed;
 }
@@ -417,13 +421,14 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   background: var(--bg-panel);
+  background-clip: padding-box;
   padding: 12px 8px;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  z-index: 30;
+  z-index: 50;
   border-bottom: 1px solid var(--border-strong);
   user-select: none;
 }
@@ -431,7 +436,8 @@ onUnmounted(() => {
 .sticky-header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 50;
+  background: var(--bg-panel);
 }
 .comic-table th.sortable { cursor: pointer; user-select: none; }
 .comic-table th.sortable:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import RuleTester from './RuleTester.vue';
 
 const props = defineProps<{
     isNew: boolean;
@@ -10,6 +11,7 @@ const props = defineProps<{
         icon: string;
         displayName: string;
         color: string;
+        example: string;
         extensions: string[];
         tagRules: Array<{ matchType: string; pattern: string; tagName: string }>;
     };
@@ -65,6 +67,14 @@ const localExtInput = computed({
             <button v-if="form.color" class="clear-color-btn" @click="form.color = ''" title="清除顏色">✕</button>
         </div>
 
+        <label class="field-label">範例（純記錄用）</label>
+        <textarea
+            v-model="form.example"
+            class="field-input field-textarea"
+            rows="2"
+            placeholder="例：[進擊的巨人(第一季、完結)] 第01話.mkv"
+        ></textarea>
+
         <label class="field-label">允許的副檔名</label>
         <div class="ext-tags">
             <span
@@ -107,6 +117,12 @@ const localExtInput = computed({
             </div>
             <button class="add-rule-btn" @click="emit('addRule')">＋ 新增規則</button>
         </div>
+
+        <label class="field-label field-label--spaced">即時測試</label>
+        <RuleTester
+            :rules="form.tagRules"
+            :placeholder="form.example || '輸入測試檔名…'"
+        />
 
         <div class="form-actions">
             <button class="save-btn" :disabled="saving" @click="emit('save')">
@@ -152,6 +168,12 @@ const localExtInput = computed({
 .field-input:disabled { opacity: 0.4; cursor: not-allowed; }
 .field-input:focus { border-color: var(--accent); }
 .icon-input { width: 80px; font-size: 1.2rem; text-align: center; }
+.field-textarea {
+    resize: vertical;
+    min-height: 48px;
+    font-family: inherit;
+    line-height: 1.4;
+}
 .ext-tags {
     display: flex;
     flex-wrap: wrap;

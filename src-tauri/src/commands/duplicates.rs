@@ -2,14 +2,26 @@ use super::helpers::{fetch_item_tags, read_item_from_row};
 use crate::models::Item;
 use crate::scanner;
 use sqlx::{Row, SqlitePool};
+use std::path::Path;
 use tauri::{AppHandle, Emitter, State};
 
 // ── Duplicate detection ───────────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateItem {
+    #[serde(flatten)]
+    pub item: Item,
+    pub path_exists: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DuplicateGroup {
     pub fingerprint: String,
-    pub items: Vec<Item>,
+    /// "duplicate" — 全部 path 都還在；"moved" — 至少一筆 path 已不存在（疑似搬走）
+    pub status: String,
+    pub items: Vec<DuplicateItem>,
 }
 
 #[tauri::command]
@@ -38,12 +50,23 @@ pub async fn get_duplicate_groups(
         .map_err(|e| e.to_string())?;
 
         let mut items = Vec::new();
+        let mut any_missing = false;
         for item_row in item_rows {
             let id: i64 = item_row.get("id");
             let tags = fetch_item_tags(&pool, id).await?;
-            items.push(read_item_from_row(&item_row, tags));
+            let item = read_item_from_row(&item_row, tags);
+            let path_exists = Path::new(&item.path).exists();
+            if !path_exists {
+                any_missing = true;
+            }
+            items.push(DuplicateItem { item, path_exists });
         }
-        groups.push(DuplicateGroup { fingerprint, items });
+        let status = if any_missing { "moved" } else { "duplicate" };
+        groups.push(DuplicateGroup {
+            fingerprint,
+            status: status.to_string(),
+            items,
+        });
     }
     Ok(groups)
 }

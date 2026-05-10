@@ -5,7 +5,7 @@ import { useDuplicateScanner } from '../composables/useDuplicateScanner';
 
 const {
   groups, isLoading, isComputing, progress,
-  loadGroups, runCompute, trashItemInGroup, keepNewestInGroup
+  loadGroups, runCompute, trashItemInGroup, keepNewestInGroup, cleanupMovedInGroup
 } = useDuplicateScanner();
 
 let unlisten: UnlistenFn | null = null;
@@ -67,18 +67,43 @@ onUnmounted(() => { unlisten?.(); });
                     <div class="group-header">
                         <div class="group-meta">
                             <span class="group-badge">{{ group.items.length }} 份</span>
+                            <span
+                                class="status-badge"
+                                :class="group.status === 'moved' ? 'status-moved' : 'status-dup'"
+                            >
+                                {{ group.status === 'moved' ? '疑似已移動' : '真重複' }}
+                            </span>
                             <span class="group-fp">{{ group.fingerprint.slice(0, 12) }}…</span>
                             <span class="group-size">{{ formatSize(group.items[0].fileSize) }}</span>
                         </div>
-                        <button class="keep-btn" @click="keepNewestInGroup(gi)" title="保留最新，刪除其餘">
-                            保留最新
-                        </button>
+                        <div class="group-actions">
+                            <button
+                                v-if="group.status === 'moved'"
+                                class="keep-btn"
+                                @click="cleanupMovedInGroup(gi)"
+                                title="清理 DB 中已不存在的紀錄"
+                            >清理失效紀錄</button>
+                            <button
+                                v-else
+                                class="keep-btn"
+                                @click="keepNewestInGroup(gi)"
+                                title="保留最新，刪除其餘"
+                            >保留最新</button>
+                        </div>
                     </div>
 
                     <div class="item-list">
-                        <div v-for="item in group.items" :key="item.id" class="dup-item">
+                        <div
+                            v-for="item in group.items"
+                            :key="item.id"
+                            class="dup-item"
+                            :class="{ 'item-missing': !item.pathExists }"
+                        >
                             <div class="item-info">
-                                <span class="item-name">{{ item.name }}</span>
+                                <span class="item-name">
+                                    {{ item.name }}
+                                    <span v-if="!item.pathExists" class="missing-tag" title="檔案已不存在於磁碟">已不存在</span>
+                                </span>
                                 <span class="item-path">{{ item.path }}</span>
                                 <span class="item-date">匯入：{{ formatDate(item.fileModifiedAt) }}</span>
                             </div>
@@ -210,6 +235,43 @@ onUnmounted(() => { unlisten?.(); });
     font-weight: 600;
     padding: 2px 9px;
     border-radius: 20px;
+}
+
+.status-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid;
+}
+.status-badge.status-dup {
+    background: var(--color-danger-bg-subtle);
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+.status-badge.status-moved {
+    background: rgba(240, 178, 41, 0.12);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.group-actions { display: flex; gap: 6px; }
+
+.item-missing { opacity: 0.55; }
+.item-missing .item-name,
+.item-missing .item-path { text-decoration: line-through; }
+
+.missing-tag {
+    display: inline-block;
+    margin-left: 6px;
+    background: var(--color-danger-bg-subtle);
+    color: var(--color-danger);
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 4px;
+    vertical-align: middle;
+    text-decoration: none;
 }
 
 .group-fp {

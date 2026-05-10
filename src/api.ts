@@ -84,12 +84,25 @@ export interface ScanPreviewItem {
     proposedTags: string[];
 }
 
+export interface DuplicateItem extends Item {
+    pathExists: boolean;
+}
+
+export type DuplicateGroupStatus = 'duplicate' | 'moved';
+
+export interface DuplicateGroup {
+    fingerprint: string;
+    status: DuplicateGroupStatus;
+    items: DuplicateItem[];
+}
+
 export interface ItemType {
     id: number;
     name: string;
     icon: string;
     displayName: string;
     color: string | null;
+    example: string;
     isBuiltin: boolean;
     extensions: string[];
     tagRules: TagRuleInput[];
@@ -100,6 +113,7 @@ export interface ItemTypeInput {
     icon: string;
     displayName: string;
     color: string | null;
+    example: string;
     extensions: string[];
     tagRules: TagRuleInput[];
 }
@@ -285,7 +299,7 @@ export const api = {
     },
 
     // ── Duplicate detection ───────────────────────────────────────────────────
-    async getDuplicateGroups(): Promise<{ fingerprint: string; items: Item[] }[]> {
+    async getDuplicateGroups(): Promise<DuplicateGroup[]> {
         return await invoke('get_duplicate_groups');
     },
     async computeFingerprints(): Promise<number> {

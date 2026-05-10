@@ -96,6 +96,7 @@ pub struct ItemType {
     pub icon: String,
     pub display_name: String,
     pub color: Option<String>,
+    pub example: String,
     pub is_builtin: bool,
     pub extensions: Vec<String>,
     pub tag_rules: Vec<TagRuleInput>,
@@ -108,6 +109,7 @@ pub struct ItemTypeInput {
     pub icon: String,
     pub display_name: String,
     pub color: Option<String>,
+    pub example: String,
     pub extensions: Vec<String>,
     pub tag_rules: Vec<TagRuleInput>,
 }
