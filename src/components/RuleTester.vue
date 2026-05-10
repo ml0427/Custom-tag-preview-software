@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { onUnmounted, ref, watch } from 'vue';
+import { api, type TagRuleInput, type TagRuleTestHit } from '../api';
 
 interface Rule {
+  name?: string;
   matchType: string;
   pattern: string;
   tagName: string;
@@ -13,57 +15,54 @@ const props = defineProps<{
 }>();
 
 const testName = ref('');
+const hits = ref<TagRuleTestHit[]>([]);
+const isTesting = ref(false);
+const testError = ref('');
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let requestSeq = 0;
 
-interface Hit {
-  index: number;
-  rule: Rule;
-  tags: string[];
-  error?: string;
-}
+const normalizeRules = (): TagRuleInput[] =>
+  props.rules.map(rule => ({
+    name: rule.name ?? '',
+    matchType: rule.matchType,
+    pattern: rule.pattern,
+    tagName: rule.tagName,
+  }));
 
-// 規則命中邏輯需與後端 commands/rules.rs::compute_proposed_tags 保持一致
-const hits = computed<Hit[]>(() => {
-  const name = testName.value.trim();
-  if (!name) return [];
+watch(
+  [testName, () => props.rules],
+  () => {
+    const seq = ++requestSeq;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    const name = testName.value.trim();
+    testError.value = '';
+    if (!name) {
+      hits.value = [];
+      isTesting.value = false;
+      return;
+    }
 
-  const out: Hit[] = [];
-  props.rules.forEach((rule, idx) => {
-    if (!rule.pattern) return;
-
-    if (rule.matchType === 'regex_capture') {
+    debounceTimer = setTimeout(async () => {
+      isTesting.value = true;
       try {
-        const re = new RegExp(rule.pattern);
-        const m = name.match(re);
-        if (m && m[1]) {
-          const tags = m[1]
-            .split(/[,()（）、]/)
-            .map(s => s.trim())
-            .filter(Boolean);
-          if (tags.length > 0) out.push({ index: idx, rule, tags });
-        }
+        const nextHits = await api.testTagRules(name, normalizeRules());
+        if (seq === requestSeq) hits.value = nextHits;
       } catch (e) {
-        out.push({ index: idx, rule, tags: [], error: String(e) });
+        if (seq === requestSeq) {
+          hits.value = [];
+          testError.value = String(e);
+        }
+      } finally {
+        if (seq === requestSeq) isTesting.value = false;
       }
-      return;
-    }
+    }, 150);
+  },
+  { deep: true }
+);
 
-    if (!rule.tagName) return;
-
-    let matched = false;
-    try {
-      switch (rule.matchType) {
-        case 'prefix':   matched = name.startsWith(rule.pattern); break;
-        case 'suffix':   matched = name.endsWith(rule.pattern); break;
-        case 'contains': matched = name.includes(rule.pattern); break;
-        case 'regex':    matched = new RegExp(rule.pattern).test(name); break;
-      }
-    } catch (e) {
-      out.push({ index: idx, rule, tags: [], error: String(e) });
-      return;
-    }
-    if (matched) out.push({ index: idx, rule, tags: [rule.tagName] });
-  });
-  return out;
+onUnmounted(() => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  requestSeq += 1;
 });
 
 const matchTypeLabel = (mt: string) => {
@@ -88,13 +87,19 @@ const matchTypeLabel = (mt: string) => {
     <div v-if="!testName.trim()" class="tester-placeholder">
       輸入檔名後即時顯示哪些規則會命中
     </div>
+    <div v-else-if="isTesting" class="tester-placeholder">
+      測試中…
+    </div>
+    <div v-else-if="testError" class="hit-error">
+      測試失敗：{{ testError }}
+    </div>
     <div v-else-if="hits.length === 0" class="tester-empty">
       無規則命中
     </div>
     <ul v-else class="tester-hits">
       <li v-for="h in hits" :key="h.index" class="tester-hit">
-        <span class="hit-mt">{{ matchTypeLabel(h.rule.matchType) }}</span>
-        <span class="hit-pattern">{{ h.rule.pattern }}</span>
+        <span class="hit-mt">{{ matchTypeLabel(h.matchType) }}</span>
+        <span class="hit-pattern">{{ h.pattern }}</span>
         <span class="hit-arrow">→</span>
         <span v-if="h.error" class="hit-error">正規錯誤：{{ h.error }}</span>
         <template v-else>

@@ -4,12 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Custom Tag Preview v0.67 · 2026-05-10 12:06</title>
+    <title>Custom Tag Preview v0.69 · 2026-05-11 00:38</title>
     <script>
-      // FOUC 防閃爍：在 Vue 掛載前同步注入 data-theme，避免先閃預設主題
+      // FOUC 防閃爍：在 Vue 掛載前同步注入 data-theme 與字型大小，避免先閃預設值
       (function () {
         var t = localStorage.getItem('app-theme') || 'obsidian';
         document.documentElement.setAttribute('data-theme', t);
+
+        var f = localStorage.getItem('app-font-size') || 'medium';
+        var px = { small: '14px', medium: '16px', large: '18px' }[f] || '16px';
+        document.documentElement.style.setProperty('--font-base-size', px);
+        document.documentElement.setAttribute('data-font-size', f);
       })();
     </script>
   </head>

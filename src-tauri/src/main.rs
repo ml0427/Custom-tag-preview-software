@@ -87,6 +87,7 @@ fn main() {
             // Tag rules & scan wizard
             commands::get_tag_rules,
             commands::save_tag_rules,
+            commands::test_tag_rules,
             commands::preview_tag_scan,
             commands::apply_tag_scan,
             // Sources

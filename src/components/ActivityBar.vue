@@ -1,46 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { useThemeStore, type ThemeId } from '../stores/themeStore';
-
 defineProps<{ active: string | null; hasSource: boolean }>();
 const emit = defineEmits<{ (e: 'select', id: string): void }>();
 
-const items = [
-  { id: 'workspace',  label: '工作目錄', alwaysEnabled: true },
-  { id: 'tags',       label: '標籤篩選', alwaysEnabled: false },
-  { id: 'duplicates', label: '重複檔案', alwaysEnabled: false },
-  { id: 'manage',     label: '管理',     alwaysEnabled: true },
+const mainItems = [
+  { id: 'workspace',  label: '工作目錄' },
+  { id: 'tags',       label: '標籤篩選' },
+  { id: 'duplicates', label: '重複檔案' },
 ];
 
-const themeStore = useThemeStore();
-
-const themes: { id: ThemeId; label: string; color: string }[] = [
-  { id: 'obsidian',  label: 'Obsidian · Amber',    color: '#f0b429' },
-  { id: 'forge',     label: 'Forge · Industrial',  color: '#ff6b35' },
-  { id: 'parchment', label: 'Parchment · Archive', color: '#b0431e' },
-  { id: 'phosphor',  label: 'Phosphor · Terminal', color: '#00ff41' },
-];
-
-const themePopupOpen = ref(false);
-const themeAreaRef = ref<HTMLElement | null>(null);
-
-const currentColor = () => themes.find(t => t.id === themeStore.current)?.color ?? '#f0b429';
-
-const onDocClick = (e: MouseEvent) => {
-  if (themePopupOpen.value && themeAreaRef.value && !themeAreaRef.value.contains(e.target as Node)) {
-    themePopupOpen.value = false;
-  }
-};
-onMounted(() => document.addEventListener('click', onDocClick));
-onUnmounted(() => document.removeEventListener('click', onDocClick));
+const settingsItem = { id: 'settings', label: '設定' };
 </script>
 
 <template>
   <div class="activity-bar">
 
-
     <button
-      v-for="item in items"
+      v-for="item in mainItems"
       :key="item.id"
       class="activity-btn"
       :class="{ active: active === item.id }"
@@ -52,49 +27,34 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
         <svg v-if="item.id === 'workspace'" viewBox="0 0 24 24" fill="currentColor">
           <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
         </svg>
-        
+
         <!-- tags: tag -->
         <svg v-else-if="item.id === 'tags'" viewBox="0 0 24 24" fill="currentColor">
           <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 8.25c-.97 0-1.75-.78-1.75-1.75s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.75-1.75 1.75z"/>
         </svg>
-        
+
         <!-- duplicates: layers -->
         <svg v-else-if="item.id === 'duplicates'" viewBox="0 0 24 24" fill="currentColor">
           <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/>
-        </svg>
-
-        <!-- manage: wrench/settings -->
-        <svg v-else viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
         </svg>
       </div>
     </button>
 
     <div class="spacer"></div>
 
-    <div class="theme-area" ref="themeAreaRef">
-      <button
-        class="theme-toggle-btn"
-        :title="'主題：' + (themes.find(t => t.id === themeStore.current)?.label ?? '')"
-        @click="themePopupOpen = !themePopupOpen"
-      >
-        <span class="theme-dot-indicator" :style="{ background: currentColor() }"></span>
-      </button>
-      <div v-if="themePopupOpen" class="theme-popup">
-        <div class="theme-popup-title">主題風格</div>
-        <button
-          v-for="t in themes"
-          :key="t.id"
-          class="theme-option"
-          :class="{ active: themeStore.current === t.id }"
-          @click="themeStore.setTheme(t.id); themePopupOpen = false"
-        >
-          <span class="theme-swatch" :style="{ background: t.color }"></span>
-          <span class="theme-label">{{ t.label }}</span>
-          <span v-if="themeStore.current === t.id" class="theme-check">✓</span>
-        </button>
+    <!-- settings (置底) -->
+    <button
+      class="activity-btn"
+      :class="{ active: active === settingsItem.id }"
+      :title="settingsItem.label"
+      @click="emit('select', settingsItem.id)"
+    >
+      <div class="icon-container">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+        </svg>
       </div>
-    </div>
+    </button>
   </div>
 </template>
 
@@ -111,24 +71,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
   gap: 2px;
   z-index: 200;
   flex-shrink: 0;
-}
-
-.app-logo {
-  width: 30px;
-  height: 30px;
-  background: var(--accent);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 14px;
-  box-shadow: 0 0 16px rgba(240, 178, 41, 0.3);
-  flex-shrink: 0;
-}
-
-.app-logo svg {
-  width: 15px;
-  height: 15px;
 }
 
 .activity-btn {
@@ -175,16 +117,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
   transform: scaleY(1);
 }
 
-.activity-btn.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.activity-btn.disabled:hover {
-  background: transparent;
-  color: var(--text-tertiary);
-}
-
 .icon-container {
   width: 20px;
   height: 20px;
@@ -202,91 +134,4 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
 }
 
 .spacer { flex: 1; }
-
-.theme-area {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-subtle);
-  width: 100%;
-}
-
-.theme-toggle-btn {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
-}
-.theme-toggle-btn:hover {
-  background: var(--bg-overlay-soft);
-  border-color: var(--border-strong);
-}
-
-.theme-dot-indicator {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.theme-popup {
-  position: absolute;
-  bottom: 0;
-  left: calc(100% + 8px);
-  z-index: 9999;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  padding: 6px 4px;
-  min-width: 200px;
-  box-shadow: var(--shadow-popover);
-}
-
-.theme-popup-title {
-  font-size: 0.72rem;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 4px 12px 6px;
-}
-
-.theme-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--text-primary);
-  font-size: 0.88rem;
-  transition: background 0.15s;
-}
-.theme-option:hover { background: var(--bg-overlay-soft); }
-.theme-option.active { background: var(--accent-bg-subtle); }
-
-.theme-swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.theme-label { flex: 1; text-align: left; }
-
-.theme-check {
-  color: var(--accent);
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
 </style>

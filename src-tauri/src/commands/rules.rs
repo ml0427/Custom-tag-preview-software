@@ -4,47 +4,100 @@ use tauri::{AppHandle, Manager, State};
 
 // ── Tag rules & scan wizard ───────────────────────────────────────────────────
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagRuleTestHit {
+    pub index: usize,
+    pub match_type: String,
+    pub pattern: String,
+    pub tags: Vec<String>,
+    pub error: Option<String>,
+}
+
+fn evaluate_rule_for_name(name: &str, rule: &crate::models::TagRuleInput) -> (Vec<String>, Option<String>) {
+    if rule.pattern.is_empty() {
+        return (Vec::new(), None);
+    }
+
+    if rule.match_type == "regex_capture" {
+        let re = match regex::Regex::new(&rule.pattern) {
+            Ok(re) => re,
+            Err(e) => return (Vec::new(), Some(e.to_string())),
+        };
+        let Some(caps) = re.captures(name) else {
+            return (Vec::new(), None);
+        };
+        let Some(m) = caps.get(1) else {
+            return (Vec::new(), None);
+        };
+        let tags = m
+            .as_str()
+            .split(|c: char| ",()（）、".contains(c))
+            .map(|part| part.trim().to_string())
+            .filter(|tag| !tag.is_empty())
+            .collect();
+        return (tags, None);
+    }
+
+    if rule.tag_name.is_empty() {
+        return (Vec::new(), None);
+    }
+
+    let matched = match rule.match_type.as_str() {
+        "prefix" => name.starts_with(&rule.pattern),
+        "suffix" => name.ends_with(&rule.pattern),
+        "contains" => name.contains(&rule.pattern),
+        "regex" => match regex::Regex::new(&rule.pattern) {
+            Ok(re) => re.is_match(name),
+            Err(e) => return (Vec::new(), Some(e.to_string())),
+        },
+        _ => false,
+    };
+
+    if matched {
+        (vec![rule.tag_name.clone()], None)
+    } else {
+        (Vec::new(), None)
+    }
+}
+
 fn apply_rules_to_name(name: &str, rules: &[crate::models::TagRuleInput]) -> Vec<String> {
     let mut tags: Vec<String> = Vec::new();
     for rule in rules {
-        if rule.pattern.is_empty() {
-            continue;
-        }
-
-        // 正規擷取：把 (group1) 抓到的文字直接當標籤名（支援逗號分隔多個）
-        if rule.match_type == "regex_capture" {
-            if let Ok(re) = regex::Regex::new(&rule.pattern) {
-                if let Some(caps) = re.captures(name) {
-                    if let Some(m) = caps.get(1) {
-                        for part in m.as_str().split(|c: char| ",()（）、".contains(c)) {
-                            let t = part.trim().to_string();
-                            if !t.is_empty() && !tags.contains(&t) {
-                                tags.push(t);
-                            }
-                        }
-                    }
-                }
+        let (rule_tags, _) = evaluate_rule_for_name(name, rule);
+        for tag in rule_tags {
+            if !tags.contains(&tag) {
+                tags.push(tag);
             }
-            continue;
-        }
-
-        if rule.tag_name.is_empty() {
-            continue;
-        }
-        let matched = match rule.match_type.as_str() {
-            "prefix" => name.starts_with(&rule.pattern),
-            "suffix" => name.ends_with(&rule.pattern),
-            "contains" => name.contains(&rule.pattern),
-            "regex" => regex::Regex::new(&rule.pattern)
-                .map(|re| re.is_match(name))
-                .unwrap_or(false),
-            _ => false,
-        };
-        if matched && !tags.contains(&rule.tag_name) {
-            tags.push(rule.tag_name.clone());
         }
     }
     tags
+}
+
+#[tauri::command]
+pub async fn test_tag_rules(
+    name: String,
+    rules: Vec<crate::models::TagRuleInput>,
+) -> Result<Vec<TagRuleTestHit>, String> {
+    let mut hits = Vec::new();
+    let name = name.trim();
+    if name.is_empty() {
+        return Ok(hits);
+    }
+
+    for (index, rule) in rules.iter().enumerate() {
+        let (tags, error) = evaluate_rule_for_name(name, rule);
+        if error.is_some() || !tags.is_empty() {
+            hits.push(TagRuleTestHit {
+                index,
+                match_type: rule.match_type.clone(),
+                pattern: rule.pattern.clone(),
+                tags,
+                error,
+            });
+        }
+    }
+    Ok(hits)
 }
 
 #[tauri::command]

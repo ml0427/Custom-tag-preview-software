@@ -8,6 +8,11 @@
   transition: none !important;
 }
 
+/* 字型大小：由 fontSizeStore 注入 --font-base-size，rem 會跟著縮放 */
+html {
+  font-size: var(--font-base-size, 16px);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

@@ -88,11 +88,12 @@ const localExtInput = computed({
             <input
                 v-model="localExtInput"
                 class="ext-input"
-                placeholder="輸入副檔名後按 Enter"
+                size="1"
+                placeholder="+ 副檔名"
                 @keydown.enter.prevent="emit('addExt')"
             />
         </div>
-        <p class="field-hint">不含點號，例：zip、epub、cbz</p>
+        <p class="field-hint">不含點號，輸入後按 Enter 新增（例：zip、epub、cbz）</p>
 
         <label class="field-label field-label--spaced">自動標記規則</label>
         <p class="field-hint">指定此類別後，自動對資料夾內的檔案套用以下規則打標籤</p>
@@ -212,8 +213,9 @@ const localExtInput = computed({
     outline: none;
     color: var(--text-primary);
     font-size: 0.85rem;
-    min-width: 120px;
-    flex: 1;
+    min-width: 80px;
+    width: 80px;
+    flex: 1 1 80px;
 }
 .ext-input::placeholder { color: var(--text-secondary); }
 .field-hint {

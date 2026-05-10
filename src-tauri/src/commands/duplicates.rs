@@ -51,6 +51,7 @@ pub async fn get_duplicate_groups(
 
         let mut items = Vec::new();
         let mut any_missing = false;
+        let mut existing_count = 0usize;
         for item_row in item_rows {
             let id: i64 = item_row.get("id");
             let tags = fetch_item_tags(&pool, id).await?;
@@ -58,10 +59,18 @@ pub async fn get_duplicate_groups(
             let path_exists = Path::new(&item.path).exists();
             if !path_exists {
                 any_missing = true;
+            } else {
+                existing_count += 1;
             }
             items.push(DuplicateItem { item, path_exists });
         }
-        let status = if any_missing { "moved" } else { "duplicate" };
+        let status = if any_missing && existing_count > 1 {
+            "mixed"
+        } else if any_missing {
+            "moved"
+        } else {
+            "duplicate"
+        };
         groups.push(DuplicateGroup {
             fingerprint,
             status: status.to_string(),

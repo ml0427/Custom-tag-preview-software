@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { DuplicateGroup } from '../api';
 import { useDuplicateScanner } from '../composables/useDuplicateScanner';
 
 const {
@@ -22,6 +23,16 @@ const formatDate = (unix: number | null) => {
     if (!unix) return '-';
     return new Date(unix * 1000).toLocaleDateString('zh-TW');
 };
+
+const statusLabel = (status: DuplicateGroup['status']) => {
+    if (status === 'mixed') return '重複 + 已移動';
+    if (status === 'moved') return '疑似已移動';
+    return '真重複';
+};
+
+const hasMissingItems = (group: DuplicateGroup) => group.items.some(item => !item.pathExists);
+const hasMultipleExistingItems = (group: DuplicateGroup) =>
+    group.items.filter(item => item.pathExists).length > 1;
 
 onMounted(async () => {
     unlisten = await listen<{ current: number; total: number }>('fingerprint-progress', ({ payload }) => {
@@ -69,22 +80,22 @@ onUnmounted(() => { unlisten?.(); });
                             <span class="group-badge">{{ group.items.length }} 份</span>
                             <span
                                 class="status-badge"
-                                :class="group.status === 'moved' ? 'status-moved' : 'status-dup'"
+                                :class="`status-${group.status}`"
                             >
-                                {{ group.status === 'moved' ? '疑似已移動' : '真重複' }}
+                                {{ statusLabel(group.status) }}
                             </span>
                             <span class="group-fp">{{ group.fingerprint.slice(0, 12) }}…</span>
                             <span class="group-size">{{ formatSize(group.items[0].fileSize) }}</span>
                         </div>
                         <div class="group-actions">
                             <button
-                                v-if="group.status === 'moved'"
+                                v-if="hasMissingItems(group)"
                                 class="keep-btn"
                                 @click="cleanupMovedInGroup(gi)"
                                 title="清理 DB 中已不存在的紀錄"
                             >清理失效紀錄</button>
                             <button
-                                v-else
+                                v-if="hasMultipleExistingItems(group)"
                                 class="keep-btn"
                                 @click="keepNewestInGroup(gi)"
                                 title="保留最新，刪除其餘"
@@ -107,7 +118,12 @@ onUnmounted(() => { unlisten?.(); });
                                 <span class="item-path">{{ item.path }}</span>
                                 <span class="item-date">匯入：{{ formatDate(item.fileModifiedAt) }}</span>
                             </div>
-                            <button class="trash-btn" @click="trashItemInGroup(item, gi)" title="移至資源回收筒">
+                            <button
+                                v-if="item.pathExists"
+                                class="trash-btn"
+                                @click="trashItemInGroup(item, gi)"
+                                title="移至資源回收筒"
+                            >
                                 🗑
                             </button>
                         </div>
@@ -252,6 +268,11 @@ onUnmounted(() => { unlisten?.(); });
 .status-badge.status-moved {
     background: rgba(240, 178, 41, 0.12);
     color: var(--accent);
+    border-color: var(--accent);
+}
+.status-badge.status-mixed {
+    background: var(--accent-bg-subtle);
+    color: var(--accent-hover);
     border-color: var(--accent);
 }
 

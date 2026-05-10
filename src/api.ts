@@ -84,11 +84,19 @@ export interface ScanPreviewItem {
     proposedTags: string[];
 }
 
+export interface TagRuleTestHit {
+    index: number;
+    matchType: string;
+    pattern: string;
+    tags: string[];
+    error: string | null;
+}
+
 export interface DuplicateItem extends Item {
     pathExists: boolean;
 }
 
-export type DuplicateGroupStatus = 'duplicate' | 'moved';
+export type DuplicateGroupStatus = 'duplicate' | 'moved' | 'mixed';
 
 export interface DuplicateGroup {
     fingerprint: string;
@@ -290,6 +298,9 @@ export const api = {
     },
     async saveTagRules(rules: TagRuleInput[]): Promise<void> {
         return await invoke('save_tag_rules', { rules });
+    },
+    async testTagRules(name: string, rules: TagRuleInput[]): Promise<TagRuleTestHit[]> {
+        return await invoke<TagRuleTestHit[]>('test_tag_rules', { name, rules });
     },
     async previewTagScan(scopePath: string, rules: TagRuleInput[]): Promise<ScanPreviewItem[]> {
         return await invoke<ScanPreviewItem[]>('preview_tag_scan', { scopePath, rules });
