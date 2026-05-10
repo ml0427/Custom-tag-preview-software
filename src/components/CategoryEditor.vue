@@ -88,12 +88,11 @@ const localExtInput = computed({
             <input
                 v-model="localExtInput"
                 class="ext-input"
-                size="1"
-                placeholder="+ 副檔名"
+                placeholder="輸入副檔名後按 Enter 新增"
                 @keydown.enter.prevent="emit('addExt')"
             />
         </div>
-        <p class="field-hint">不含點號，輸入後按 Enter 新增（例：zip、epub、cbz）</p>
+        <p class="field-hint">不含點號，例：zip、epub、cbz</p>
 
         <label class="field-label field-label--spaced">自動標記規則</label>
         <p class="field-hint">指定此類別後，自動對資料夾內的檔案套用以下規則打標籤</p>
@@ -186,9 +185,11 @@ const localExtInput = computed({
     padding: 6px 8px;
     margin-top: 4px;
     min-height: 36px;
+    min-width: 0;
+    overflow: hidden;
 }
 .ext-tag {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 4px;
     background: var(--bg-overlay-strong);
@@ -196,6 +197,11 @@ const localExtInput = computed({
     padding: 2px 6px;
     font-size: 0.8rem;
     color: var(--text-primary);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .ext-del {
     background: transparent;
@@ -205,6 +211,7 @@ const localExtInput = computed({
     font-size: 0.75rem;
     padding: 0;
     line-height: 1;
+    flex-shrink: 0;
 }
 .ext-del:hover { color: var(--color-danger); }
 .ext-input {
@@ -213,9 +220,9 @@ const localExtInput = computed({
     outline: none;
     color: var(--text-primary);
     font-size: 0.85rem;
-    min-width: 80px;
-    width: 80px;
-    flex: 1 1 80px;
+    flex: 1 1 100px;
+    min-width: 0;
+    width: 0;
 }
 .ext-input::placeholder { color: var(--text-secondary); }
 .field-hint {
