@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "tauri dev": "npm run tauri dev",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "dev": "vite",
     "prebuild": "node scripts/stamp-build.cjs",
     "build": "vite build",

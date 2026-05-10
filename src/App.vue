@@ -9,6 +9,7 @@ import SourcePanel from './components/SourcePanel.vue'
 import ItemGallery from './components/ItemGallery.vue'
 import ItemDetailModal from './components/ItemDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
+import ItemCategoryModal from './components/ItemCategoryModal.vue'
 import DuplicateView from './components/DuplicateView.vue'
 import ManagePanel from './components/ManagePanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
@@ -18,6 +19,7 @@ const selectedTagIds = ref<number[]>([])
 const selectedSourcePath = ref<string | null>(null)
 const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
+const selectedCategoryItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
 const workspaceGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const tagGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
@@ -45,6 +47,10 @@ const handleFileItemSelect = (item: Item) => {
 
 const handleFolderItemSelect = (item: Item) => {
   selectedFolderItem.value = item
+}
+
+const handleCategoryItemSelect = (item: Item) => {
+  selectedCategoryItem.value = item
 }
 
 const handleModalClose = () => {
@@ -129,6 +135,7 @@ onUnmounted(() => {
           :sourcePath="selectedSourcePath"
           @showDetail="handleFileItemSelect"
           @showFolderDetail="handleFolderItemSelect"
+          @showCategoryEditor="handleCategoryItemSelect"
           @navigateDir="(path) => { selectedSourcePath = path; }"
           @jumpToTag="handleJumpToTag"
         />
@@ -140,6 +147,7 @@ onUnmounted(() => {
           :selectedTagIds="selectedTagIds"
           @showDetail="handleFileItemSelect"
           @showFolderDetail="handleFolderItemSelect"
+          @showCategoryEditor="handleCategoryItemSelect"
           @navigateDir="(path) => { selectedSourcePath = path; activePanel = 'workspace'; }"
           @jumpToTag="handleJumpToTag"
         />
@@ -159,6 +167,12 @@ onUnmounted(() => {
       @close="selectedFolderItem = null"
       @updated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
       @deleted="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
+    />
+
+    <ItemCategoryModal
+      :item="selectedCategoryItem"
+      @close="selectedCategoryItem = null"
+      @updated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
     />
 
     <ToastContainer />

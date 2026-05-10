@@ -23,6 +23,7 @@ const emit = defineEmits<{
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
   (e: 'addCategory', item: FileItem): void;
+  (e: 'rulesApplied'): void;
 }>();
 
 const { itemTypes } = useItemTypes();
@@ -54,7 +55,8 @@ const { applyRulesForItem } = useFolderRuleActions(
   () => props.itemByPath,
   () => itemTypes.value,
   showToast,
-  hideContextMenu
+  hideContextMenu,
+  () => emit('rulesApplied')
 );
 
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));

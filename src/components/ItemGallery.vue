@@ -22,6 +22,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'showDetail', item: Item): void;
   (e: 'showFolderDetail', item: Item): void;
+  (e: 'showCategoryEditor', item: Item): void;
   (e: 'navigateDir', path: string): void;
   (e: 'jumpToTag', tagId: number): void;
 }>();
@@ -192,7 +193,8 @@ const handleAddCategory = async (fileItem: FileItem) => {
     dbItem = itemByPath.value.get(pathKey(fileItem.path));
     if (!dbItem) return;
   }
-  emit('showFolderDetail', dbItem);
+  if (fileItem.isDir) emit('showFolderDetail', dbItem);
+  else emit('showCategoryEditor', dbItem);
 };
 
 const handleContextRename = async (fileItem: FileItem, newName: string) => {
@@ -392,6 +394,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @dblclick="handleFileItemDblClick"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
+          @rulesApplied="loadAll"
           @rename="handleContextRename"
           @delete="handleDelete"
           @sort="handleSort"
@@ -407,6 +410,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @dblclick="handleFileItemDblClick"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
+          @rulesApplied="loadAll"
           @rename="handleContextRename"
           @delete="handleDelete"
         />

@@ -27,6 +27,7 @@ const emit = defineEmits<{
   (e: 'delete', item: FileItem): void;
   (e: 'sort', col: 'name' | 'size' | 'date'): void;
   (e: 'addCategory', item: FileItem): void;
+  (e: 'rulesApplied'): void;
 }>();
 
 const ROW_HEIGHT = 56;
@@ -181,7 +182,8 @@ const { applyRulesForItem } = useFolderRuleActions(
   () => props.itemByPath,
   () => itemTypes.value,
   showToast,
-  hideContextMenu
+  hideContextMenu,
+  () => emit('rulesApplied')
 );
 
 const getFileIcon = (item: FileItem): string => {

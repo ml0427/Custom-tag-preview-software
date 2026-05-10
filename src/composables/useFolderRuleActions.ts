@@ -11,7 +11,8 @@ export function useFolderRuleActions(
   itemByPath: () => Map<string, Item>,
   itemTypes: () => ItemType[],
   showToast: (message: string, type?: ToastType) => void,
-  hideContextMenu: () => void
+  hideContextMenu: () => void,
+  onApplied?: () => void | Promise<void>
 ) {
   const applyRulesForTarget = async (target: RuleTarget) => {
     hideContextMenu();
@@ -27,6 +28,7 @@ export function useFolderRuleActions(
     try {
       const result = await api.applyTagScan(target.path, type.tagRules);
       showToast(`已套用 ${result.tagged} 個標籤`, 'success');
+      await onApplied?.();
     } catch (e) {
       showToast('套用失敗: ' + String(e), 'error');
     }
