@@ -48,7 +48,11 @@ const saveChanges = async () => {
   if (!props.item || isSaving.value) return;
   isSaving.value = true;
   try {
-    await api.updateFolder(props.item.id, editName.value.trim(), editType.value, editNote.value.trim());
+    if (props.item.itemType === 'folder') {
+      await api.updateFolder(props.item.id, editName.value.trim(), editType.value, editNote.value.trim());
+    } else {
+      await api.setItemCategory(props.item.id, editType.value);
+    }
     emit('updated');
   } catch (e) {
     showToast('儲存失敗: ' + String(e), 'error');

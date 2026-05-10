@@ -172,6 +172,21 @@ pub async fn trash_item(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn set_item_category(
+    id: i64,
+    category: String,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), String> {
+    sqlx::query("UPDATE items SET category = ? WHERE id = ?")
+        .bind(&category)
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Remove an item from the DB without touching the filesystem (un-track).
 #[tauri::command]
 pub async fn untrack_item(

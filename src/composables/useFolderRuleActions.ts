@@ -32,10 +32,23 @@ export function useFolderRuleActions(
     }
   };
 
-  const applyRulesForItem = (item: FileItem) => applyRulesForTarget({
-    path: item.path,
-    category: itemByPath().get(pathKey(item.path))?.category,
-  });
+  const applyRulesForItem = async (item: FileItem) => {
+    let category = itemByPath().get(pathKey(item.path))?.category ?? undefined;
+    if (!category) {
+      try {
+        const folders = await api.getFolders();
+        const norm = item.path.replace(/\\/g, '/');
+        const best = folders
+          .filter(f => {
+            const fp = f.path.replace(/\\/g, '/');
+            return norm === fp || norm.startsWith(fp.endsWith('/') ? fp : fp + '/');
+          })
+          .sort((a, b) => b.path.length - a.path.length)[0];
+        category = best?.category ?? undefined;
+      } catch { /* ignore */ }
+    }
+    return applyRulesForTarget({ path: item.path, category });
+  };
 
   return { applyRulesForTarget, applyRulesForItem };
 }

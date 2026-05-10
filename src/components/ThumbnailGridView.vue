@@ -22,6 +22,7 @@ const emit = defineEmits<{
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
+  (e: 'addCategory', item: FileItem): void;
 }>();
 
 const { itemTypes } = useItemTypes();
@@ -99,16 +100,17 @@ const startRenameCtx = () => {
       @click.stop
     >
       <template v-if="contextMenu.item?.isDir">
-        <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">📂 進入資料夾</button>
-        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">✏️ 修改類別</button>
-        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">🔄 重新套用規則</button>
+        <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">進入資料夾</button>
+        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">修改類別</button>
+        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
         <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
         <div class="ctx-divider"></div>
         <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
       </template>
       <template v-else>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
-        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">🔄 重新套用規則</button>
+        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">增加類別</button>
+        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
         <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
         <div class="ctx-divider"></div>
         <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>

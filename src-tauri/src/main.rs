@@ -98,6 +98,7 @@ fn main() {
             commands::create_folder,
             commands::update_folder,
             commands::delete_folder,
+            commands::set_item_category,
             commands::trash_item,
             commands::untrack_item,
             commands::add_tag_to_folder,

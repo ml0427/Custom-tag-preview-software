@@ -225,6 +225,10 @@ export const api = {
         return await invoke<Folder>('update_folder', { id, name, category, note });
     },
 
+    async setItemCategory(id: number, category: string): Promise<void> {
+        await invoke('set_item_category', { id, category });
+    },
+
     async deleteFolder(id: number): Promise<void> {
         await invoke('delete_folder', { id });
     },

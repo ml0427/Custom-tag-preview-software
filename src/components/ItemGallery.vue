@@ -179,6 +179,22 @@ const handleContextDetail = async (fileItem: FileItem) => {
   else emit('showDetail', dbItem);
 };
 
+const handleAddCategory = async (fileItem: FileItem) => {
+  let dbItem = itemByPath.value.get(pathKey(fileItem.path));
+  if (!dbItem) {
+    try {
+      dbItem = await api.quickImportItem(fileItem.path);
+      await loadAll();
+    } catch (e: any) {
+      showToast('匯入失敗：' + (e?.message ?? e), 'error');
+      return;
+    }
+    dbItem = itemByPath.value.get(pathKey(fileItem.path));
+    if (!dbItem) return;
+  }
+  emit('showFolderDetail', dbItem);
+};
+
 const handleContextRename = async (fileItem: FileItem, newName: string) => {
   let dbItem = itemByPath.value.get(pathKey(fileItem.path));
   if (!dbItem) {
@@ -375,6 +391,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
           @detail="handleContextDetail"
+          @addCategory="handleAddCategory"
           @rename="handleContextRename"
           @delete="handleDelete"
           @sort="handleSort"
@@ -389,6 +406,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
           @detail="handleContextDetail"
+          @addCategory="handleAddCategory"
           @rename="handleContextRename"
           @delete="handleDelete"
         />

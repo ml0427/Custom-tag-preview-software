@@ -229,10 +229,10 @@ onMounted(() => {
       :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
       @click.stop
     >
-      <div class="ctx-item" @click="openModifyTypeFromCtx">✏️ 修改類別</div>
-      <div class="ctx-item" @click="applyRulesFromCtx">🔄 重新套用規則</div>
+      <div class="ctx-item" @click="openModifyTypeFromCtx">修改類別</div>
+      <div class="ctx-item" @click="applyRulesFromCtx">重新套用規則</div>
       <div class="ctx-divider"></div>
-      <div class="ctx-item ctx-danger" @click="untrackFromCtx">🗑 移除追蹤記錄</div>
+      <div class="ctx-item ctx-danger" @click="untrackFromCtx">移除追蹤記錄</div>
     </div>
 
     <!-- 修改類型 / 加入知識庫 Modal -->
