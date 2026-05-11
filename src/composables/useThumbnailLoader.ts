@@ -43,10 +43,16 @@ export function useThumbnailLoader() {
     return '';
   };
 
+  const hasUserCategory = (dbItem: Item | null): boolean =>
+    !!dbItem?.category && dbItem.category !== 'default';
+
   const getIcon = (item: FileItem, itemByPath: Map<string, Item>): string => {
+    const dbItem = getDbItem(item, itemByPath);
     if (item.isDir) {
-      const ft = getDbItem(item, itemByPath)?.category;
-      return getTypeConfig(ft).icon;
+      return getTypeConfig(dbItem?.category).icon;
+    }
+    if (hasUserCategory(dbItem)) {
+      return getTypeConfig(dbItem!.category).icon;
     }
     const ext = item.extension?.toLowerCase() ?? '';
     const matched = getTypeByExtension(ext);
@@ -61,18 +67,26 @@ export function useThumbnailLoader() {
   };
 
   const getItemType = (item: FileItem, itemByPath: Map<string, Item>): string => {
+    const dbItem = getDbItem(item, itemByPath);
     if (item.isDir) {
-      const dbItem = getDbItem(item, itemByPath);
       if (dbItem) return getTypeConfig(dbItem.category).displayName;
       return '目錄';
+    }
+    if (hasUserCategory(dbItem)) {
+      return getTypeConfig(dbItem!.category).displayName;
     }
     return item.extension?.toUpperCase() ?? '—';
   };
 
   const getTypeColor = (item: FileItem, itemByPath: Map<string, Item>): string | null => {
-    if (!item.isDir) return null;
     const dbItem = getDbItem(item, itemByPath);
-    return getTypeConfig(dbItem?.category).color ?? null;
+    if (item.isDir) {
+      return getTypeConfig(dbItem?.category).color ?? null;
+    }
+    if (hasUserCategory(dbItem)) {
+      return getTypeConfig(dbItem!.category).color ?? null;
+    }
+    return null;
   };
 
   return {

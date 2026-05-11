@@ -142,6 +142,14 @@ pub async fn incremental_scan_directory(
     cache_dir: &Path,
     app: &AppHandle,
 ) -> Result<(i32, i32, i32)> {
+    let scan_root = Path::new(path_str);
+    if !scan_root.is_dir() {
+        return Err(anyhow::anyhow!(
+            "incremental_scan_directory 需要目錄路徑，但收到非目錄：{}",
+            path_str
+        ));
+    }
+
     fs::create_dir_all(cache_dir)?;
 
     let rows = sqlx::query(
@@ -150,7 +158,6 @@ pub async fn incremental_scan_directory(
     .fetch_all(pool)
     .await?;
 
-    let scan_root = Path::new(path_str);
     let mut existing: HashMap<String, (i64, i64)> = HashMap::new();
     for row in &rows {
         let path: String = row.get("path");
@@ -162,10 +169,6 @@ pub async fn incremental_scan_directory(
         existing.insert(path, (id, mtime));
     }
 
-    let mut found_paths: HashSet<String> = HashSet::new();
-    let mut added = 0i32;
-    let mut updated = 0i32;
-
     let scannable_exts: HashSet<String> = sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT extension FROM type_extensions"
     )
@@ -175,23 +178,37 @@ pub async fn incremental_scan_directory(
     .into_iter()
     .collect();
 
-    let entries: Vec<_> = WalkDir::new(path_str)
+    // 蒐集所有實體存在的路徑（不被 scannable_exts 過濾）。
+    // 副檔名白名單只決定「要不要自動匯入」，不決定一筆 row 該不該被刪除。
+    let all_entries: Vec<_> = WalkDir::new(path_str)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.file_type().is_dir() || (e.file_type().is_file() && e.path().extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
-                .unwrap_or(false))
-        })
         .collect();
 
-    for entry in entries {
+    let mut found_paths: HashSet<String> = HashSet::new();
+    for entry in &all_entries {
+        found_paths.insert(entry.path().to_string_lossy().to_string());
+    }
+
+    let mut added = 0i32;
+    let mut updated = 0i32;
+
+    for entry in &all_entries {
         let file_path = entry.path().to_string_lossy().to_string();
-        found_paths.insert(file_path.clone());
+        let is_dir = entry.file_type().is_dir();
+
+        // 對檔案：副檔名不在白名單就不自動匯入（但保留在 found_paths 中以免被誤刪）
+        if !is_dir {
+            let scannable = entry.path().extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
+                .unwrap_or(false);
+            if !scannable && !existing.contains_key(&file_path) {
+                continue;
+            }
+        }
 
         let metadata = fs::metadata(entry.path())?;
-        let is_dir = entry.file_type().is_dir();
         let file_size = if is_dir { None } else { Some(metadata.len() as i64) };
         let mtime_unix = metadata.modified()
             .ok()
@@ -215,16 +232,12 @@ pub async fn incremental_scan_directory(
                 .await?;
                 updated += 1;
             }
-        } else {
-            if is_dir {
-                if process_folder(pool, entry.path()).await? {
-                    added += 1;
-                }
-            } else {
-                if process_zip_file(pool, entry.path(), cache_dir).await? {
-                    added += 1;
-                }
+        } else if is_dir {
+            if process_folder(pool, entry.path()).await? {
+                added += 1;
             }
+        } else if process_zip_file(pool, entry.path(), cache_dir).await? {
+            added += 1;
         }
         let _ = app.emit("scan-progress", serde_json::json!({
             "current": added + updated,

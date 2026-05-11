@@ -29,6 +29,11 @@ const saveCategory = async () => {
   isSaving.value = true;
   try {
     await api.setItemCategory(props.item.id, editType.value);
+    // 改完類別後自動套用該類別的 tag rules，使用者不必再手動按「重新套用規則」
+    const type = itemTypes.value.find(t => t.name === editType.value);
+    if (type?.tagRules?.length) {
+      await api.applyRulesToItem(props.item.id, type.tagRules);
+    }
     emit('updated');
     emit('close');
   } catch (e) {

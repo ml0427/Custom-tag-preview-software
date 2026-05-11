@@ -243,6 +243,33 @@ pub async fn rename_item(
     get_item(id, pool).await
 }
 
+/// 副檔名是否為本專案 zip_utils 能解析的壓縮包。
+fn is_archive_path(path: &str) -> bool {
+    std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| {
+            let l = e.to_lowercase();
+            matches!(l.as_str(), "zip" | "cbz")
+        })
+        .unwrap_or(false)
+}
+
+/// 副檔名是否為單張圖片。
+fn is_image_path(path: &str) -> bool {
+    std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| {
+            let l = e.to_lowercase();
+            matches!(
+                l.as_str(),
+                "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp"
+            )
+        })
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub async fn get_item_images(id: i64, pool: State<'_, SqlitePool>) -> Result<Vec<String>, String> {
     let path: String = sqlx::query("SELECT path FROM items WHERE id = ?")
@@ -251,6 +278,10 @@ pub async fn get_item_images(id: i64, pool: State<'_, SqlitePool>) -> Result<Vec
         .await
         .map_err(|e| e.to_string())?
         .get(0);
+    // 非壓縮包檔案沒有「內部影像條目」可列，回空陣列而不是 Err，避免前端 toast 誤報。
+    if !is_archive_path(&path) {
+        return Ok(Vec::new());
+    }
     zip_utils::get_image_entries(&path).map_err(|e| e.to_string())
 }
 
@@ -297,6 +328,18 @@ pub async fn get_cover_base64(id: i64, pool: State<'_, SqlitePool>) -> Result<St
 
     let file_path: String = row.get("path");
     let cover_cache_path: Option<String> = row.get("cover_cache_path");
+
+    // 單張圖片：直接讀檔案內容做封面。
+    if is_image_path(&file_path) {
+        let data = fs::read(&file_path).map_err(|e| e.to_string())?;
+        let b64 = general_purpose::STANDARD.encode(&data);
+        return Ok(format!("data:image/jpeg;base64,{}", b64));
+    }
+
+    // 不是壓縮包也不是圖片（例如影片、PDF）：沒有封面，回空字串，由前端決定備援顯示。
+    if !is_archive_path(&file_path) {
+        return Ok(String::new());
+    }
 
     let image_data = if let Some(cover) = cover_cache_path {
         zip_utils::extract_image(&file_path, &cover).map_err(|e| e.to_string())?

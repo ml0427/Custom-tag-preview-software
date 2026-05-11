@@ -2,7 +2,7 @@
 
 本地桌面應用程式，以**標籤系統**取代傳統資料夾分類，管理大量檔案（壓縮包、圖片、影片等），並提供即時縮圖預覽與批次操作。基於 **Tauri v2 (Rust) + Vue 3** 建構，無需伺服器，所有資料完全本地儲存。
 
-![版本](https://img.shields.io/badge/version-v0.70-amber)
+![版本](https://img.shields.io/badge/version-v0.74-amber)
 ![平台](https://img.shields.io/badge/platform-Windows-blue)
 ![框架](https://img.shields.io/badge/Tauri-v2-purple)
 

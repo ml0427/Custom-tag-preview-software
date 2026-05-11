@@ -90,6 +90,7 @@ fn main() {
             commands::test_tag_rules,
             commands::preview_tag_scan,
             commands::apply_tag_scan,
+            commands::apply_rules_to_item,
             // Sources
             commands::get_sources,
             commands::add_source,

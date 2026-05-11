@@ -174,6 +174,53 @@ pub async fn preview_tag_scan(
     Ok(results)
 }
 
+/// 對單一 item 套用 tag rules：① 重跑檔名標籤擷取 ② 套用自定義類別規則。
+/// 純資料層動作，不碰檔案系統同步。
+async fn apply_rules_to_item_inner(
+    pool: &SqlitePool,
+    item_id: i64,
+    name: &str,
+    rules: &[crate::models::TagRuleInput],
+) -> Result<i32, String> {
+    let mut tagged = 0i32;
+
+    if let Ok(c) = scanner::extract_and_apply_tags(pool, item_id, name).await {
+        tagged += c as i32;
+    }
+
+    for tag_name in apply_rules_to_name(name, rules) {
+        sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
+            .bind(&tag_name)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        let tag_id: i64 = sqlx::query("SELECT id FROM tags WHERE name = ?")
+            .bind(&tag_name)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?
+            .get("id");
+        sqlx::query(
+            "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'rule')",
+        )
+        .bind(item_id)
+        .bind(tag_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        tagged += 1;
+    }
+
+    Ok(tagged)
+}
+
+/// 套用 tag rules。後端自己判斷 scope_path 是檔案還是目錄：
+/// - 檔案：只對該 item 套規則（純資料層動作，不碰 FS 同步）
+/// - 目錄：做 FS↔DB 增量同步（增/改/刪），然後對 scope 內所有 items 套規則
+///
+/// 此 command 是給「不知道 target 形態」的呼叫端用的安全入口（SourcePanel、
+/// 右鍵選單等）；對於已經拿到 item.id 的場景，直接呼叫 `apply_rules_to_item`
+/// 更有效率。
 #[tauri::command]
 pub async fn apply_tag_scan(
     scope_path: String,
@@ -181,6 +228,28 @@ pub async fn apply_tag_scan(
     pool: State<'_, SqlitePool>,
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
+    // 路徑指向單一檔案：避開「目錄同步」流程，直接對該 item 套規則。
+    let scope = std::path::Path::new(&scope_path);
+    if scope.is_file() {
+        let row = sqlx::query("SELECT id, name FROM items WHERE path = ?")
+            .bind(&scope_path)
+            .fetch_optional(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        let tagged = if let Some(row) = row {
+            let item_id: i64 = row.get("id");
+            let name: String = row.get("name");
+            apply_rules_to_item_inner(&pool, item_id, &name, &rules).await?
+        } else {
+            // 檔案存在於 FS 但尚未 import 到 DB；單一檔案場景不主動 import，
+            // 維持「套規則」這個動作的語意純度（要 import 請走 quick_import_item）。
+            0
+        };
+        return Ok(serde_json::json!({
+            "added": 0, "updated": 0, "removed": 0, "tagged": tagged
+        }));
+    }
+
     let cache_dir = app
         .path()
         .app_data_dir()
@@ -216,38 +285,33 @@ pub async fn apply_tag_scan(
     for item in &items {
         let item_id: i64 = item.get("id");
         let name: String = item.get("name");
-
-        // 1. 重新執行檔名標籤擷取 (例如 [Tag] 格式)
-        if let Ok(c) = scanner::extract_and_apply_tags(&pool, item_id, &name).await {
-            tagged += c as i32;
-        }
-
-        // 2. 套用自定義類別規則
-        for tag_name in apply_rules_to_name(&name, &rules) {
-            sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
-                .bind(&tag_name)
-                .execute(&*pool)
-                .await
-                .map_err(|e| e.to_string())?;
-            let tag_id: i64 = sqlx::query("SELECT id FROM tags WHERE name = ?")
-                .bind(&tag_name)
-                .fetch_one(&*pool)
-                .await
-                .map_err(|e| e.to_string())?
-                .get("id");
-            sqlx::query(
-                "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'rule')",
-            )
-            .bind(item_id)
-            .bind(tag_id)
-            .execute(&*pool)
-            .await
-            .map_err(|e| e.to_string())?;
-            tagged += 1;
-        }
+        tagged += apply_rules_to_item_inner(&pool, item_id, &name, &rules).await?;
     }
 
     Ok(
         serde_json::json!({ "added": added, "updated": updated, "removed": removed, "tagged": tagged }),
     )
+}
+
+/// 對單一 item 套用 tag rules（純資料層，不碰 FS 同步）。
+/// 給「對單個檔案/已 import 的 item 重跑規則」使用。
+#[tauri::command]
+pub async fn apply_rules_to_item(
+    item_id: i64,
+    rules: Vec<crate::models::TagRuleInput>,
+    pool: State<'_, SqlitePool>,
+) -> Result<serde_json::Value, String> {
+    let row = sqlx::query("SELECT name FROM items WHERE id = ?")
+        .bind(item_id)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("項目 id={} 不存在", item_id))?;
+    let name: String = row.get("name");
+
+    let tagged = apply_rules_to_item_inner(&pool, item_id, &name, &rules).await?;
+
+    Ok(serde_json::json!({
+        "added": 0, "updated": 0, "removed": 0, "tagged": tagged
+    }))
 }

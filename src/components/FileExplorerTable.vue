@@ -187,9 +187,12 @@ const { applyRulesForItem } = useFolderRuleActions(
 );
 
 const getFileIcon = (item: FileItem): string => {
+  const dbItem = getDbItem(item, props.itemByPath);
   if (item.isDir) {
-    const ft = getDbItem(item, props.itemByPath)?.category;
-    return getTypeConfig(ft).icon;
+    return getTypeConfig(dbItem?.category).icon;
+  }
+  if (dbItem?.category && dbItem.category !== 'default') {
+    return getTypeConfig(dbItem.category).icon;
   }
   const ext = item.extension?.toLowerCase() ?? '';
   if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return '🖼️';
@@ -380,7 +383,7 @@ onUnmounted(() => {
       </template>
       <template v-else>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
-        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">增加類別</button>
+        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">修改類別</button>
         <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
         <button class="ctx-item" @click="startRename">修改檔名</button>
         <div class="ctx-divider"></div>

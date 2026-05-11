@@ -308,6 +308,9 @@ export const api = {
     async applyTagScan(scopePath: string, rules: TagRuleInput[]): Promise<{ added: number; updated: number; removed: number; tagged: number }> {
         return await invoke('apply_tag_scan', { scopePath, rules });
     },
+    async applyRulesToItem(itemId: number, rules: TagRuleInput[]): Promise<{ added: number; updated: number; removed: number; tagged: number }> {
+        return await invoke('apply_rules_to_item', { itemId, rules });
+    },
 
     // ── Duplicate detection ───────────────────────────────────────────────────
     async getDuplicateGroups(): Promise<DuplicateGroup[]> {

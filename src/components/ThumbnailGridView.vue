@@ -111,7 +111,7 @@ const startRenameCtx = () => {
       </template>
       <template v-else>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
-        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">增加類別</button>
+        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">修改類別</button>
         <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
         <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
         <div class="ctx-divider"></div>

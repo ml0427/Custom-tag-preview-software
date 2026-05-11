@@ -42,8 +42,19 @@ const loadCover = async () => {
     }
 };
 
+const ARCHIVE_EXTS = ['zip', 'cbz'];
+const isArchive = (path: string) => {
+    const ext = path.split('.').pop()?.toLowerCase() ?? '';
+    return ARCHIVE_EXTS.includes(ext);
+};
+
 const loadImages = async () => {
     if (!props.item) return;
+    // 非壓縮包檔案沒有「內部影像清單」可列；跳過 API 呼叫避免無謂載入。
+    if (!isArchive(props.item.path)) {
+        zipImages.value = [];
+        return;
+    }
     isLoadingImages.value = true;
     try {
         zipImages.value = await api.getItemImages(props.item.id);
