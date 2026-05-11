@@ -48,7 +48,15 @@ const saveChanges = async () => {
   if (!props.item || isSaving.value) return;
   isSaving.value = true;
   try {
-    await api.updateFolder(props.item.id, editName.value.trim(), editType.value, editNote.value.trim());
+    const item = props.item;
+    const newName = editName.value.trim();
+    const newNote = editNote.value.trim();
+    const newCategory = editType.value;
+    await Promise.all([
+      newName !== item.name ? api.setItemDisplayName(item.id, newName) : Promise.resolve(),
+      newCategory !== (item.category ?? 'default') ? api.setItemCategory(item.id, newCategory) : Promise.resolve(),
+      newNote !== (item.note ?? '') ? api.setItemNote(item.id, newNote) : Promise.resolve(),
+    ]);
     emit('updated');
   } catch (e) {
     showToast('儲存失敗: ' + String(e), 'error');
@@ -59,9 +67,9 @@ const saveChanges = async () => {
 
 const handleDelete = async () => {
   if (!props.item) return;
-  if (!await confirmDialog(`確定刪除「${props.item.name}」？`)) return;
+  if (!await confirmDialog(`確定移除「${props.item.name}」的追蹤記錄？\n（不刪除實際檔案）`)) return;
   try {
-    await api.deleteFolder(props.item.id);
+    await api.untrackItem(props.item.path);
     emit('deleted');
     emit('close');
   } catch (e) {

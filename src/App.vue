@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { api, type Item, type Folder, type Tag } from './api'
+import { api, type Item, type Tag } from './api'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useItemTypes } from './composables/useItemTypes'
 import ActivityBar from './components/ActivityBar.vue'

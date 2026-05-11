@@ -23,17 +23,6 @@ export interface Item {
     tags: Tag[];
 }
 
-// Legacy Folder (used by SourcePanel)
-export interface Folder {
-    id: number;
-    path: string;
-    name: string;
-    category: string;
-    note: string;
-    createdAt: string;
-    tags: Tag[];
-}
-
 export interface FileItem {
     name: string;
     path: string;
@@ -234,25 +223,17 @@ export const api = {
         return await invoke('sync_sources');
     },
 
-    // ── Folders (SourcePanel backward compat) ────────────────────────────────
-    async getFolders(tagId?: number, search?: string): Promise<Folder[]> {
-        return await invoke<Folder[]>('get_folders', { tagId, search });
-    },
-
-    async createFolder(path: string, name: string, category: string, note: string): Promise<Folder> {
-        return await invoke<Folder>('create_folder', { path, name, category, note });
-    },
-
-    async updateFolder(id: number, name: string, category: string, note: string): Promise<Folder> {
-        return await invoke<Folder>('update_folder', { id, name, category, note });
-    },
-
+    // ── Item-level mutations ──────────────────────────────────────────────────
     async setItemCategory(id: number, category: string): Promise<void> {
         await invoke('set_item_category', { id, category });
     },
 
-    async deleteFolder(id: number): Promise<void> {
-        await invoke('delete_folder', { id });
+    async setItemDisplayName(id: number, name: string): Promise<void> {
+        await invoke('set_item_display_name', { id, name });
+    },
+
+    async setItemNote(id: number, note: string): Promise<void> {
+        await invoke('set_item_note', { id, note });
     },
 
     async trashItem(path: string): Promise<void> {
@@ -261,14 +242,6 @@ export const api = {
 
     async untrackItem(path: string): Promise<void> {
         await invoke('untrack_item', { path });
-    },
-
-    async addTagToFolder(folderId: number, tagId: number): Promise<void> {
-        await invoke('add_tag_to_folder', { folderId, tagId });
-    },
-
-    async removeTagFromFolder(folderId: number, tagId: number): Promise<void> {
-        await invoke('remove_tag_from_folder', { folderId, tagId });
     },
 
     // ── File system ───────────────────────────────────────────────────────────

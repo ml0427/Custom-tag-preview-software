@@ -34,20 +34,6 @@ pub struct Source {
     pub last_sync: Option<String>,
 }
 
-// Legacy Folder struct (used by WorkspacePanel for backward compat)
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Folder {
-    pub id: i64,
-    pub path: String,
-    pub name: String,
-    pub category: String,
-    pub note: String,
-    pub created_at: String,
-    #[sqlx(skip)]
-    pub tags: Vec<Tag>,
-}
-
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FileItem {

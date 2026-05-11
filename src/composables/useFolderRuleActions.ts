@@ -48,20 +48,7 @@ export function useFolderRuleActions(
   };
 
   const applyRulesForItem = async (item: FileItem) => {
-    let category = itemByPath().get(pathKey(item.path))?.category ?? undefined;
-    if (!category) {
-      try {
-        const folders = await api.getFolders();
-        const norm = item.path.replace(/\\/g, '/');
-        const best = folders
-          .filter(f => {
-            const fp = f.path.replace(/\\/g, '/');
-            return norm === fp || norm.startsWith(fp.endsWith('/') ? fp : fp + '/');
-          })
-          .sort((a, b) => b.path.length - a.path.length)[0];
-        category = best?.category ?? undefined;
-      } catch { /* ignore */ }
-    }
+    const category = itemByPath().get(pathKey(item.path))?.category ?? undefined;
     return applyRulesForTarget({ path: item.path, category });
   };
 

@@ -95,16 +95,12 @@ fn main() {
             commands::get_sources,
             commands::add_source,
             commands::remove_source,
-            // Folders (WorkspacePanel backward compat)
-            commands::get_folders,
-            commands::create_folder,
-            commands::update_folder,
-            commands::delete_folder,
+            // Item-level mutations
             commands::set_item_category,
+            commands::set_item_display_name,
+            commands::set_item_note,
             commands::trash_item,
             commands::untrack_item,
-            commands::add_tag_to_folder,
-            commands::remove_tag_from_folder,
             // Item types
             commands::get_item_types,
             commands::create_item_type,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { api, type Source, type Folder, type Tag, type Item } from '../api';
+import { api, type Source, type Tag, type Item } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import LocalDirTree from './LocalDirTree.vue';
 import { useTagManager } from '../composables/useTagManager';
@@ -31,8 +31,8 @@ const {
   removeTagById, hideSuggestions,
 } = useTagManager({
   getEntityId: () => folderInDb.value?.id ?? null,
-  addTag: api.addTagToFolder,
-  removeTag: api.removeTagFromFolder,
+  addTag: api.tagItem,
+  removeTag: api.untagItem,
 });
 
 const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
@@ -57,12 +57,12 @@ const untrackFromCtx = async () => {
 const openModifyTypeFromCtx = async () => {
   const p = ctxMenu.value.path;
   closeCtxMenu();
-  const [all, tags] = await Promise.all([api.getFolders(), api.getTags()]);
-  allTags.value = tags;
-  const existing = all.find(f => f.path === p);
+  await loadDbFolders();
+  allTags.value = await api.getTags();
+  const existing = dbFolders.value.find(f => f.path === p);
   if (existing) {
     folderInDb.value = { id: existing.id };
-    editFolder.value = { path: p, name: existing.name, category: existing.category };
+    editFolder.value = { path: p, name: existing.name, category: existing.category ?? 'default' };
     initTags(existing.tags ?? []);
   } else {
     folderInDb.value = null;
@@ -94,28 +94,40 @@ const collectAllSubdirs = async (path: string): Promise<string[]> => {
   return result;
 };
 
+/// 確保某個路徑在 DB 有 row，並設定它的顯示名稱與類別。
+/// 對「主路徑」我們會用使用者填的 name；對自動帶入的子目錄則沿用 file_name。
+const saveFolderCategory = async (
+  path: string,
+  displayName: string,
+  category: string,
+): Promise<Item> => {
+  const item = await api.quickImportItem(path);
+  if (item.name !== displayName) {
+    await api.setItemDisplayName(item.id, displayName);
+  }
+  if ((item.category ?? 'default') !== category) {
+    await api.setItemCategory(item.id, category);
+  }
+  return { ...item, name: displayName, category };
+};
+
 const submitFolderModal = async () => {
   const { path, name, category } = editFolder.value;
   if (!path || !name) return;
   try {
-    let saved: Folder;
-    if (folderInDb.value) {
-      saved = await api.updateFolder(folderInDb.value.id, name.trim(), category, '');
-    } else {
-      saved = await api.createFolder(path, name.trim(), category, '');
-    }
+    const saved = await saveFolderCategory(path, name.trim(), category);
     folderInDb.value = { id: saved.id };
+
+    const allTargets: Item[] = [saved];
     if (applyToSubfolders.value) {
-      const currentMap = new Map(dbFolders.value.map(f => [f.path, f]));
       const allSubs = await collectAllSubdirs(path);
-      await Promise.all(allSubs.map(subPath => {
-        const existing = currentMap.get(subPath);
+      const subItems = await Promise.all(allSubs.map(subPath => {
         const subName = subPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? subPath;
-        return existing
-          ? api.updateFolder(existing.id, existing.name, category, '')
-          : api.createFolder(subPath, subName, category, '');
+        return saveFolderCategory(subPath, subName, category);
       }));
+      allTargets.push(...subItems);
     }
+
     await loadDbFolders();
     emit('folderCreated');
 
@@ -123,8 +135,12 @@ const submitFolderModal = async () => {
     const selectedType = getTypeConfig(category);
     if (selectedType.tagRules?.length) {
       try {
-        const result = await api.applyTagScan(path, selectedType.tagRules);
-        if (result.tagged > 0) showToast(`已自動套用 ${result.tagged} 個標籤`, 'success');
+        let totalTagged = 0;
+        for (const target of allTargets) {
+          const result = await api.applyRulesToItem(target.id, selectedType.tagRules);
+          totalTagged += result.tagged;
+        }
+        if (totalTagged > 0) showToast(`已自動套用 ${totalTagged} 個標籤`, 'success');
       } catch { /* ignore */ }
     }
 
@@ -136,8 +152,12 @@ const submitFolderModal = async () => {
 
 onUnmounted(() => document.removeEventListener('click', closeCtxMenu));
 
-const dbFolders = ref<Folder[]>([]);
+const dbFolders = ref<Item[]>([]);
 const folderByPath = computed(() => new Map(dbFolders.value.map(f => [f.path, f])));
+const hasFolderCategory = (path: string): boolean => {
+  const f = folderByPath.value.get(path);
+  return !!f?.category && f.category !== 'default';
+};
 provide('folderByPath', folderByPath);
 const emptyItemByPath = new Map<string, Item>();
 const { applyRulesForTarget } = useFolderRuleActions(
@@ -157,7 +177,8 @@ const applyRulesFromCtx = async () => {
 };
 
 const loadDbFolders = async () => {
-  dbFolders.value = await api.getFolders();
+  const page = await api.getItems(0, 9999, undefined, undefined, undefined, undefined, 'folder');
+  dbFolders.value = page.content;
 };
 
 const sources = ref<Source[]>([]);
@@ -170,9 +191,12 @@ const loadSources = async () => {
 };
 
 const initWorkspace = async () => {
-  const [srcs, folders] = await Promise.all([api.getSources(), api.getFolders()]);
+  const [srcs, folderPage] = await Promise.all([
+    api.getSources(),
+    api.getItems(0, 9999, undefined, undefined, undefined, undefined, 'folder'),
+  ]);
   sources.value = srcs;
-  dbFolders.value = folders;
+  dbFolders.value = folderPage.content;
   if (props.selectedPath === null && srcs.length > 0) {
     emit('select', srcs[0].path);
   }
@@ -229,7 +253,7 @@ onMounted(() => {
       :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
       @click.stop
     >
-      <div class="ctx-item" @click="openModifyTypeFromCtx">修改類別</div>
+      <div class="ctx-item" @click="openModifyTypeFromCtx">{{ hasFolderCategory(ctxMenu.path) ? '修改類別' : '新增類別' }}</div>
       <div class="ctx-item" @click="applyRulesFromCtx">重新套用規則</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">移除追蹤記錄</div>

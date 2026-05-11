@@ -32,6 +32,11 @@ export function useThumbnailLoader() {
     return itemByPath.get(pathKey(item.path)) ?? null;
   };
 
+  const hasCategoryAssigned = (item: FileItem, itemByPath: Map<string, Item>): boolean => {
+    const dbItem = getDbItem(item, itemByPath);
+    return !!dbItem?.category && dbItem.category !== 'default';
+  };
+
   const loadThumbUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
     if (item.isDir) return '';
     const dbItem = getDbItem(item, itemByPath);
@@ -92,6 +97,7 @@ export function useThumbnailLoader() {
   return {
     onImgError,
     getDbItem,
+    hasCategoryAssigned,
     getCoverUrl,
     showCover,
     loadThumbUrl,

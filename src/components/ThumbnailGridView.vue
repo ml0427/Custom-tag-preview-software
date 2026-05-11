@@ -29,7 +29,7 @@ const emit = defineEmits<{
 const { itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
 const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
-const { getDbItem, getIcon, getItemType, getTypeColor, loadThumbUrl } = useThumbnailLoader();
+const { getDbItem, hasCategoryAssigned, getIcon, getItemType, getTypeColor, loadThumbUrl } = useThumbnailLoader();
 
 // IPC-based thumbnail loading (same approach as FileExplorerTable)
 const thumbUrls = reactive(new Map<string, string>());
@@ -103,7 +103,7 @@ const startRenameCtx = () => {
     >
       <template v-if="contextMenu.item?.isDir">
         <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">進入資料夾</button>
-        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">修改類別</button>
+        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">{{ hasCategoryAssigned(contextMenu.item!, itemByPath) ? '修改類別' : '新增類別' }}</button>
         <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
         <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
         <div class="ctx-divider"></div>
@@ -111,7 +111,7 @@ const startRenameCtx = () => {
       </template>
       <template v-else>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
-        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">修改類別</button>
+        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">{{ hasCategoryAssigned(contextMenu.item!, itemByPath) ? '修改類別' : '新增類別' }}</button>
         <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
         <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
         <div class="ctx-divider"></div>
