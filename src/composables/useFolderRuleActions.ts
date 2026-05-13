@@ -8,7 +8,7 @@ type RuleTarget = {
 };
 
 export function useFolderRuleActions(
-  itemByPath: () => Map<string, Item>,
+  itemByPath: (() => Map<string, Item>) | undefined,
   itemTypes: () => ItemType[],
   showToast: (message: string, type?: ToastType) => void,
   hideContextMenu: () => void,
@@ -16,10 +16,8 @@ export function useFolderRuleActions(
 ) {
   const applyRulesForTarget = async (target: RuleTarget) => {
     hideContextMenu();
-    let dbItem = itemByPath().get(pathKey(target.path));
+    let dbItem = itemByPath?.().get(pathKey(target.path));
 
-    // 沒在 itemByPath（例如從 SourcePanel 觸發、或路徑不在當前 source 範圍內）
-    // 就先把該路徑帶入 DB，才能對它套規則。quickImport 不會遞迴掃內容物。
     if (!dbItem) {
       try {
         dbItem = await api.quickImportItem(target.path);
@@ -48,7 +46,7 @@ export function useFolderRuleActions(
   };
 
   const applyRulesForItem = async (item: FileItem) => {
-    const category = itemByPath().get(pathKey(item.path))?.category ?? undefined;
+    const category = itemByPath?.().get(pathKey(item.path))?.category ?? undefined;
     return applyRulesForTarget({ path: item.path, category });
   };
 

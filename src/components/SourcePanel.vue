@@ -174,9 +174,8 @@ const hasFolderCategory = (path: string): boolean => {
   return !!f?.category && f.category !== 'default';
 };
 provide('folderByPath', folderByPath);
-const emptyItemByPath = new Map<string, Item>();
 const { applyRulesForTarget } = useFolderRuleActions(
-  () => emptyItemByPath,
+  undefined,
   () => itemTypes.value,
   showToast,
   closeCtxMenu
