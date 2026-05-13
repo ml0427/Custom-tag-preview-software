@@ -1,4 +1,5 @@
 use super::helpers::{fetch_item_tags, read_item_from_row};
+use crate::db;
 use crate::models::Item;
 use crate::scanner;
 use sqlx::{Row, SqlitePool};
@@ -97,11 +98,7 @@ pub async fn compute_fingerprints(
         let id: i64 = row.get("id");
         let path: String = row.get("path");
         if let Some(fp) = scanner::compute_file_fingerprint(std::path::Path::new(&path)) {
-            let _ = sqlx::query("UPDATE items SET fingerprint = ? WHERE id = ?")
-                .bind(&fp)
-                .bind(id)
-                .execute(&*pool)
-                .await;
+            let _ = db::update_item_fingerprint(&*pool, id, &fp).await;
             count += 1;
         }
         let _ = app.emit(

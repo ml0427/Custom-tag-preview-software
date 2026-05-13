@@ -218,22 +218,15 @@ pub async fn rename_item(
 
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-    sqlx::query("UPDATE items SET name = ?, path = ? WHERE id = ?")
-        .bind(&name)
-        .bind(&new_path_str)
-        .bind(id)
-        .execute(&mut *tx)
+    db::update_item_name_and_path(&mut *tx, id, &name, &new_path_str)
         .await
         .map_err(|e| e.to_string())?;
 
     if item_type == "folder" {
         let old_prefix = format!("{}\\", old_path_str);
         let new_prefix = format!("{}\\", new_path_str);
-        sqlx::query("UPDATE items SET path = ? || SUBSTR(path, LENGTH(?) + 1) WHERE path LIKE ?")
-            .bind(&new_prefix)
-            .bind(&old_prefix)
-            .bind(format!("{}%", old_prefix))
-            .execute(&mut *tx)
+        let like_pattern = format!("{}%", old_prefix);
+        db::update_item_path_prefix(&mut *tx, &old_prefix, &new_prefix, &like_pattern)
             .await
             .map_err(|e| e.to_string())?;
     }
@@ -292,10 +285,7 @@ pub async fn set_item_cover(
     pool: State<'_, SqlitePool>,
     app: AppHandle,
 ) -> Result<(), String> {
-    sqlx::query("UPDATE items SET cover_cache_path = ? WHERE id = ?")
-        .bind(&image_path)
-        .bind(id)
-        .execute(&*pool)
+    db::update_item_cover(&*pool, id, &image_path)
         .await
         .map_err(|e| e.to_string())?;
 

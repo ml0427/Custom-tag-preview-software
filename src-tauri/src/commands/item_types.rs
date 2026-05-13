@@ -1,3 +1,4 @@
+use crate::db;
 use crate::models::{ItemType, ItemTypeInput};
 use sqlx::{Row, SqlitePool};
 use tauri::State;
@@ -214,9 +215,7 @@ pub async fn delete_item_type(id: i64, pool: State<'_, SqlitePool>) -> Result<()
 
     let type_name: String = row.get("name");
 
-    sqlx::query("UPDATE items SET category = 'default' WHERE category = ?")
-        .bind(&type_name)
-        .execute(&*pool)
+    db::reset_items_category_to_default(&*pool, &type_name)
         .await
         .map_err(|e| e.to_string())?;
 

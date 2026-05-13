@@ -1,6 +1,6 @@
-use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, Executor, Sqlite, SqlitePool};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use anyhow::Result;
 use crate::models::{Tag, Source};
 
@@ -321,4 +321,222 @@ pub async fn add_tag_to_item(pool: &SqlitePool, item_id: i64, tag_id: i64) -> Re
     .execute(pool)
     .await?;
     Ok(res.rows_affected())
+}
+
+// ── items 表 mutation helpers ────────────────────────────────────────────────
+// 凡是寫 `items` 表（INSERT/UPDATE/DELETE）一律走這層，禁止其他模組散寫 SQL。
+// helpers 透過 `sqlx::Executor` 通用化，可同時餵 `&pool` 或 `&mut *tx`。
+// 涉及縮圖快取的刪除一律經 `delete_item_*_with_cache`，避免快取殘留。
+
+fn thumbnail_cache_path(cache_dir: &Path, id: i64) -> PathBuf {
+    cache_dir.join(format!("{}.jpg", id))
+}
+
+/// INSERT OR IGNORE 一筆 item，回 last_insert_rowid。
+/// 若 path 已存在（UNIQUE 衝突），回 0。
+pub async fn insert_item<'e, E>(
+    executor: E,
+    path: &str,
+    item_type: &str,
+    name: &str,
+    file_size: Option<i64>,
+    file_modified_at: Option<i64>,
+    import_at: &str,
+    fingerprint: Option<&str>,
+) -> Result<i64>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    let result = sqlx::query(
+        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at, fingerprint)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(path)
+    .bind(item_type)
+    .bind(name)
+    .bind(file_size)
+    .bind(file_modified_at)
+    .bind(import_at)
+    .bind(fingerprint)
+    .execute(executor)
+    .await?;
+    Ok(result.last_insert_rowid())
+}
+
+pub async fn update_item_category<'e, E>(executor: E, id: i64, category: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET category = ? WHERE id = ?")
+        .bind(category)
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+pub async fn update_item_name<'e, E>(executor: E, id: i64, name: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET name = ? WHERE id = ?")
+        .bind(name)
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+pub async fn update_item_note<'e, E>(executor: E, id: i64, note: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET note = ? WHERE id = ?")
+        .bind(note)
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+/// 用於 rename：同時改 name 與 path。
+pub async fn update_item_name_and_path<'e, E>(
+    executor: E,
+    id: i64,
+    name: &str,
+    path: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET name = ?, path = ? WHERE id = ?")
+        .bind(name)
+        .bind(path)
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+/// 資料夾改名後，連帶把所有底下 item 的 path prefix 換掉。
+/// `like_pattern` 通常是 `format!("{}%", old_prefix)`。
+pub async fn update_item_path_prefix<'e, E>(
+    executor: E,
+    old_prefix: &str,
+    new_prefix: &str,
+    like_pattern: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET path = ? || SUBSTR(path, LENGTH(?) + 1) WHERE path LIKE ?")
+        .bind(new_prefix)
+        .bind(old_prefix)
+        .bind(like_pattern)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+pub async fn update_item_cover<'e, E>(
+    executor: E,
+    id: i64,
+    cover_cache_path: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET cover_cache_path = ? WHERE id = ?")
+        .bind(cover_cache_path)
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+pub async fn update_item_size_mtime<'e, E>(
+    executor: E,
+    id: i64,
+    file_size: Option<i64>,
+    file_modified_at: i64,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET file_size = ?, file_modified_at = ? WHERE id = ?")
+        .bind(file_size)
+        .bind(file_modified_at)
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+pub async fn update_item_fingerprint<'e, E>(
+    executor: E,
+    id: i64,
+    fingerprint: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET fingerprint = ? WHERE id = ?")
+        .bind(fingerprint)
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+/// 把所有 `category = ?` 的 item 重置回 'default'。
+/// 用於刪除某個 item_type 後，避免遺孤 category 值。
+pub async fn reset_items_category_to_default<'e, E>(
+    executor: E,
+    category: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET category = 'default' WHERE category = ?")
+        .bind(category)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+/// 依 id 刪除 item，同步清掉縮圖快取檔（失敗忽略，避免阻擋 DB 操作）。
+pub async fn delete_item_by_id_with_cache(
+    pool: &SqlitePool,
+    cache_dir: &Path,
+    id: i64,
+) -> Result<()> {
+    let _ = fs::remove_file(thumbnail_cache_path(cache_dir, id));
+    sqlx::query("DELETE FROM items WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// 依 path 刪除 item，同步清掉縮圖快取檔。
+/// 先查 id 才能算快取路徑；若 path 不存在於 DB，僅執行 DELETE（noop）。
+pub async fn delete_item_by_path_with_cache(
+    pool: &SqlitePool,
+    cache_dir: &Path,
+    path: &str,
+) -> Result<()> {
+    let id: Option<i64> = sqlx::query_scalar("SELECT id FROM items WHERE path = ?")
+        .bind(path)
+        .fetch_optional(pool)
+        .await?;
+
+    sqlx::query("DELETE FROM items WHERE path = ?")
+        .bind(path)
+        .execute(pool)
+        .await?;
+
+    if let Some(item_id) = id {
+        let _ = fs::remove_file(thumbnail_cache_path(cache_dir, item_id));
+    }
+    Ok(())
 }

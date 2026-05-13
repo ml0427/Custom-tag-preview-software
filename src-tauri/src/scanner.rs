@@ -73,20 +73,16 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
     let import_at = Local::now().to_rfc3339();
 
     let fingerprint = compute_file_fingerprint(path);
-    let result = sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at, fingerprint)
-         VALUES (?, 'file', ?, ?, ?, ?, ?)"
-    )
-    .bind(&file_path)
-    .bind(&title)
-    .bind(file_size)
-    .bind(mtime_unix)
-    .bind(&import_at)
-    .bind(&fingerprint)
-    .execute(pool)
-    .await?;
-
-    let id = result.last_insert_rowid();
+    let id = db::insert_item(
+        pool,
+        &file_path,
+        "file",
+        &title,
+        Some(file_size),
+        Some(mtime_unix),
+        &import_at,
+        fingerprint.as_deref(),
+    ).await?;
     if id == 0 {
         return Ok(false);
     }
@@ -116,18 +112,16 @@ async fn process_folder(pool: &SqlitePool, path: &Path) -> Result<bool> {
         .unwrap_or(0);
     let import_at = Local::now().to_rfc3339();
 
-    let result = sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, file_modified_at, import_at)
-         VALUES (?, 'folder', ?, ?, ?)"
-    )
-    .bind(&file_path)
-    .bind(&title)
-    .bind(mtime_unix)
-    .bind(&import_at)
-    .execute(pool)
-    .await?;
-
-    let id = result.last_insert_rowid();
+    let id = db::insert_item(
+        pool,
+        &file_path,
+        "folder",
+        &title,
+        None,
+        Some(mtime_unix),
+        &import_at,
+        None,
+    ).await?;
     if id == 0 {
         return Ok(false);
     }
@@ -222,14 +216,7 @@ pub async fn incremental_scan_directory(
 
         if let Some((existing_id, db_mtime)) = existing.get(&file_path) {
             if (mtime_unix - db_mtime).abs() > 2 {
-                sqlx::query(
-                    "UPDATE items SET file_size = ?, file_modified_at = ? WHERE id = ?",
-                )
-                .bind(file_size)
-                .bind(mtime_unix)
-                .bind(existing_id)
-                .execute(pool)
-                .await?;
+                db::update_item_size_mtime(pool, *existing_id, file_size, mtime_unix).await?;
                 updated += 1;
             }
         } else if is_dir {
@@ -248,11 +235,7 @@ pub async fn incremental_scan_directory(
     let mut removed = 0i32;
     for (path, (id, _)) in &existing {
         if !found_paths.contains(path) {
-            let _ = fs::remove_file(cache_dir.join(format!("{}.jpg", id)));
-            sqlx::query("DELETE FROM items WHERE id = ?")
-                .bind(id)
-                .execute(pool)
-                .await?;
+            db::delete_item_by_id_with_cache(pool, cache_dir, *id).await?;
             removed += 1;
         }
     }

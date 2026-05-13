@@ -1,4 +1,5 @@
 use super::helpers::{fetch_item_tags, read_item_from_row};
+use crate::db;
 use crate::models::Item;
 use base64::{engine::general_purpose, Engine as _};
 use sqlx::{Row, SqlitePool};
@@ -59,11 +60,16 @@ pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Res
     let item_type = if is_dir { "folder" } else { "file" };
     let import_at = chrono::Local::now().to_rfc3339();
 
-    sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at) VALUES (?, ?, ?, ?, ?, ?)"
-    )
-    .bind(&path).bind(item_type).bind(&name).bind(file_size).bind(mtime_unix).bind(&import_at)
-    .execute(&*pool).await.map_err(|e| e.to_string())?;
+    db::insert_item(
+        &*pool,
+        &path,
+        item_type,
+        &name,
+        file_size,
+        Some(mtime_unix),
+        &import_at,
+        None,
+    ).await.map_err(|e| e.to_string())?;
 
     let row = sqlx::query("SELECT * FROM items WHERE path = ?")
         .bind(&path)
