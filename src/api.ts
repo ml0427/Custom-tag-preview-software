@@ -199,7 +199,7 @@ export const api = {
 
     // ── Scan ──────────────────────────────────────────────────────────────────
     async scanDirectory(path: string): Promise<{ message: string; addedCount: number }> {
-        return await invoke('scan_directory', { path });
+        return await invoke('scan_directory', { path, confirmFullRescan: true });
     },
 
     async incrementalScan(path: string): Promise<{ message: string; added: number; updated: number; removed: number }> {

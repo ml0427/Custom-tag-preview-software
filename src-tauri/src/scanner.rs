@@ -22,22 +22,44 @@ pub fn compute_file_fingerprint(path: &Path) -> Option<String> {
     Some(format!("{:x}", hasher.finalize()))
 }
 
-pub async fn scan_directory(pool: &SqlitePool, path_str: &str, cache_dir: &Path, app: &AppHandle) -> Result<i32> {
+pub async fn full_rescan_with_clear(
+    pool: &SqlitePool,
+    path_str: &str,
+    cache_dir: &Path,
+    app: &AppHandle,
+) -> Result<i32> {
+    prepare_full_rescan(pool, cache_dir).await?;
+    let scannable_exts = load_scannable_extensions(pool).await;
+    scan_scannable_files(pool, path_str, cache_dir, app, &scannable_exts).await
+}
+
+async fn prepare_full_rescan(pool: &SqlitePool, cache_dir: &Path) -> Result<()> {
     db::clear_database(pool).await?;
     if cache_dir.exists() {
         let _ = fs::remove_dir_all(cache_dir);
     }
     fs::create_dir_all(cache_dir)?;
+    Ok(())
+}
 
-    let scannable_exts: HashSet<String> = sqlx::query_scalar::<_, String>(
+async fn load_scannable_extensions(pool: &SqlitePool) -> HashSet<String> {
+    sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT extension FROM type_extensions"
     )
     .fetch_all(pool)
     .await
     .unwrap_or_default()
     .into_iter()
-    .collect();
+    .collect()
+}
 
+async fn scan_scannable_files(
+    pool: &SqlitePool,
+    path_str: &str,
+    cache_dir: &Path,
+    app: &AppHandle,
+    scannable_exts: &HashSet<String>,
+) -> Result<i32> {
     let mut added_count = 0;
     let entries = WalkDir::new(path_str)
         .into_iter()

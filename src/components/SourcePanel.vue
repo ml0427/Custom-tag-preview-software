@@ -111,6 +111,42 @@ const saveFolderCategory = async (
   return { ...item, name: displayName, category };
 };
 
+const getFolderDisplayName = (path: string): string => (
+  path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
+);
+
+const applySubfolderCategories = async (
+  parentPath: string,
+  category: string,
+): Promise<Item[]> => {
+  if (!applyToSubfolders.value) return [];
+
+  const subdirs = await collectAllSubdirs(parentPath);
+  return await Promise.all(subdirs.map(subPath => (
+    saveFolderCategory(subPath, getFolderDisplayName(subPath), category)
+  )));
+};
+
+const refreshFolderState = async () => {
+  await loadDbFolders();
+  emit('folderCreated');
+};
+
+const runRulesForCategory = async (targets: Item[], category: string) => {
+  await loadItemTypes();
+  const selectedType = getTypeConfig(category);
+  if (!selectedType.tagRules?.length) return;
+
+  try {
+    let totalTagged = 0;
+    for (const target of targets) {
+      const result = await api.applyRulesToItem(target.id, selectedType.tagRules);
+      totalTagged += result.tagged;
+    }
+    if (totalTagged > 0) showToast(`已自動套用 ${totalTagged} 個標籤`, 'success');
+  } catch { /* ignore */ }
+};
+
 const submitFolderModal = async () => {
   const { path, name, category } = editFolder.value;
   if (!path || !name) return;
@@ -118,32 +154,11 @@ const submitFolderModal = async () => {
     const saved = await saveFolderCategory(path, name.trim(), category);
     folderInDb.value = { id: saved.id };
 
-    const allTargets: Item[] = [saved];
-    if (applyToSubfolders.value) {
-      const allSubs = await collectAllSubdirs(path);
-      const subItems = await Promise.all(allSubs.map(subPath => {
-        const subName = subPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? subPath;
-        return saveFolderCategory(subPath, subName, category);
-      }));
-      allTargets.push(...subItems);
-    }
+    const subItems = await applySubfolderCategories(path, category);
+    const allTargets = [saved, ...subItems];
 
-    await loadDbFolders();
-    emit('folderCreated');
-
-    await loadItemTypes();
-    const selectedType = getTypeConfig(category);
-    if (selectedType.tagRules?.length) {
-      try {
-        let totalTagged = 0;
-        for (const target of allTargets) {
-          const result = await api.applyRulesToItem(target.id, selectedType.tagRules);
-          totalTagged += result.tagged;
-        }
-        if (totalTagged > 0) showToast(`已自動套用 ${totalTagged} 個標籤`, 'success');
-      } catch { /* ignore */ }
-    }
-
+    await refreshFolderState();
+    await runRulesForCategory(allTargets, category);
     modalPhase.value = 'tags';
   } catch (e) {
     showToast('操作失敗: ' + String(e), 'error');

@@ -7,15 +7,22 @@ use tauri::{AppHandle, Manager, State};
 #[tauri::command]
 pub async fn scan_directory(
     path: String,
+    confirm_full_rescan: bool,
     pool: State<'_, SqlitePool>,
     app: AppHandle,
 ) -> Result<serde_json::Value, String> {
+    if !confirm_full_rescan {
+        return Err(
+            "scan_directory 會清空資料庫後重掃，必須明確傳入 confirmFullRescan: true".to_string(),
+        );
+    }
+
     let cache_dir = app
         .path()
         .app_data_dir()
         .expect("failed to get app data dir")
         .join("thumb_cache");
-    scanner::scan_directory(&pool, &path, &cache_dir, &app)
+    scanner::full_rescan_with_clear(&pool, &path, &cache_dir, &app)
         .await
         .map(|count| serde_json::json!({ "message": "Scan completed", "addedCount": count }))
         .map_err(|e| e.to_string())
