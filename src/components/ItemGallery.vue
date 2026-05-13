@@ -38,6 +38,7 @@ const {
   itemsData,
   fileItems,
   isLoading,
+  externalChanges,
   tagPage,
   tagTotalPages,
   itemByPath,
@@ -267,6 +268,20 @@ const filterLabel = computed(() => {
   return '全部';
 });
 
+const externalChangeCounts = computed(() => ({
+  untracked: externalChanges.value.filter(change => change.kind === 'untracked').length,
+  missing: externalChanges.value.filter(change => change.kind === 'missing').length,
+  modified: externalChanges.value.filter(change => change.kind === 'modified').length,
+}));
+
+const externalChangeKindLabel = (kind: 'untracked' | 'missing' | 'modified') => {
+  if (kind === 'untracked') return '未追蹤';
+  if (kind === 'missing') return '找不到';
+  return '已變更';
+};
+
+const visibleExternalChanges = computed(() => externalChanges.value.slice(0, 5));
+
 // Preview logic
 const isPreviewOpen = ref(false);
 const togglePreview = () => { isPreviewOpen.value = !isPreviewOpen.value; };
@@ -363,6 +378,31 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :filterLabel="filterLabel"
           :sizeLabel="totalSizeLabel"
         />
+
+        <div v-if="externalChanges.length" class="external-change-banner">
+          <div class="external-change-main">
+            <strong>偵測到外部更動</strong>
+            <span>
+              未追蹤 {{ externalChangeCounts.untracked }}、
+              找不到 {{ externalChangeCounts.missing }}、
+              已變更 {{ externalChangeCounts.modified }}
+            </span>
+          </div>
+          <div class="external-change-list">
+            <span
+              v-for="change in visibleExternalChanges"
+              :key="change.kind + change.path"
+              class="external-change-chip"
+              :title="change.path + '\n' + change.message"
+            >
+              {{ externalChangeKindLabel(change.kind) }}：{{ change.name }}
+            </span>
+            <span v-if="externalChanges.length > visibleExternalChanges.length" class="external-change-more">
+              +{{ externalChanges.length - visibleExternalChanges.length }}
+            </span>
+          </div>
+          <button class="external-change-refresh" @click="loadAll">重新檢查</button>
+        </div>
       </div>
 
       <div class="table-wrapper">
@@ -534,6 +574,77 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 
 .header { margin-bottom: 8px; }
+
+.external-change-banner {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-warning, #c58b2a);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-bg-subtle, rgba(197, 139, 42, 0.12));
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.external-change-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+}
+
+.external-change-main span {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.external-change-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.external-change-chip,
+.external-change-more {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-overlay-soft);
+}
+
+.external-change-refresh {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.external-change-refresh:hover { background: var(--bg-overlay-soft); }
+
+@media (max-width: 760px) {
+  .external-change-banner {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .external-change-refresh {
+    justify-self: flex-start;
+  }
+}
 
 .table-wrapper {
   flex: 1;

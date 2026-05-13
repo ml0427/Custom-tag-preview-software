@@ -2,6 +2,22 @@ import { ref, computed } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import { pathKey } from '../utils/pathKey';
 
+export type ExternalChangeKind = 'untracked' | 'missing' | 'modified';
+
+export interface ExternalChange {
+  kind: ExternalChangeKind;
+  path: string;
+  name: string;
+  itemType: 'file' | 'folder';
+  message: string;
+}
+
+const parentPathKey = (path: string): string => {
+  const normalized = path.replace(/[\\/]+$/, '').replace(/\\/g, '/');
+  const index = normalized.lastIndexOf('/');
+  return index > 0 ? pathKey(normalized.slice(0, index)) : '';
+};
+
 export function useGalleryData(
   sourcePath: () => string | null,
   selectedTagIds: () => number[] | undefined,
@@ -12,6 +28,7 @@ export function useGalleryData(
   const itemsData = ref<Item[]>([]);
   const fileItems = ref<FileItem[]>([]);
   const isLoading = ref(false);
+  const externalChanges = ref<ExternalChange[]>([]);
   const tagPage = ref(0);
   const tagTotalPages = ref(1);
   const TAG_PAGE_SIZE = 200;
@@ -89,12 +106,70 @@ export function useGalleryData(
     }
   };
 
+  const detectExternalChanges = () => {
+    const sTagIds = selectedTagIds();
+    if ((sTagIds?.length ?? 0) > 0) {
+      externalChanges.value = [];
+      return;
+    }
+
+    const fsByPath = new Map(fileItems.value.map(item => [pathKey(item.path), item]));
+    const dbByPath = new Map(itemsData.value.map(item => [pathKey(item.path), item]));
+    const changes: ExternalChange[] = [];
+
+    for (const fileItem of fileItems.value) {
+      const dbItem = dbByPath.get(pathKey(fileItem.path));
+      if (!dbItem) {
+        changes.push({
+          kind: 'untracked',
+          path: fileItem.path,
+          name: fileItem.name,
+          itemType: fileItem.isDir ? 'folder' : 'file',
+          message: '檔案系統有項目，但資料庫尚未追蹤',
+        });
+        continue;
+      }
+
+      if (!fileItem.isDir && dbItem.itemType === 'file') {
+        const fsMtime = fileItem.modifiedTime ? Math.floor(new Date(fileItem.modifiedTime).getTime() / 1000) : null;
+        const sizeChanged = dbItem.fileSize !== null && fileItem.fileSize !== null && dbItem.fileSize !== fileItem.fileSize;
+        const mtimeChanged = dbItem.fileModifiedAt !== null && fsMtime !== null && Math.abs(dbItem.fileModifiedAt - fsMtime) > 90;
+        if (sizeChanged || mtimeChanged) {
+          changes.push({
+            kind: 'modified',
+            path: fileItem.path,
+            name: fileItem.name,
+            itemType: 'file',
+            message: '磁碟上的大小或修改時間和資料庫紀錄不同',
+          });
+        }
+      }
+    }
+
+    const currentPathKey = pathKey(sourcePath() ?? '');
+    const currentDirDbItems = itemsData.value.filter(item => parentPathKey(item.path) === currentPathKey);
+    for (const dbItem of currentDirDbItems) {
+      if (!fsByPath.has(pathKey(dbItem.path))) {
+        changes.push({
+          kind: 'missing',
+          path: dbItem.path,
+          name: dbItem.name,
+          itemType: dbItem.itemType,
+          message: '資料庫有紀錄，但目前目錄中找不到項目',
+        });
+      }
+    }
+
+    externalChanges.value = changes;
+  };
+
   const loadAll = async () => {
     isLoading.value = true;
     // 不在開始時清空資料，避免 computed selectedItem 瞬間變 null 造成預覽閃爍
     // 直接用新資料覆蓋舊資料
     try {
       await Promise.all([loadFileItems(), loadItemsBackground()]);
+      detectExternalChanges();
     } catch (e) {
       console.error('Gallery load error:', e);
     } finally {
@@ -116,6 +191,7 @@ export function useGalleryData(
     itemsData,
     fileItems,
     isLoading,
+    externalChanges,
     tagPage,
     tagTotalPages,
     itemByPath,
