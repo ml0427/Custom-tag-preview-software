@@ -1,22 +1,9 @@
 import { ref, computed } from 'vue';
 import { api, type Item, type FileItem } from '../api';
 import { pathKey } from '../utils/pathKey';
+import { computeExternalChanges, type ExternalChange } from './useExternalChanges';
 
-export type ExternalChangeKind = 'untracked' | 'missing' | 'modified';
-
-export interface ExternalChange {
-  kind: ExternalChangeKind;
-  path: string;
-  name: string;
-  itemType: 'file' | 'folder';
-  message: string;
-}
-
-const parentPathKey = (path: string): string => {
-  const normalized = path.replace(/[\\/]+$/, '').replace(/\\/g, '/');
-  const index = normalized.lastIndexOf('/');
-  return index > 0 ? pathKey(normalized.slice(0, index)) : '';
-};
+export type { ExternalChange, ExternalChangeKind } from './useExternalChanges';
 
 export function useGalleryData(
   sourcePath: () => string | null,
@@ -108,59 +95,12 @@ export function useGalleryData(
 
   const detectExternalChanges = () => {
     const sTagIds = selectedTagIds();
-    if ((sTagIds?.length ?? 0) > 0) {
+    const path = sourcePath();
+    if ((sTagIds?.length ?? 0) > 0 || !path) {
       externalChanges.value = [];
       return;
     }
-
-    const fsByPath = new Map(fileItems.value.map(item => [pathKey(item.path), item]));
-    const dbByPath = new Map(itemsData.value.map(item => [pathKey(item.path), item]));
-    const changes: ExternalChange[] = [];
-
-    for (const fileItem of fileItems.value) {
-      const dbItem = dbByPath.get(pathKey(fileItem.path));
-      if (!dbItem) {
-        changes.push({
-          kind: 'untracked',
-          path: fileItem.path,
-          name: fileItem.name,
-          itemType: fileItem.isDir ? 'folder' : 'file',
-          message: '檔案系統有項目，但資料庫尚未追蹤',
-        });
-        continue;
-      }
-
-      if (!fileItem.isDir && dbItem.itemType === 'file') {
-        const fsMtime = fileItem.modifiedTime ? Math.floor(new Date(fileItem.modifiedTime).getTime() / 1000) : null;
-        const sizeChanged = dbItem.fileSize !== null && fileItem.fileSize !== null && dbItem.fileSize !== fileItem.fileSize;
-        const mtimeChanged = dbItem.fileModifiedAt !== null && fsMtime !== null && Math.abs(dbItem.fileModifiedAt - fsMtime) > 90;
-        if (sizeChanged || mtimeChanged) {
-          changes.push({
-            kind: 'modified',
-            path: fileItem.path,
-            name: fileItem.name,
-            itemType: 'file',
-            message: '磁碟上的大小或修改時間和資料庫紀錄不同',
-          });
-        }
-      }
-    }
-
-    const currentPathKey = pathKey(sourcePath() ?? '');
-    const currentDirDbItems = itemsData.value.filter(item => parentPathKey(item.path) === currentPathKey);
-    for (const dbItem of currentDirDbItems) {
-      if (!fsByPath.has(pathKey(dbItem.path))) {
-        changes.push({
-          kind: 'missing',
-          path: dbItem.path,
-          name: dbItem.name,
-          itemType: dbItem.itemType,
-          message: '資料庫有紀錄，但目前目錄中找不到項目',
-        });
-      }
-    }
-
-    externalChanges.value = changes;
+    externalChanges.value = computeExternalChanges(path, fileItems.value, itemsData.value);
   };
 
   const loadAll = async () => {

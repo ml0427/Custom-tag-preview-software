@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { type Item, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
@@ -34,6 +34,16 @@ const { getDbItem, hasCategoryAssigned, getIcon, getItemType, getTypeColor, load
 // IPC-based thumbnail loading (same approach as FileExplorerTable)
 const thumbUrls = reactive(new Map<string, string>());
 const thumbLoading = new Set<string>();
+const queuedThumbs = new Set<string>();
+const thumbQueue: FileItem[] = [];
+let activeThumbLoads = 0;
+const MAX_THUMB_LOADS = 6;
+
+const outerRef = ref<HTMLElement | null>(null);
+const cardElements = new Map<string, { el: Element; item: FileItem }>();
+const observedCards = new Map<Element, string>();
+let currentItemPaths = new Set<string>();
+let thumbObserver: IntersectionObserver | null = null;
 
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
@@ -41,13 +51,107 @@ const loadThumb = async (item: FileItem) => {
   thumbLoading.add(path);
   try {
     const url = await loadThumbUrl(item, props.itemByPath);
-    if (url) thumbUrls.set(path, url);
+    if (url && currentItemPaths.has(path)) thumbUrls.set(path, url);
   } finally {
     thumbLoading.delete(path);
   }
 };
 
-watch(() => props.items, items => items.forEach(loadThumb), { immediate: true });
+const pumpThumbQueue = () => {
+  while (activeThumbLoads < MAX_THUMB_LOADS && thumbQueue.length > 0) {
+    const item = thumbQueue.shift();
+    if (!item) continue;
+    queuedThumbs.delete(item.path);
+
+    if (thumbUrls.has(item.path) || thumbLoading.has(item.path) || item.isDir) {
+      continue;
+    }
+
+    activeThumbLoads++;
+    loadThumb(item).finally(() => {
+      activeThumbLoads--;
+      pumpThumbQueue();
+    });
+  }
+};
+
+const enqueueThumb = (item: FileItem) => {
+  if (item.isDir || thumbUrls.has(item.path) || thumbLoading.has(item.path) || queuedThumbs.has(item.path)) return;
+  queuedThumbs.add(item.path);
+  thumbQueue.push(item);
+  pumpThumbQueue();
+};
+
+const observeCard = (el: Element, item: FileItem) => {
+  if (item.isDir || thumbUrls.has(item.path)) return;
+  observedCards.set(el, item.path);
+  thumbObserver?.observe(el);
+};
+
+const registerCard = (el: Element | null, item: FileItem) => {
+  const existing = cardElements.get(item.path);
+  if (existing) {
+    thumbObserver?.unobserve(existing.el);
+    observedCards.delete(existing.el);
+    cardElements.delete(item.path);
+  }
+
+  if (!el || item.isDir) return;
+  cardElements.set(item.path, { el, item });
+  observeCard(el, item);
+};
+
+const resetObserver = () => {
+  thumbObserver?.disconnect();
+  thumbObserver = null;
+  observedCards.clear();
+
+  if (!outerRef.value) return;
+  thumbObserver = new IntersectionObserver(
+    entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const path = observedCards.get(entry.target);
+        const item = path ? cardElements.get(path)?.item : null;
+        if (!item) return;
+        enqueueThumb(item);
+        thumbObserver?.unobserve(entry.target);
+        observedCards.delete(entry.target);
+      });
+    },
+    {
+      root: outerRef.value,
+      rootMargin: '800px 0px',
+      threshold: 0.01,
+    }
+  );
+
+  cardElements.forEach(({ el, item }) => observeCard(el, item));
+};
+
+watch(() => props.items, items => {
+  const livePaths = new Set(items.map(item => item.path));
+  currentItemPaths = livePaths;
+  Array.from(thumbUrls.keys()).forEach(path => {
+    if (!livePaths.has(path)) thumbUrls.delete(path);
+  });
+  Array.from(cardElements.keys()).forEach(path => {
+    if (!livePaths.has(path)) cardElements.delete(path);
+  });
+
+  thumbQueue.splice(0, thumbQueue.length);
+  queuedThumbs.clear();
+  nextTick(resetObserver);
+}, { immediate: true });
+
+onMounted(() => nextTick(resetObserver));
+onUnmounted(() => {
+  thumbObserver?.disconnect();
+  cardElements.clear();
+  observedCards.clear();
+  thumbQueue.splice(0, thumbQueue.length);
+  queuedThumbs.clear();
+});
 
 const cardRefs = ref<Record<string, any>>({});
 
@@ -71,26 +175,31 @@ const startRenameCtx = () => {
 </script>
 
 <template>
-  <div class="thumb-grid-outer">
+  <div class="thumb-grid-outer" ref="outerRef">
     <div class="thumb-grid">
-      <ThumbnailCard
+      <div
         v-for="item in items"
         :key="item.path"
-        :ref="el => { if (el) cardRefs[item.path] = el }"
-        :item="item"
-        :dbItem="getDbItem(item, itemByPath)"
-        :isSelected="isSelected(item)"
-        :coverUrl="thumbUrls.get(item.path) ?? null"
-        :showCover="!!thumbUrls.get(item.path)"
-        :icon="getIcon(item, itemByPath)"
-        :typeLabel="getItemType(item, itemByPath)"
-        :typeColor="getTypeColor(item, itemByPath)"
-        :searchQuery="searchQuery"
-        @click="emit('click', item, $event)"
-        @dblclick="emit('dblclick', item)"
-        @contextmenu="showContextMenu($event, item)"
-        @rename="emit('rename', item, $event)"
-      />
+        :ref="el => registerCard(el as Element | null, item)"
+        class="thumb-grid-cell"
+      >
+        <ThumbnailCard
+          :ref="el => { if (el) cardRefs[item.path] = el }"
+          :item="item"
+          :dbItem="getDbItem(item, itemByPath)"
+          :isSelected="isSelected(item)"
+          :coverUrl="thumbUrls.get(item.path) ?? null"
+          :showCover="!!thumbUrls.get(item.path)"
+          :icon="getIcon(item, itemByPath)"
+          :typeLabel="getItemType(item, itemByPath)"
+          :typeColor="getTypeColor(item, itemByPath)"
+          :searchQuery="searchQuery"
+          @click="emit('click', item, $event)"
+          @dblclick="emit('dblclick', item)"
+          @contextmenu="showContextMenu($event, item)"
+          @rename="emit('rename', item, $event)"
+        />
+      </div>
     </div>
   </div>
 
