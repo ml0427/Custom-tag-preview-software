@@ -45,7 +45,7 @@ onUnmounted(() => { unlisten?.(); });
 </script>
 
 <template>
-    <div class="dup-view">
+    <section class="dup-view">
         <div class="dup-header">
             <div class="dup-title-row">
                 <h2 class="dup-title">重複檔案偵測</h2>
@@ -131,14 +131,15 @@ onUnmounted(() => { unlisten?.(); });
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 </template>
 
 <style scoped>
 .dup-view {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    min-height: 0;
+    flex: 1;
     overflow: hidden;
 }
 
@@ -190,6 +191,7 @@ onUnmounted(() => { unlisten?.(); });
 
 .dup-body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 20px 24px;
 }

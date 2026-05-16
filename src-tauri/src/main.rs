@@ -6,6 +6,7 @@ mod db;
 mod commands;
 mod scanner;
 mod zip_utils;
+mod debug_log;
 
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
@@ -57,6 +58,11 @@ fn main() {
             });
 
             app.manage(pool);
+
+            let log_path = app_data_dir.join("debug.log");
+            let settings_path = app_data_dir.join("debug_settings.json");
+            let initial_enabled = debug_log::load_initial_enabled(&settings_path);
+            app.manage(debug_log::DebugState::new(log_path, settings_path, initial_enabled));
 
             Ok(())
         })
@@ -116,6 +122,12 @@ fn main() {
             commands::list_dir_files,
             commands::get_image_base64_by_path,
             commands::get_zip_cover_by_path,
+            // Debug mode
+            commands::get_debug_mode,
+            commands::set_debug_mode,
+            commands::get_debug_log_path,
+            commands::open_debug_log,
+            commands::clear_debug_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

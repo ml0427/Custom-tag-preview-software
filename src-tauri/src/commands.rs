@@ -1,7 +1,8 @@
+mod debug;
 mod duplicates;
 mod filesystem;
-mod folders;
 mod helpers;
+mod item_lifecycle;
 mod item_types;
 mod items;
 mod rules;
@@ -9,9 +10,10 @@ mod scan;
 mod sources;
 mod tags;
 
+pub use debug::*;
 pub use duplicates::*;
 pub use filesystem::*;
-pub use folders::*;
+pub use item_lifecycle::*;
 pub use item_types::*;
 pub use items::*;
 pub use rules::*;

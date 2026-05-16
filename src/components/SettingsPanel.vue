@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { api } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useThemeStore, type ThemeId } from '../stores/themeStore';
 import { useFontSizeStore, type FontSize } from '../stores/fontSizeStore';
+import { useToast } from '../composables/useToast';
 import CategoryManageModal from './CategoryManageModal.vue';
 
 const emit = defineEmits<{ (e: 'categorySaved'): void }>();
@@ -10,14 +12,57 @@ const emit = defineEmits<{ (e: 'categorySaved'): void }>();
 const { load: loadItemTypes } = useItemTypes();
 const themeStore = useThemeStore();
 const fontSizeStore = useFontSizeStore();
+const { show: showToast } = useToast();
 
 const showCategoryManage = ref(false);
+
+const debugMode = ref(false);
+const debugLogPath = ref('');
 
 const handleCategoryClose = () => {
   showCategoryManage.value = false;
   loadItemTypes(true);
   emit('categorySaved');
 };
+
+const onToggleDebug = async () => {
+  try {
+    await api.setDebugMode(debugMode.value);
+    showToast(debugMode.value ? 'Debug 模式已開啟' : 'Debug 模式已關閉', 'success');
+  } catch (e) {
+    debugMode.value = !debugMode.value;
+    showToast(`設定失敗：${e}`, 'error');
+  }
+};
+
+const onOpenDebugLog = async () => {
+  try {
+    await api.openDebugLog();
+  } catch (e) {
+    showToast(`開啟日誌失敗：${e}`, 'error');
+  }
+};
+
+const onClearDebugLog = async () => {
+  if (!confirm('確定要清空 debug 日誌嗎？')) return;
+  try {
+    await api.clearDebugLog();
+    showToast('日誌已清空', 'success');
+  } catch (e) {
+    showToast(`清空失敗：${e}`, 'error');
+  }
+};
+
+onMounted(async () => {
+  try {
+    [debugMode.value, debugLogPath.value] = await Promise.all([
+      api.getDebugMode(),
+      api.getDebugLogPath(),
+    ]);
+  } catch (e) {
+    console.error('[SettingsPanel] load debug state failed', e);
+  }
+});
 
 const fontSizes: { id: FontSize; label: string }[] = [
   { id: 'small',  label: '小' },
@@ -91,6 +136,24 @@ const themes: { id: ThemeId; label: string; color: string }[] = [
             <option>繁體中文</option>
           </select>
           <span class="hint">i18n 規劃中</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Debug 模式</h3>
+        <div class="field">
+          <label class="debug-toggle">
+            <input type="checkbox" v-model="debugMode" @change="onToggleDebug" />
+            <span>啟用 debug log（關鍵 mutation 操作會寫入日誌檔）</span>
+          </label>
+        </div>
+        <div class="field">
+          <label class="field-label">日誌路徑</label>
+          <span class="debug-path" :title="debugLogPath">{{ debugLogPath || '—' }}</span>
+        </div>
+        <div class="field debug-actions">
+          <button class="debug-btn" @click="onOpenDebugLog">開啟日誌</button>
+          <button class="debug-btn debug-btn-danger" @click="onClearDebugLog">清空日誌</button>
         </div>
       </section>
 
@@ -254,4 +317,36 @@ const themes: { id: ThemeId; label: string; color: string }[] = [
   color: var(--text-tertiary);
   font-style: italic;
 }
+
+/* Debug section */
+.debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.debug-toggle input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.debug-path {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  word-break: break-all;
+  min-width: 0;
+}
+.debug-actions { flex-direction: row; gap: 8px; }
+.debug-btn {
+  flex: 1;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.debug-btn:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
+.debug-btn-danger:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); border-color: var(--color-danger); }
 </style>

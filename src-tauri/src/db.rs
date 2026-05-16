@@ -16,23 +16,11 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
 
     let pool = SqlitePool::connect_with(options).await?;
 
-    // ── Legacy tables (kept for migration source, no longer written to) ──────
+    // ── Shared lookup tables ─────────────────────────────────────────────────
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE
-        );"
-    ).execute(&pool).await?;
-
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS comics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            file_path TEXT NOT NULL UNIQUE,
-            custom_cover_path TEXT,
-            import_time DATETIME NOT NULL,
-            file_size INTEGER NOT NULL,
-            file_modified_time DATETIME NOT NULL
         );"
     ).execute(&pool).await?;
 
@@ -44,38 +32,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
         );"
     ).execute(&pool).await?;
 
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS comic_tags (
-            comic_id INTEGER NOT NULL,
-            tag_id INTEGER NOT NULL,
-            PRIMARY KEY (comic_id, tag_id),
-            FOREIGN KEY (comic_id) REFERENCES comics(id) ON DELETE CASCADE,
-            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-        );"
-    ).execute(&pool).await?;
-
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS folders (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            path        TEXT NOT NULL UNIQUE,
-            name        TEXT NOT NULL,
-            folder_type TEXT NOT NULL DEFAULT 'default',
-            note        TEXT NOT NULL DEFAULT '',
-            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-        );"
-    ).execute(&pool).await?;
-
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS folder_tags (
-            folder_id INTEGER NOT NULL,
-            tag_id    INTEGER NOT NULL,
-            PRIMARY KEY (folder_id, tag_id),
-            FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE,
-            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-        );"
-    ).execute(&pool).await?;
-
-    // ── New unified tables ───────────────────────────────────────────────────
+    // ── Unified item tables ──────────────────────────────────────────────────
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS items (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -202,36 +159,6 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
          UNION ALL SELECT id,'7z'  FROM item_types WHERE name='comic'
          UNION ALL SELECT id,'cbz' FROM item_types WHERE name='comic'
          UNION ALL SELECT id,'cbr' FROM item_types WHERE name='comic'"
-    ).execute(&pool).await?;
-
-    // ── One-time migration: comics + folders → items ─────────────────────────
-    // Idempotent via UNIQUE(path) + INSERT OR IGNORE
-    sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, import_at)
-         SELECT file_path, 'file', title, file_size, CAST(import_time AS TEXT)
-         FROM comics"
-    ).execute(&pool).await?;
-
-    sqlx::query(
-        "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source)
-         SELECT i.id, ct.tag_id, 'direct'
-         FROM comic_tags ct
-         JOIN comics c ON c.id = ct.comic_id
-         JOIN items i ON i.path = c.file_path"
-    ).execute(&pool).await?;
-
-    sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, category, note, import_at)
-         SELECT path, 'folder', name, folder_type, note, created_at
-         FROM folders"
-    ).execute(&pool).await?;
-
-    sqlx::query(
-        "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source)
-         SELECT i.id, ft.tag_id, 'direct'
-         FROM folder_tags ft
-         JOIN folders f ON f.id = ft.folder_id
-         JOIN items i ON i.path = f.path"
     ).execute(&pool).await?;
 
     Ok(pool)
@@ -520,17 +447,23 @@ pub async fn delete_item_by_id_with_cache(
 
 /// 依 path 刪除 item，同步清掉縮圖快取檔。
 /// 先查 id 才能算快取路徑；若 path 不存在於 DB，僅執行 DELETE（noop）。
+#[allow(dead_code)]
+pub struct DeleteOutcome {
+    pub affected_rows: u64,
+    pub item_id: Option<i64>,
+}
+
 pub async fn delete_item_by_path_with_cache(
     pool: &SqlitePool,
     cache_dir: &Path,
     path: &str,
-) -> Result<()> {
+) -> Result<DeleteOutcome> {
     let id: Option<i64> = sqlx::query_scalar("SELECT id FROM items WHERE path = ?")
         .bind(path)
         .fetch_optional(pool)
         .await?;
 
-    sqlx::query("DELETE FROM items WHERE path = ?")
+    let result = sqlx::query("DELETE FROM items WHERE path = ?")
         .bind(path)
         .execute(pool)
         .await?;
@@ -538,5 +471,8 @@ pub async fn delete_item_by_path_with_cache(
     if let Some(item_id) = id {
         let _ = fs::remove_file(thumbnail_cache_path(cache_dir, item_id));
     }
-    Ok(())
+    Ok(DeleteOutcome {
+        affected_rows: result.rows_affected(),
+        item_id: id,
+    })
 }

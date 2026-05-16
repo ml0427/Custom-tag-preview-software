@@ -3,9 +3,9 @@ defineProps<{ active: string | null; hasSource: boolean }>();
 const emit = defineEmits<{ (e: 'select', id: string): void }>();
 
 const mainItems = [
-  { id: 'workspace',  label: '工作目錄' },
-  { id: 'tags',       label: '標籤篩選' },
-  { id: 'duplicates', label: '重複檔案' },
+  { id: 'workspace',   label: '工作目錄' },
+  { id: 'tags',        label: '標籤篩選' },
+  { id: 'file-health', label: '檔案健檢' },
 ];
 
 const settingsItem = { id: 'settings', label: '設定' };
@@ -33,9 +33,9 @@ const settingsItem = { id: 'settings', label: '設定' };
           <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 8.25c-.97 0-1.75-.78-1.75-1.75s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.75-1.75 1.75z"/>
         </svg>
 
-        <!-- duplicates: layers -->
-        <svg v-else-if="item.id === 'duplicates'" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/>
+        <!-- file-health: shield with checkmark -->
+        <svg v-else-if="item.id === 'file-health'" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1.41 15.41L6.17 12l1.41-1.41 3.01 3.01 6.84-6.84L18.84 8l-8.25 8.41z"/>
         </svg>
       </div>
     </button>

@@ -240,8 +240,8 @@ export const api = {
         await invoke('trash_item', { path });
     },
 
-    async untrackItem(path: string): Promise<void> {
-        await invoke('untrack_item', { path });
+    async untrackItem(path: string, opts?: { allowMissing?: boolean }): Promise<void> {
+        await invoke('untrack_item', { path, allowMissing: opts?.allowMissing ?? false });
     },
 
     // ── File system ───────────────────────────────────────────────────────────
@@ -308,6 +308,27 @@ export const api = {
 
     async deleteItemType(id: number): Promise<void> {
         await invoke('delete_item_type', { id });
+    },
+
+    // ── Debug mode ────────────────────────────────────────────────────────────
+    async getDebugMode(): Promise<boolean> {
+        return await invoke<boolean>('get_debug_mode');
+    },
+
+    async setDebugMode(enabled: boolean): Promise<void> {
+        await invoke('set_debug_mode', { enabled });
+    },
+
+    async getDebugLogPath(): Promise<string> {
+        return await invoke<string>('get_debug_log_path');
+    },
+
+    async openDebugLog(): Promise<void> {
+        await invoke('open_debug_log');
+    },
+
+    async clearDebugLog(): Promise<void> {
+        await invoke('clear_debug_log');
     },
 
 }

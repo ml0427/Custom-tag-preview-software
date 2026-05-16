@@ -85,7 +85,7 @@ export function useDuplicateScanner() {
     let failed = 0;
     for (const item of missing) {
       try {
-        await api.untrackItem(item.path);
+        await api.untrackItem(item.path, { allowMissing: true });
         cleaned += 1;
       } catch {
         failed += 1;

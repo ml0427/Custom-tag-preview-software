@@ -10,7 +10,7 @@ import ItemGallery from './components/ItemGallery.vue'
 import ItemDetailModal from './components/ItemDetailModal.vue'
 import FolderDetailModal from './components/FolderDetailModal.vue'
 import ItemCategoryModal from './components/ItemCategoryModal.vue'
-import DuplicateView from './components/DuplicateView.vue'
+import FileHealthView from './components/FileHealthView.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
@@ -106,7 +106,7 @@ onUnmounted(() => {
     <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
-      <div v-if="activePanel && activePanel !== 'duplicates'" class="side-panel glass-panel">
+      <div v-if="activePanel && activePanel !== 'file-health'" class="side-panel glass-panel">
         <TagSidebar
           v-if="activePanel === 'tags'"
           :selectedTagIds="selectedTagIds"
@@ -126,7 +126,7 @@ onUnmounted(() => {
     </transition>
 
     <main class="main-content">
-      <DuplicateView v-if="activePanel === 'duplicates'" />
+      <FileHealthView v-if="activePanel === 'file-health'" :sourcePath="selectedSourcePath" />
       <template v-else>
         <ItemGallery
           v-show="activePanel === 'workspace' || (!activePanel && lastMainView === 'workspace')"
@@ -138,6 +138,7 @@ onUnmounted(() => {
           @showCategoryEditor="handleCategoryItemSelect"
           @navigateDir="(path) => { selectedSourcePath = path; }"
           @jumpToTag="handleJumpToTag"
+          @openFileHealth="activePanel = 'file-health'"
         />
         <ItemGallery
           v-show="activePanel === 'tags' || (!activePanel && lastMainView === 'tags')"
@@ -150,6 +151,7 @@ onUnmounted(() => {
           @showCategoryEditor="handleCategoryItemSelect"
           @navigateDir="(path) => { selectedSourcePath = path; activePanel = 'workspace'; }"
           @jumpToTag="handleJumpToTag"
+          @openFileHealth="activePanel = 'file-health'"
         />
       </template>
     </main>
