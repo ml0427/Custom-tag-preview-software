@@ -376,7 +376,7 @@ onUnmounted(() => {
       <template v-if="contextMenu.item?.isDir">
         <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">進入資料夾</button>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">{{ hasCategoryAssigned(contextMenu.item!, props.itemByPath) ? '修改類別' : '新增類別' }}</button>
-        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
+        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用類別</button>
         <button class="ctx-item" @click="startRename">修改檔名</button>
         <div class="ctx-divider"></div>
         <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
@@ -384,7 +384,7 @@ onUnmounted(() => {
       <template v-else>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
         <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">{{ hasCategoryAssigned(contextMenu.item!, props.itemByPath) ? '修改類別' : '新增類別' }}</button>
-        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用規則</button>
+        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用類別</button>
         <button class="ctx-item" @click="startRename">修改檔名</button>
         <div class="ctx-divider"></div>
         <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>

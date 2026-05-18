@@ -35,7 +35,7 @@ export function useFolderRuleActions(
     }
 
     try {
-      // 「重新套用規則」語意：只對該 item 自己跑規則，不遞迴、不碰子層、不掃 FS。
+      // 「重新套用類別」語意：只對該 item 自己跑目前類別規則，不遞迴、不碰子層、不掃 FS。
       // 想對整個目錄樹批次掃描請走「掃描精靈」（applyTagScan）。
       const result = await api.applyRulesToItem(dbItem.id, type.tagRules);
       showToast(`已套用 ${result.tagged} 個標籤`, 'success');

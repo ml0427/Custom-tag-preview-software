@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { api, type Source, type Tag, type Item } from '../api';
+import { api, type Source, type Tag, type Item, type FileItem } from '../api';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import LocalDirTree from './LocalDirTree.vue';
 import { useTagManager } from '../composables/useTagManager';
@@ -23,7 +23,17 @@ const modalPhase = ref<'edit' | 'tags'>('edit');
 const folderInDb = ref<{ id: number } | null>(null);
 const editFolder = ref({ path: '', name: '', category: 'default' });
 const applyToSubfolders = ref(false);
+const applyToSubfiles = ref(false);
+const isSavingFolder = ref(false);
+const progressDone = ref(0);
+const progressTotal = ref(0);
+const progressLabel = ref('');
 const allTags = ref<Tag[]>([]);
+
+const progressPercent = computed(() => {
+  if (progressTotal.value <= 0) return 0;
+  return Math.min(100, Math.round((progressDone.value / progressTotal.value) * 100));
+});
 
 const {
   localTags, tagInput, suggestions, showSuggestions,
@@ -74,6 +84,7 @@ const openModifyTypeFromCtx = async () => {
     initTags([]);
   }
   applyToSubfolders.value = false;
+  applyToSubfiles.value = false;
   modalPhase.value = 'edit';
   showFolderModal.value = true;
 };
@@ -116,15 +127,47 @@ const getFolderDisplayName = (path: string): string => (
 );
 
 const applySubfolderCategories = async (
-  parentPath: string,
+  subdirs: string[],
   category: string,
 ): Promise<Item[]> => {
   if (!applyToSubfolders.value) return [];
 
-  const subdirs = await collectAllSubdirs(parentPath);
-  return await Promise.all(subdirs.map(subPath => (
-    saveFolderCategory(subPath, getFolderDisplayName(subPath), category)
-  )));
+  const result: Item[] = [];
+  for (const subPath of subdirs) {
+    progressLabel.value = `套用子資料夾：${getFolderDisplayName(subPath)}`;
+    result.push(await saveFolderCategory(subPath, getFolderDisplayName(subPath), category));
+    progressDone.value += 1;
+  }
+  return result;
+};
+
+const collectAllSubfiles = async (parentPath: string, subdirs: string[]): Promise<FileItem[]> => {
+  const scanTargets = [parentPath, ...subdirs];
+  const result: FileItem[] = [];
+
+  for (const dirPath of scanTargets) {
+    try {
+      const children = await api.listDirFiles(dirPath);
+      result.push(...children.filter(child => !child.isDir));
+    } catch {}
+  }
+
+  return result;
+};
+
+const applySubfileCategories = async (
+  subfiles: FileItem[],
+  category: string,
+): Promise<Item[]> => {
+  if (!applyToSubfiles.value) return [];
+
+  const result: Item[] = [];
+  for (const file of subfiles) {
+    progressLabel.value = `套用子檔案：${file.name}`;
+    result.push(await saveFolderCategory(file.path, file.name, category));
+    progressDone.value += 1;
+  }
+  return result;
 };
 
 const refreshFolderState = async () => {
@@ -132,16 +175,16 @@ const refreshFolderState = async () => {
   emit('folderCreated');
 };
 
-const runRulesForCategory = async (targets: Item[], category: string) => {
-  await loadItemTypes();
-  const selectedType = getTypeConfig(category);
+const runRulesForCategory = async (targets: Item[], selectedType: ReturnType<typeof getTypeConfig>) => {
   if (!selectedType.tagRules?.length) return;
 
   try {
     let totalTagged = 0;
     for (const target of targets) {
+      progressLabel.value = `套用標籤規則：${target.name}`;
       const result = await api.applyRulesToItem(target.id, selectedType.tagRules);
       totalTagged += result.tagged;
+      progressDone.value += 1;
     }
     if (totalTagged > 0) showToast(`已自動套用 ${totalTagged} 個標籤`, 'success');
   } catch { /* ignore */ }
@@ -149,19 +192,43 @@ const runRulesForCategory = async (targets: Item[], category: string) => {
 
 const submitFolderModal = async () => {
   const { path, name, category } = editFolder.value;
-  if (!path || !name) return;
+  if (!path || !name || isSavingFolder.value) return;
+  isSavingFolder.value = true;
+  progressDone.value = 0;
+  progressTotal.value = 1;
+  progressLabel.value = '準備套用類別...';
   try {
+    const subdirs = applyToSubfolders.value || applyToSubfiles.value
+      ? await collectAllSubdirs(path)
+      : [];
+    const subfiles = applyToSubfiles.value
+      ? await collectAllSubfiles(path, subdirs)
+      : [];
+
+    await loadItemTypes();
+    const selectedType = getTypeConfig(category);
+    const categoryTargetCount = 1 + (applyToSubfolders.value ? subdirs.length : 0) + (applyToSubfiles.value ? subfiles.length : 0);
+    const ruleTargetCount = selectedType.tagRules?.length ? categoryTargetCount : 0;
+    progressTotal.value = categoryTargetCount + ruleTargetCount;
+
+    progressLabel.value = `套用目前資料夾：${name.trim()}`;
     const saved = await saveFolderCategory(path, name.trim(), category);
+    progressDone.value += 1;
     folderInDb.value = { id: saved.id };
 
-    const subItems = await applySubfolderCategories(path, category);
-    const allTargets = [saved, ...subItems];
+    const subfolderItems = await applySubfolderCategories(subdirs, category);
+    const subfileItems = await applySubfileCategories(subfiles, category);
+    const allTargets = [saved, ...subfolderItems, ...subfileItems];
 
+    progressLabel.value = '更新畫面狀態...';
     await refreshFolderState();
-    await runRulesForCategory(allTargets, category);
+    await runRulesForCategory(allTargets, selectedType);
     modalPhase.value = 'tags';
   } catch (e) {
     showToast('操作失敗: ' + String(e), 'error');
+  } finally {
+    isSavingFolder.value = false;
+    progressLabel.value = '';
   }
 };
 
@@ -268,13 +335,13 @@ onMounted(() => {
       @click.stop
     >
       <div class="ctx-item" @click="openModifyTypeFromCtx">{{ hasFolderCategory(ctxMenu.path) ? '修改類別' : '新增類別' }}</div>
-      <div class="ctx-item" @click="applyRulesFromCtx">重新套用規則</div>
+      <div class="ctx-item" @click="applyRulesFromCtx">重新套用類別</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">移除追蹤記錄</div>
     </div>
 
     <!-- 修改類型 / 加入知識庫 Modal -->
-    <div v-if="showFolderModal" class="folder-modal-backdrop" @click.self="showFolderModal = false">
+    <div v-if="showFolderModal" class="folder-modal-backdrop" @click.self="!isSavingFolder && (showFolderModal = false)">
       <div class="folder-modal glass-panel">
         <template v-if="modalPhase === 'edit'">
           <h3>{{ folderInDb ? '修改類別' : '加入知識庫' }}</h3>
@@ -284,24 +351,37 @@ onMounted(() => {
           </div>
           <div class="folder-field">
             <label>名稱</label>
-            <input v-model="editFolder.name" class="folder-input" placeholder="顯示名稱" />
+            <input v-model="editFolder.name" class="folder-input" placeholder="顯示名稱" :disabled="isSavingFolder" />
           </div>
           <div class="folder-field">
             <label>類別</label>
-            <select v-model="editFolder.category" class="folder-input">
+            <select v-model="editFolder.category" class="folder-input" :disabled="isSavingFolder">
               <option v-for="t in itemTypes" :key="t.name" :value="t.name">
                 {{ t.icon }} {{ t.displayName }}
               </option>
             </select>
           </div>
           <label class="apply-sub-check">
-            <input type="checkbox" v-model="applyToSubfolders" />
+            <input type="checkbox" v-model="applyToSubfolders" :disabled="isSavingFolder" />
             套用至所有子資料夾
           </label>
+          <label class="apply-sub-check">
+            <input type="checkbox" v-model="applyToSubfiles" :disabled="isSavingFolder" />
+            套用至所有子檔案
+          </label>
+          <div v-if="isSavingFolder" class="folder-progress" aria-live="polite">
+            <div class="progress-meta">
+              <span>{{ progressLabel }}</span>
+              <span>{{ progressDone }} / {{ progressTotal }}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar" :style="{ width: progressPercent + '%' }"></div>
+            </div>
+          </div>
           <div class="folder-actions">
-            <button class="btn-cancel" @click="showFolderModal = false">取消</button>
-            <button class="btn-confirm" @click="submitFolderModal" :disabled="!editFolder.name">
-              下一步：設定標籤
+            <button class="btn-cancel" @click="showFolderModal = false" :disabled="isSavingFolder">取消</button>
+            <button class="btn-confirm" @click="submitFolderModal" :disabled="!editFolder.name || isSavingFolder">
+              {{ isSavingFolder ? `套用中 ${progressPercent}%` : '下一步：設定標籤' }}
             </button>
           </div>
         </template>
@@ -495,6 +575,42 @@ onMounted(() => {
 .apply-sub-check input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
 
 .folder-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+.folder-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0 2px;
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+.progress-meta span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-overlay-soft);
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.18s ease;
+}
 
 .tag-chips {
   display: flex;
