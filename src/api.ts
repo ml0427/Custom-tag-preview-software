@@ -119,7 +119,7 @@ export const api = {
     // ── Items (primary API) ───────────────────────────────────────────────────
     async getItems(
         page = 0,
-        size = 9999,
+        size = 200,
         tagIds?: number[],
         sortBy?: string,
         sortDir?: string,
