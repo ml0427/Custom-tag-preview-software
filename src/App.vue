@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { api, type Item, type Tag } from './api'
+import { useToast } from './composables/useToast'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useItemTypes } from './composables/useItemTypes'
 import ActivityBar from './components/ActivityBar.vue'
@@ -24,6 +25,7 @@ const allTags = ref<Tag[]>([])
 const workspaceGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const tagGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const lastMainView = ref<'workspace' | 'tags'>('workspace')
+const { show: showToast } = useToast()
 
 const handleActivitySelect = (id: string) => {
   activePanel.value = activePanel.value === id ? null : id
@@ -61,7 +63,10 @@ const handleFileItemUpdated = async () => {
   if (selectedFileItem.value) {
     try {
       selectedFileItem.value = await api.getItem(selectedFileItem.value.id)
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.error('handleFileItemUpdated: failed to reload item', e)
+      showToast('無法重新載入檔案資訊', 'error')
+    }
   }
   workspaceGalleryRef.value?.refresh()
   tagGalleryRef.value?.refresh()
