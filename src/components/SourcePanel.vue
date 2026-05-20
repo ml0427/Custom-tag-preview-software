@@ -24,6 +24,7 @@ const folderInDb = ref<{ id: number } | null>(null);
 const editFolder = ref({ path: '', name: '', category: 'default' });
 const applyToSubfolders = ref(false);
 const applyToSubfiles = ref(false);
+const subfileExtensionInput = ref('');
 const isSavingFolder = ref(false);
 const progressDone = ref(0);
 const progressTotal = ref(0);
@@ -34,6 +35,14 @@ const progressPercent = computed(() => {
   if (progressTotal.value <= 0) return 0;
   return Math.min(100, Math.round((progressDone.value / progressTotal.value) * 100));
 });
+
+const subfileExtensions = computed(() => (
+  subfileExtensionInput.value
+    .split(/[\s,，、]+/)
+    .map(ext => ext.trim().toLowerCase())
+    .filter(Boolean)
+    .map(ext => ext.startsWith('.') ? ext : `.${ext}`)
+));
 
 const {
   localTags, tagInput, suggestions, showSuggestions,
@@ -85,6 +94,7 @@ const openModifyTypeFromCtx = async () => {
   }
   applyToSubfolders.value = false;
   applyToSubfiles.value = false;
+  subfileExtensionInput.value = '';
   modalPhase.value = 'edit';
   showFolderModal.value = true;
 };
@@ -144,11 +154,17 @@ const applySubfolderCategories = async (
 const collectAllSubfiles = async (parentPath: string, subdirs: string[]): Promise<FileItem[]> => {
   const scanTargets = [parentPath, ...subdirs];
   const result: FileItem[] = [];
+  const extensions = subfileExtensions.value;
+  const matchesExtension = (file: FileItem) => {
+    if (extensions.length === 0) return true;
+    const normalizedPath = file.path.toLowerCase();
+    return extensions.some(ext => normalizedPath.endsWith(ext));
+  };
 
   for (const dirPath of scanTargets) {
     try {
       const children = await api.listDirFiles(dirPath);
-      result.push(...children.filter(child => !child.isDir));
+      result.push(...children.filter(child => !child.isDir && matchesExtension(child)));
     } catch {}
   }
 
@@ -369,6 +385,15 @@ onMounted(() => {
             <input type="checkbox" v-model="applyToSubfiles" :disabled="isSavingFolder" />
             套用至所有子檔案
           </label>
+          <div v-if="applyToSubfiles" class="folder-field subfile-extension-field">
+            <label>子檔案副檔名</label>
+            <input
+              v-model="subfileExtensionInput"
+              class="folder-input"
+              placeholder="jpg, png, mp4；空白代表全部"
+              :disabled="isSavingFolder"
+            />
+          </div>
           <div v-if="isSavingFolder" class="folder-progress" aria-live="polite">
             <div class="progress-meta">
               <span>{{ progressLabel }}</span>
@@ -539,6 +564,10 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
+}
+.subfile-extension-field {
+  margin-left: 22px;
+  min-width: 0;
 }
 
 .path-text {
