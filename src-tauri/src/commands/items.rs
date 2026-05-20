@@ -355,3 +355,56 @@ pub async fn get_zip_cover_by_path(path: String) -> Result<String, String> {
     let b64 = general_purpose::STANDARD.encode(&image_data);
     Ok(format!("data:image/jpeg;base64,{}", b64))
 }
+
+/// 確保縮圖快取存在：若 thumb_cache/{id}.jpg 不存在則現場生成。
+/// 成功後前端可直接用 comic-cache://localhost/{id}.jpg 顯示縮圖，不走 IPC base64。
+#[tauri::command]
+pub async fn ensure_thumb_cache(
+    id: i64,
+    pool: State<'_, SqlitePool>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let cache_dir = app
+        .path()
+        .app_data_dir()
+        .expect("failed to get app data dir")
+        .join("thumb_cache");
+    let cache_file = cache_dir.join(format!("{}.jpg", id));
+
+    // 快取已存在 → 直接回傳
+    if cache_file.exists() {
+        return Ok(());
+    }
+
+    // 查詢 item 資訊
+    let row = sqlx::query("SELECT path, cover_cache_path FROM items WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let file_path: String = row.get("path");
+    let cover_cache_path: Option<String> = row.get("cover_cache_path");
+
+    let image_data = if is_image_path(&file_path) {
+        // 單張圖片：直接讀取寫入快取
+        fs::read(&file_path).map_err(|e| e.to_string())?
+    } else if is_archive_path(&file_path) {
+        // 壓縮包：提取封面
+        if let Some(cover) = cover_cache_path {
+            zip_utils::extract_image(&file_path, &cover).map_err(|e| e.to_string())?
+        } else {
+            let entries = zip_utils::get_image_entries(&file_path).map_err(|e| e.to_string())?;
+            if entries.is_empty() {
+                return Err("No images in zip".to_string());
+            }
+            zip_utils::extract_image(&file_path, &entries[0]).map_err(|e| e.to_string())?
+        }
+    } else {
+        // 非圖片/非壓縮包（影片、PDF 等）：無法生成縮圖
+        return Err("No thumbnail available".to_string());
+    };
+
+    fs::write(&cache_file, &image_data).map_err(|e| e.to_string())?;
+    Ok(())
+}
