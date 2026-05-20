@@ -13,12 +13,14 @@ export function useGalleryData(
   sortDir: () => 'asc' | 'desc'
 ) {
   const itemsData = ref<Item[]>([]);
+  const externalChangeItemsData = ref<Item[]>([]);
   const fileItems = ref<FileItem[]>([]);
   const isLoading = ref(false);
   const externalChanges = ref<ExternalChange[]>([]);
   const tagPage = ref(0);
   const tagTotalPages = ref(1);
   const TAG_PAGE_SIZE = 200;
+  const EXTERNAL_CHANGE_PAGE_SIZE = 1000;
 
   const itemByPath = computed(() => {
     return new Map(itemsData.value.map(i => [pathKey(i.path), i]));
@@ -93,6 +95,23 @@ export function useGalleryData(
     }
   };
 
+  const loadExternalChangeItems = async () => {
+    const sPath = sourcePath();
+    const tagIds = selectedTagIds();
+    if ((tagIds?.length ?? 0) > 0 || !sPath) {
+      externalChangeItemsData.value = [];
+      return;
+    }
+
+    const firstPage = await api.getItems(0, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath);
+    const allItems = [...firstPage.content];
+    for (let page = 1; page < firstPage.totalPages; page += 1) {
+      const nextPage = await api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath);
+      allItems.push(...nextPage.content);
+    }
+    externalChangeItemsData.value = allItems;
+  };
+
   const detectExternalChanges = () => {
     const sTagIds = selectedTagIds();
     const path = sourcePath();
@@ -100,7 +119,7 @@ export function useGalleryData(
       externalChanges.value = [];
       return;
     }
-    externalChanges.value = computeExternalChanges(path, fileItems.value, itemsData.value);
+    externalChanges.value = computeExternalChanges(path, fileItems.value, externalChangeItemsData.value);
   };
 
   const loadAll = async () => {
@@ -108,7 +127,7 @@ export function useGalleryData(
     // 不在開始時清空資料，避免 computed selectedItem 瞬間變 null 造成預覽閃爍
     // 直接用新資料覆蓋舊資料
     try {
-      await Promise.all([loadFileItems(), loadItemsBackground()]);
+      await Promise.all([loadFileItems(), loadItemsBackground(), loadExternalChangeItems()]);
       detectExternalChanges();
     } catch (e) {
       console.error('Gallery load error:', e);
