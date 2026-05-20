@@ -211,6 +211,12 @@ pub async fn incremental_scan_directory(
 
     for entry in &all_entries {
         let file_path = entry.path().to_string_lossy().to_string();
+
+        // 跳過根目錄本身（避免把工作目錄當成 folder 匯入）
+        if entry.path() == scan_root {
+            continue;
+        }
+
         let is_dir = entry.file_type().is_dir();
 
         // 對檔案：副檔名不在白名單就不自動匯入（但保留在 found_paths 中以免被誤刪）
@@ -224,7 +230,10 @@ pub async fn incremental_scan_directory(
             }
         }
 
-        let metadata = fs::metadata(entry.path())?;
+        let metadata = match fs::metadata(entry.path()) {
+            Ok(m) => m,
+            Err(_) => continue,  // 檔案無法讀取（鎖定/損毀/權限）→ 跳過，不中斷整個掃描
+        };
         let file_size = if is_dir { None } else { Some(metadata.len() as i64) };
         let mtime_unix = metadata.modified()
             .ok()

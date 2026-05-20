@@ -121,11 +121,37 @@ export function useExternalChanges(sourcePath: () => string | null) {
     const path = sourcePath();
     if (!path) return;
     isFixing.value = true;
+
+    let added = 0, removed = 0, updated = 0, errors = 0;
+    const snapshot = [...changes.value];
+
     try {
-      const result = await api.incrementalScan(path);
-      lastFixResult.value = result;
+      for (const change of snapshot) {
+        try {
+          if (change.kind === 'untracked') {
+            await api.quickImportItem(change.path);
+            added++;
+          } else if (change.kind === 'missing') {
+            await api.untrackItem(change.path, { allowMissing: true });
+            removed++;
+          } else if (change.kind === 'modified') {
+            // 用 incrementalScan 同步所在資料夾（只更新已追蹤項目，不碰白名單限制）
+            const dir = parentDir(change.path);
+            if (dir) {
+              const result = await api.incrementalScan(dir);
+              if (result.updated > 0) updated++;
+            }
+          }
+        } catch (e) {
+          errors++;
+          console.error(`[useExternalChanges] fixAll item failed: ${change.path}`, e);
+        }
+      }
+
+      lastFixResult.value = { added, updated, removed };
       dismissedKeys.value.clear();
-      show(`已修復：新增 ${result.added}、更新 ${result.updated}、移除 ${result.removed}`, 'success');
+      const errMsg = errors > 0 ? `（${errors} 項失敗）` : '';
+      show(`已修復：新增 ${added}、更新 ${updated}、移除 ${removed}${errMsg}`, errors > added + removed ? 'error' : 'success');
       await refresh();
     } catch (e) {
       console.error('[useExternalChanges] fixAll failed', e);
