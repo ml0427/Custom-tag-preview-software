@@ -29,15 +29,17 @@ export function useThumbnailLoader() {
     if (item.isDir) return '';
     const dbItem = getDbItem(item, itemByPath);
 
-    // 優先走 comic-cache:// URI（不走 IPC base64，記憶體友善）
     if (dbItem?.id) {
-      try {
-        await api.ensureThumbCache(dbItem.id);
-        return `comic-cache://localhost/${dbItem.id}.jpg`;
-      } catch {
-        // cache 生成失敗，fallback 到 base64
-        return await api.getCoverBase64(dbItem.id).catch(() => '');
+      // 有 coverCachePath 的 item 優先走 comic-cache://（零 IPC、記憶體友善）
+      if (dbItem.coverCachePath) {
+        try {
+          await api.ensureThumbCache(dbItem.id);
+          return `comic-cache://localhost/${dbItem.id}.jpg`;
+        } catch {
+          // cache 重建失敗，fallback 到 base64
+        }
       }
+      return await api.getCoverBase64(dbItem.id).catch(() => '');
     }
 
     // 非 DB item（剛發現、尚未掃描）：沿用舊的 base64 路徑

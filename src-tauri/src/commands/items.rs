@@ -376,6 +376,9 @@ pub async fn ensure_thumb_cache(
         return Ok(());
     }
 
+    // 確保 thumb_cache 目錄存在
+    fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+
     // 查詢 item 資訊
     let row = sqlx::query("SELECT path, cover_cache_path FROM items WHERE id = ?")
         .bind(id)
