@@ -16,18 +16,6 @@ export function useThumbnailLoader() {
     failedImages.value = new Set(failedImages.value).add(path);
   };
 
-  const getCoverUrl = (item: FileItem, itemByPath: Map<string, Item>): string | null => {
-    if (item.isDir) return null;
-    const dbItem = getDbItem(item, itemByPath);
-    if (!dbItem) return null;
-    return `comic-cache://localhost/${dbItem.id}.jpg`;
-  };
-
-  const showCover = (item: FileItem, itemByPath: Map<string, Item>): boolean => {
-    const url = getCoverUrl(item, itemByPath);
-    return !!url && !failedImages.value.has(item.path);
-  };
-
   const getDbItem = (item: FileItem, itemByPath: Map<string, Item>): Item | null => {
     return itemByPath.get(pathKey(item.path)) ?? null;
   };
@@ -40,8 +28,21 @@ export function useThumbnailLoader() {
   const loadThumbUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
     if (item.isDir) return '';
     const dbItem = getDbItem(item, itemByPath);
-    if (dbItem?.id) return await api.getCoverBase64(dbItem.id).catch(() => '');
 
+    if (dbItem?.id) {
+      // 有 coverCachePath 的 item 優先走 comic-cache://（零 IPC、記憶體友善）
+      if (dbItem.coverCachePath) {
+        try {
+          await api.ensureThumbCache(dbItem.id);
+          return `comic-cache://localhost/${dbItem.id}.jpg`;
+        } catch {
+          // cache 重建失敗，fallback 到 base64
+        }
+      }
+      return await api.getCoverBase64(dbItem.id).catch(() => '');
+    }
+
+    // 非 DB item（剛發現、尚未掃描）：沿用舊的 base64 路徑
     const ext = item.extension?.toLowerCase() ?? '';
     if (ARCHIVE_EXTS.has(ext)) return await api.getZipCoverByPath(item.path).catch(() => '');
     if (IMAGE_EXTS.has(ext)) return await api.getImageBase64ByPath(item.path).catch(() => '');
@@ -98,8 +99,6 @@ export function useThumbnailLoader() {
     onImgError,
     getDbItem,
     hasCategoryAssigned,
-    getCoverUrl,
-    showCover,
     loadThumbUrl,
     getIcon,
     getItemType,

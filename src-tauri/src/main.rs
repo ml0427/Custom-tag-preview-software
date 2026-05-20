@@ -122,6 +122,7 @@ fn main() {
             commands::list_dir_files,
             commands::get_image_base64_by_path,
             commands::get_zip_cover_by_path,
+            commands::ensure_thumb_cache,
             // Debug mode
             commands::get_debug_mode,
             commands::set_debug_mode,

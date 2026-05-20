@@ -165,6 +165,11 @@ export const api = {
         return await invoke<string>('get_zip_cover_by_path', { path });
     },
 
+    /// 確保縮圖快取存在（comic-cache:// 的前置作業）
+    async ensureThumbCache(id: number): Promise<void> {
+        await invoke('ensure_thumb_cache', { id });
+    },
+
     // ── Tags ──────────────────────────────────────────────────────────────────
     async getTags(): Promise<Tag[]> {
         return await invoke<Tag[]>('get_tags');
