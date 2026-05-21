@@ -109,12 +109,12 @@ export function useGalleryData(
       return;
     }
 
-    const firstPage = await api.getItems(0, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath);
+    const firstPage = await api.getItems(0, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath, undefined, true);
     const allItems = [...firstPage.content];
     if (firstPage.totalPages > 1) {
       const pages = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 1);
       const nextPages = await Promise.all(
-        pages.map(page => api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath))
+        pages.map(page => api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath, undefined, true))
       );
       allItems.push(...nextPages.flatMap(page => page.content));
     }

@@ -19,6 +19,9 @@ export interface Item {
     fingerprint: string | null;
     note: string | null;
     category: string | null;
+    existsOnDisk: boolean;
+    missingSince: string | null;
+    lastSeenAt: string | null;
     importAt: string;
     tags: Tag[];
 }
@@ -125,8 +128,9 @@ export const api = {
         sortDir?: string,
         sourcePath?: string,
         itemType?: string,
+        includeMissing = false,
     ): Promise<Page<Item>> {
-        return await invoke<Page<Item>>('get_items', { page, size, tagIds, sortBy, sortDir, sourcePath, itemType });
+        return await invoke<Page<Item>>('get_items', { page, size, tagIds, sortBy, sortDir, sourcePath, itemType, includeMissing });
     },
 
     async getItem(id: number): Promise<Item> {

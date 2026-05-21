@@ -29,13 +29,13 @@ const DB_PAGE_SIZE = 1000;
 const FIX_CONCURRENCY = 10;
 
 const loadAllDbItems = async (path: string): Promise<Item[]> => {
-  const firstPage = await api.getItems(0, DB_PAGE_SIZE, undefined, 'importAt', 'desc', path);
+  const firstPage = await api.getItems(0, DB_PAGE_SIZE, undefined, 'importAt', 'desc', path, undefined, true);
   const items = [...firstPage.content];
   if (firstPage.totalPages <= 1) return items;
 
   const pages = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 1);
   const nextPages = await Promise.all(
-    pages.map(page => api.getItems(page, DB_PAGE_SIZE, undefined, 'importAt', 'desc', path))
+    pages.map(page => api.getItems(page, DB_PAGE_SIZE, undefined, 'importAt', 'desc', path, undefined, true))
   );
   items.push(...nextPages.flatMap(page => page.content));
   return items;

@@ -106,6 +106,7 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
         fingerprint.as_deref(),
     ).await?;
     if id == 0 {
+        db::mark_item_seen_by_path(pool, &file_path, &import_at).await?;
         return Ok(false);
     }
 
@@ -145,6 +146,7 @@ async fn process_folder(pool: &SqlitePool, path: &Path) -> Result<bool> {
         None,
     ).await?;
     if id == 0 {
+        db::mark_item_seen_by_path(pool, &file_path, &import_at).await?;
         return Ok(false);
     }
 
@@ -249,6 +251,8 @@ pub async fn incremental_scan_directory(
             if (mtime_unix - db_mtime).abs() > 2 {
                 db::update_item_size_mtime(pool, *existing_id, file_size, mtime_unix).await?;
                 updated += 1;
+            } else {
+                db::mark_item_seen(pool, *existing_id, &Local::now().to_rfc3339()).await?;
             }
         } else if is_dir {
             if process_folder(pool, entry.path()).await? {
@@ -266,7 +270,7 @@ pub async fn incremental_scan_directory(
     let mut removed = 0i32;
     for (path, (id, _)) in &existing {
         if !found_paths.contains(path) {
-            db::delete_item_by_id_with_cache(pool, cache_dir, *id).await?;
+            db::mark_item_missing(pool, *id, &Local::now().to_rfc3339()).await?;
             removed += 1;
         }
     }

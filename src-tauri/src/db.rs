@@ -45,6 +45,9 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             fingerprint     TEXT,
             note            TEXT DEFAULT '',
             category        TEXT DEFAULT 'default',
+            exists_on_disk  INTEGER NOT NULL DEFAULT 1,
+            missing_since   TEXT,
+            last_seen_at    TEXT,
             import_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );"
     ).execute(&pool).await?;
@@ -94,6 +97,15 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
         .execute(&pool).await;
     let _ = sqlx::query("ALTER TABLE tags ADD COLUMN color TEXT")
         .execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN exists_on_disk INTEGER NOT NULL DEFAULT 1")
+        .execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN missing_since TEXT")
+        .execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN last_seen_at TEXT")
+        .execute(&pool).await;
+    let _ = sqlx::query(
+        "UPDATE items SET last_seen_at = COALESCE(last_seen_at, import_at), exists_on_disk = COALESCE(exists_on_disk, 1)"
+    ).execute(&pool).await;
 
     // Normalize legacy tag.color rows to canonical #rrggbb (idempotent).
     // Mirrors src/utils/color.ts normalizeHex; anything unparseable becomes NULL.
@@ -275,8 +287,8 @@ where
     E: Executor<'e, Database = Sqlite>,
 {
     let result = sqlx::query(
-        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at, fingerprint)
-         VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "INSERT OR IGNORE INTO items (path, item_type, name, file_size, file_modified_at, import_at, fingerprint, exists_on_disk, missing_since, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, NULL, ?)"
     )
     .bind(path)
     .bind(item_type)
@@ -285,12 +297,55 @@ where
     .bind(file_modified_at)
     .bind(import_at)
     .bind(fingerprint)
+    .bind(import_at)
     .execute(executor)
     .await?;
     if result.rows_affected() == 0 {
         return Ok(0);
     }
     Ok(result.last_insert_rowid())
+}
+
+pub async fn mark_item_seen<'e, E>(executor: E, id: i64, seen_at: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query(
+        "UPDATE items SET exists_on_disk = 1, missing_since = NULL, last_seen_at = ? WHERE id = ?"
+    )
+    .bind(seen_at)
+    .bind(id)
+    .execute(executor)
+    .await?;
+    Ok(())
+}
+
+pub async fn mark_item_seen_by_path<'e, E>(executor: E, path: &str, seen_at: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query(
+        "UPDATE items SET exists_on_disk = 1, missing_since = NULL, last_seen_at = ? WHERE path = ?"
+    )
+    .bind(seen_at)
+    .bind(path)
+    .execute(executor)
+    .await?;
+    Ok(())
+}
+
+pub async fn mark_item_missing<'e, E>(executor: E, id: i64, missing_since: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query(
+        "UPDATE items SET exists_on_disk = 0, missing_since = COALESCE(missing_since, ?) WHERE id = ?"
+    )
+    .bind(missing_since)
+    .bind(id)
+    .execute(executor)
+    .await?;
+    Ok(())
 }
 
 pub async fn update_item_category<'e, E>(executor: E, id: i64, category: &str) -> Result<()>
@@ -393,7 +448,7 @@ pub async fn update_item_size_mtime<'e, E>(
 where
     E: Executor<'e, Database = Sqlite>,
 {
-    sqlx::query("UPDATE items SET file_size = ?, file_modified_at = ? WHERE id = ?")
+    sqlx::query("UPDATE items SET file_size = ?, file_modified_at = ?, exists_on_disk = 1, missing_since = NULL, last_seen_at = datetime('now') WHERE id = ?")
         .bind(file_size)
         .bind(file_modified_at)
         .bind(id)
@@ -435,6 +490,7 @@ where
 }
 
 /// 依 id 刪除 item，同步清掉縮圖快取檔（失敗忽略，避免阻擋 DB 操作）。
+#[allow(dead_code)]
 pub async fn delete_item_by_id_with_cache(
     pool: &SqlitePool,
     cache_dir: &Path,
@@ -577,5 +633,50 @@ mod tests {
         assert_eq!(second, 0);
         assert_eq!(found.id, tag.id);
         assert_eq!(get_tags(&pool).await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn item_presence_markers_are_idempotent() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+
+        let item_id = insert_item(
+            &pool,
+            "C:/Library/book.zip",
+            "file",
+            "book",
+            Some(123),
+            Some(456),
+            "2026-05-21T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+
+        mark_item_missing(&pool, item_id, "2026-05-21T11:00:00Z").await.unwrap();
+        mark_item_missing(&pool, item_id, "2026-05-21T12:00:00Z").await.unwrap();
+        let missing_row = sqlx::query(
+            "SELECT exists_on_disk, missing_since, last_seen_at FROM items WHERE id = ?"
+        )
+        .bind(item_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(missing_row.get::<i64, _>("exists_on_disk"), 0);
+        assert_eq!(missing_row.get::<String, _>("missing_since"), "2026-05-21T11:00:00Z");
+
+        mark_item_seen(&pool, item_id, "2026-05-21T13:00:00Z").await.unwrap();
+        let seen_row = sqlx::query(
+            "SELECT exists_on_disk, missing_since, last_seen_at FROM items WHERE id = ?"
+        )
+        .bind(item_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(seen_row.get::<i64, _>("exists_on_disk"), 1);
+        assert_eq!(seen_row.get::<Option<String>, _>("missing_since"), None);
+        assert_eq!(seen_row.get::<String, _>("last_seen_at"), "2026-05-21T13:00:00Z");
     }
 }

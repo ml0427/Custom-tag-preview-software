@@ -32,6 +32,30 @@ describe('api', () => {
       sortDir: 'asc',
       sourcePath: 'C:/Library',
       itemType: 'file',
+      includeMissing: false,
+    });
+  });
+
+  it('can request missing items for reconciliation views', async () => {
+    invokeMock.mockResolvedValueOnce({
+      content: [],
+      totalPages: 0,
+      totalElements: 0,
+      number: 0,
+      size: 100,
+    });
+
+    await api.getItems(0, 100, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
+
+    expect(invokeMock).toHaveBeenCalledWith('get_items', {
+      page: 0,
+      size: 100,
+      tagIds: undefined,
+      sortBy: 'importAt',
+      sortDir: 'desc',
+      sourcePath: 'C:/Library',
+      itemType: undefined,
+      includeMissing: true,
     });
   });
 

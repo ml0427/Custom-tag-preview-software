@@ -60,7 +60,7 @@ pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Res
     let item_type = if is_dir { "folder" } else { "file" };
     let import_at = chrono::Local::now().to_rfc3339();
 
-    db::insert_item(
+    let inserted_id = db::insert_item(
         &*pool,
         &path,
         item_type,
@@ -70,6 +70,21 @@ pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Res
         &import_at,
         None,
     ).await.map_err(|e| e.to_string())?;
+    if inserted_id == 0 {
+        if !is_dir {
+            db::update_item_size_mtime(&*pool, sqlx::query_scalar::<_, i64>("SELECT id FROM items WHERE path = ?")
+                .bind(&path)
+                .fetch_one(&*pool)
+                .await
+                .map_err(|e| e.to_string())?, file_size, mtime_unix)
+                .await
+                .map_err(|e| e.to_string())?;
+        } else {
+            db::mark_item_seen_by_path(&*pool, &path, &import_at)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
 
     let row = sqlx::query("SELECT * FROM items WHERE path = ?")
         .bind(&path)

@@ -23,6 +23,9 @@ const item = (path: string): Item => ({
   fingerprint: null,
   note: null,
   category: 'default',
+  existsOnDisk: true,
+  missingSince: null,
+  lastSeenAt: '2026-05-21T10:00:00Z',
   importAt: '2026-05-21T10:00:00Z',
   tags: [],
 });

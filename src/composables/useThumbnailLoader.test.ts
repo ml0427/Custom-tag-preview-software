@@ -34,6 +34,9 @@ const dbItem = (path: string): Item => ({
   fingerprint: null,
   note: null,
   category: 'comic',
+  existsOnDisk: true,
+  missingSince: null,
+  lastSeenAt: '2026-05-21T10:00:00Z',
   importAt: '2026-05-21T10:00:00Z',
   tags: [{ id: 7, name: 'Action', color: '#f0b229' }],
 });

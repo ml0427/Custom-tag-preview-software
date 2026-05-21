@@ -45,6 +45,9 @@ const dbItem = (overrides: Partial<Item>): Item => ({
   fingerprint: null,
   note: null,
   category: 'default',
+  existsOnDisk: true,
+  missingSince: null,
+  lastSeenAt: '2026-05-21T10:00:00Z',
   importAt: '2026-05-21T10:00:00Z',
   tags: [],
   ...overrides,
@@ -146,8 +149,8 @@ describe('useExternalChanges', () => {
 
     await externalChanges.refresh();
 
-    expect(apiMock.getItems).toHaveBeenNthCalledWith(1, 0, 1000, undefined, 'importAt', 'desc', 'C:/Library');
-    expect(apiMock.getItems).toHaveBeenNthCalledWith(2, 1, 1000, undefined, 'importAt', 'desc', 'C:/Library');
+    expect(apiMock.getItems).toHaveBeenNthCalledWith(1, 0, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
+    expect(apiMock.getItems).toHaveBeenNthCalledWith(2, 1, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
     expect(externalChanges.changes.value).toEqual([]);
   });
 });

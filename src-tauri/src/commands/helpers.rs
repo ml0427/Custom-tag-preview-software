@@ -35,6 +35,9 @@ pub(super) fn read_item_from_row(row: &sqlx::sqlite::SqliteRow, tags: Vec<Tag>) 
         fingerprint: row.get("fingerprint"),
         note: row.get("note"),
         category: row.get("category"),
+        exists_on_disk: row.get::<i64, _>("exists_on_disk") != 0,
+        missing_since: row.get("missing_since"),
+        last_seen_at: row.get("last_seen_at"),
         import_at: row.get("import_at"),
         tags,
     }

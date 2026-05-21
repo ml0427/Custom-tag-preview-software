@@ -44,6 +44,9 @@ const item = (overrides: Partial<Item>): Item => ({
   fingerprint: null,
   note: null,
   category: 'default',
+  existsOnDisk: true,
+  missingSince: null,
+  lastSeenAt: '2026-05-21T15:00:00Z',
   importAt: '2026-05-21T15:00:00Z',
   tags: [],
   ...overrides,
@@ -194,8 +197,8 @@ describe('useGalleryData', () => {
     await gallery.loadAll();
     await nextTick();
 
-    expect(apiMock.getItems).toHaveBeenNthCalledWith(3, 1, 1000, undefined, 'importAt', 'desc', 'C:/Library');
-    expect(apiMock.getItems).toHaveBeenNthCalledWith(4, 2, 1000, undefined, 'importAt', 'desc', 'C:/Library');
+    expect(apiMock.getItems).toHaveBeenNthCalledWith(3, 1, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
+    expect(apiMock.getItems).toHaveBeenNthCalledWith(4, 2, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
     expect(gallery.itemByPath.value.get('c:\\library\\three.zip')?.id).toBe(3);
   });
 });

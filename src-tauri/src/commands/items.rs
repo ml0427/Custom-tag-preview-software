@@ -17,6 +17,7 @@ pub async fn get_items(
     sort_dir: Option<String>,
     source_path: Option<String>,
     item_type: Option<String>,
+    include_missing: Option<bool>,
     pool: State<'_, SqlitePool>,
 ) -> Result<Page<Item>, String> {
     let offset = page * size;
@@ -43,6 +44,7 @@ pub async fn get_items(
     let active_tags: Vec<i64> = tag_ids.unwrap_or_default();
     let with_tags = !active_tags.is_empty();
     let has_source = source_path.is_some();
+    let include_missing = include_missing.unwrap_or(false);
 
     // Build both data and count queries with the same conditions
     macro_rules! build_query {
@@ -82,6 +84,11 @@ pub async fn get_items(
                 qb.push(if need_and { " AND" } else { " WHERE" });
                 qb.push(" i.item_type = ");
                 qb.push_bind(itype.clone());
+                need_and = true;
+            }
+            if !include_missing {
+                qb.push(if need_and { " AND" } else { " WHERE" });
+                qb.push(" i.exists_on_disk = 1");
             }
             qb
         }};

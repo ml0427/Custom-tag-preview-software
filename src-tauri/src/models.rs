@@ -14,6 +14,9 @@ pub struct Item {
     pub fingerprint: Option<String>,
     pub note: Option<String>,
     pub category: Option<String>,
+    pub exists_on_disk: bool,
+    pub missing_since: Option<String>,
+    pub last_seen_at: Option<String>,
     pub import_at: String,
     pub tags: Vec<Tag>,
 }
