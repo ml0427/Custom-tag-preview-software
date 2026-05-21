@@ -16,6 +16,8 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
 
     let pool = SqlitePool::connect_with(options).await?;
 
+    backup_legacy_tables(&pool).await?;
+
     // ── Shared lookup tables ─────────────────────────────────────────────────
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS tags (
@@ -174,6 +176,34 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ).execute(&pool).await?;
 
     Ok(pool)
+}
+
+async fn backup_legacy_tables(pool: &SqlitePool) -> Result<()> {
+    for table in ["comics", "folders", "comic_tags", "folder_tags"] {
+        backup_legacy_table(pool, table).await?;
+    }
+    Ok(())
+}
+
+async fn backup_legacy_table(pool: &SqlitePool, table: &str) -> Result<()> {
+    let backup = format!("_legacy_{}_backup", table);
+    if !table_exists(pool, table).await? || table_exists(pool, &backup).await? {
+        return Ok(());
+    }
+
+    let sql = format!("ALTER TABLE \"{}\" RENAME TO \"{}\"", table, backup);
+    sqlx::query(&sql).execute(pool).await?;
+    Ok(())
+}
+
+async fn table_exists(pool: &SqlitePool, table: &str) -> Result<bool> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+    )
+    .bind(table)
+    .fetch_one(pool)
+    .await?;
+    Ok(count > 0)
 }
 
 // Clear file items only (used by full-scan)
@@ -561,6 +591,86 @@ mod tests {
         assert!(dir.path().join("comic.db").exists());
         assert!(item_type_count >= 2);
         assert_eq!(zip_extension_count, 1);
+    }
+
+    #[tokio::test]
+    async fn init_db_renames_legacy_tables_to_backups_idempotently() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("comic.db");
+        let options = SqliteConnectOptions::new()
+            .filename(&db_path)
+            .create_if_missing(true);
+        let legacy_pool = SqlitePool::connect_with(options).await.unwrap();
+
+        sqlx::query("CREATE TABLE comics (id INTEGER PRIMARY KEY, title TEXT NOT NULL)")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE folders (id INTEGER PRIMARY KEY, path TEXT NOT NULL)")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE comic_tags (comic_id INTEGER NOT NULL, tag_id INTEGER NOT NULL)")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE folder_tags (folder_id INTEGER NOT NULL, tag_id INTEGER NOT NULL)")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO comics (id, title) VALUES (1, 'Legacy Comic')")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO folders (id, path) VALUES (1, 'C:/Legacy')")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO comic_tags (comic_id, tag_id) VALUES (1, 7)")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO folder_tags (folder_id, tag_id) VALUES (1, 8)")
+            .execute(&legacy_pool)
+            .await
+            .unwrap();
+        legacy_pool.close().await;
+
+        let pool = init_db(dir.path()).await.unwrap();
+        init_db(dir.path()).await.unwrap().close().await;
+
+        for table in ["comics", "folders", "comic_tags", "folder_tags"] {
+            assert!(!table_exists(&pool, table).await.unwrap());
+            assert!(
+                table_exists(&pool, &format!("_legacy_{}_backup", table))
+                    .await
+                    .unwrap()
+            );
+        }
+
+        let comic_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM _legacy_comics_backup")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let folder_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM _legacy_folders_backup")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let comic_tag_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM _legacy_comic_tags_backup")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let folder_tag_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM _legacy_folder_tags_backup")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        assert_eq!(comic_count, 1);
+        assert_eq!(folder_count, 1);
+        assert_eq!(comic_tag_count, 1);
+        assert_eq!(folder_tag_count, 1);
     }
 
     #[tokio::test]
