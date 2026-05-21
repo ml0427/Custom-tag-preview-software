@@ -170,13 +170,10 @@ const handleContextDetail = async (fileItem: FileItem) => {
   if (!dbItem) {
     try {
       dbItem = await api.quickImportItem(fileItem.path);
-      await loadAll();
     } catch (e: any) {
       showToast('匯入失敗：' + (e?.message ?? e), 'error');
       return;
     }
-    dbItem = itemByPath.value.get(pathKey(fileItem.path));
-    if (!dbItem) return;
   }
   if (fileItem.isDir) emit('showFolderDetail', dbItem);
   else emit('showDetail', dbItem);
@@ -187,13 +184,10 @@ const handleAddCategory = async (fileItem: FileItem) => {
   if (!dbItem) {
     try {
       dbItem = await api.quickImportItem(fileItem.path);
-      await loadAll();
     } catch (e: any) {
       showToast('匯入失敗：' + (e?.message ?? e), 'error');
       return;
     }
-    dbItem = itemByPath.value.get(pathKey(fileItem.path));
-    if (!dbItem) return;
   }
   if (fileItem.isDir) emit('showFolderDetail', dbItem);
   else emit('showCategoryEditor', dbItem);
@@ -204,13 +198,10 @@ const handleContextRename = async (fileItem: FileItem, newName: string) => {
   if (!dbItem) {
     try {
       dbItem = await api.quickImportItem(fileItem.path);
-      await loadAll();
     } catch (e: any) {
       showToast('匯入失敗：' + (e?.message ?? e), 'error');
       return;
     }
-    dbItem = itemByPath.value.get(pathKey(fileItem.path));
-    if (!dbItem) return;
   }
   try {
     const updated = await api.renameItem(dbItem.id, newName);
