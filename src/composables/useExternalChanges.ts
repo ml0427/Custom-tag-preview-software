@@ -25,6 +25,32 @@ const parentDir = (path: string): string => {
   return idx > 0 ? normalized.slice(0, idx) : normalized;
 };
 
+const DB_PAGE_SIZE = 1000;
+const FIX_CONCURRENCY = 10;
+
+const loadAllDbItems = async (path: string): Promise<Item[]> => {
+  const firstPage = await api.getItems(0, DB_PAGE_SIZE, undefined, 'importAt', 'desc', path);
+  const items = [...firstPage.content];
+  if (firstPage.totalPages <= 1) return items;
+
+  const pages = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 1);
+  const nextPages = await Promise.all(
+    pages.map(page => api.getItems(page, DB_PAGE_SIZE, undefined, 'importAt', 'desc', path))
+  );
+  items.push(...nextPages.flatMap(page => page.content));
+  return items;
+};
+
+const runInBatches = async <T>(
+  items: T[],
+  batchSize: number,
+  worker: (item: T) => Promise<void>,
+) => {
+  for (let index = 0; index < items.length; index += batchSize) {
+    await Promise.all(items.slice(index, index + batchSize).map(worker));
+  }
+};
+
 export function computeExternalChanges(
   sourcePath: string,
   fileItems: FileItem[],
@@ -103,11 +129,11 @@ export function useExternalChanges(sourcePath: () => string | null) {
     }
     isLoading.value = true;
     try {
-      const [fileItems, dbPage] = await Promise.all([
+      const [fileItems, dbItems] = await Promise.all([
         api.listDirFiles(path),
-        api.getItems(0, 9999, undefined, 'importAt', 'desc', path),
+        loadAllDbItems(path),
       ]);
-      const detected = computeExternalChanges(path, fileItems, dbPage.content);
+      const detected = computeExternalChanges(path, fileItems, dbItems);
       changes.value = detected.filter(c => !dismissedKeys.value.has(changeKey(c)));
     } catch (e) {
       console.error('[useExternalChanges] refresh failed', e);
@@ -126,7 +152,7 @@ export function useExternalChanges(sourcePath: () => string | null) {
     const snapshot = [...changes.value];
 
     try {
-      for (const change of snapshot) {
+      await runInBatches(snapshot, FIX_CONCURRENCY, async change => {
         try {
           if (change.kind === 'untracked') {
             await api.quickImportItem(change.path);
@@ -146,7 +172,7 @@ export function useExternalChanges(sourcePath: () => string | null) {
           errors++;
           console.error(`[useExternalChanges] fixAll item failed: ${change.path}`, e);
         }
-      }
+      });
 
       lastFixResult.value = { added, updated, removed };
       dismissedKeys.value.clear();

@@ -241,8 +241,8 @@ export const api = {
         await invoke('set_item_note', { id, note });
     },
 
-    async trashItem(path: string): Promise<void> {
-        await invoke('trash_item', { path });
+    async trashItem(path: string, opts?: { allowMissing?: boolean }): Promise<void> {
+        await invoke('trash_item', { path, allowMissing: opts?.allowMissing ?? false });
     },
 
     async untrackItem(path: string, opts?: { allowMissing?: boolean }): Promise<void> {

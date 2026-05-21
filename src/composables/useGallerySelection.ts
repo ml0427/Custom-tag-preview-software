@@ -9,6 +9,7 @@ export function useGallerySelection(
   const selectedFileItemPath = ref<string | null>(null);
   const selectedPaths = ref<string[]>([]);
   const lastClickIdx = ref(-1);
+  const rangeAnchorIdx = ref(-1);
 
   const selectedItem = computed<Item | null>(() => {
     if (!selectedFileItemPath.value) return null;
@@ -31,18 +32,18 @@ export function useGallerySelection(
       if (newSet.has(item.path)) newSet.delete(item.path);
       else {
         newSet.add(item.path);
-        lastClickIdx.value = idx;
       }
+      lastClickIdx.value = idx;
+      rangeAnchorIdx.value = idx;
       selectedPaths.value = [...newSet];
-    } else if (event?.shiftKey && lastClickIdx.value >= 0) {
-      const start = Math.min(lastClickIdx.value, idx);
-      const end = Math.max(lastClickIdx.value, idx);
-      const newSet = new Set(selectedPaths.value);
-      for (let i = start; i <= end; i++) newSet.add(list[i].path);
-      selectedPaths.value = [...newSet];
+    } else if (event?.shiftKey && rangeAnchorIdx.value >= 0) {
+      const start = Math.min(rangeAnchorIdx.value, idx);
+      const end = Math.max(rangeAnchorIdx.value, idx);
+      selectedPaths.value = list.slice(start, end + 1).map(item => item.path);
     } else {
       selectedPaths.value = [item.path];
       lastClickIdx.value = idx;
+      rangeAnchorIdx.value = idx;
     }
 
     selectedFileItemPath.value = item.path;
@@ -56,6 +57,7 @@ export function useGallerySelection(
     selectedFileItemPath.value = null;
     selectedPaths.value = [];
     lastClickIdx.value = -1;
+    rangeAnchorIdx.value = -1;
   };
 
   const removeSelectedPath = (path: string) => {

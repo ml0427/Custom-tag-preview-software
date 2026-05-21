@@ -5,6 +5,12 @@ import { computeExternalChanges, type ExternalChange } from './useExternalChange
 
 export type { ExternalChange, ExternalChangeKind } from './useExternalChanges';
 
+const formatLocalMinute = (timestampSeconds: number): string => {
+  const date = new Date(timestampSeconds * 1000);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 export function useGalleryData(
   sourcePath: () => string | null,
   selectedTagIds: () => number[] | undefined,
@@ -23,7 +29,9 @@ export function useGalleryData(
   const EXTERNAL_CHANGE_PAGE_SIZE = 1000;
 
   const itemByPath = computed(() => {
-    return new Map(itemsData.value.map(i => [pathKey(i.path), i]));
+    const hasTagFilter = (selectedTagIds()?.length ?? 0) > 0;
+    const dbItems = hasTagFilter ? itemsData.value : [...itemsData.value, ...externalChangeItemsData.value];
+    return new Map(dbItems.map(i => [pathKey(i.path), i]));
   });
 
   const filteredFileItems = computed(() => {
@@ -31,9 +39,7 @@ export function useGalleryData(
     const base: FileItem[] = (sTagIds?.length ?? 0) > 0
       ? itemsData.value.map(item => {
         const ext = item.itemType === 'folder' ? '' : item.path.split('.').pop() || '';
-        const mtime = item.fileModifiedAt
-          ? new Date(item.fileModifiedAt * 1000).toISOString().replace('T', ' ').slice(0, 16)
-          : '';
+        const mtime = item.fileModifiedAt ? formatLocalMinute(item.fileModifiedAt) : '';
         return {
           name: item.name,
           path: item.path,
@@ -105,9 +111,12 @@ export function useGalleryData(
 
     const firstPage = await api.getItems(0, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath);
     const allItems = [...firstPage.content];
-    for (let page = 1; page < firstPage.totalPages; page += 1) {
-      const nextPage = await api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath);
-      allItems.push(...nextPage.content);
+    if (firstPage.totalPages > 1) {
+      const pages = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 1);
+      const nextPages = await Promise.all(
+        pages.map(page => api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath))
+      );
+      allItems.push(...nextPages.flatMap(page => page.content));
     }
     externalChangeItemsData.value = allItems;
   };

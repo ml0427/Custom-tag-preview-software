@@ -298,3 +298,80 @@ pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str
     }
     Ok(count)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn compute_file_fingerprint_uses_first_64kb_and_skips_empty_files() {
+        let dir = tempdir().unwrap();
+        let empty_path = dir.path().join("empty.zip");
+        let file_path = dir.path().join("book.zip");
+
+        fs::write(&empty_path, []).unwrap();
+        fs::write(&file_path, vec![b'a'; 70 * 1024]).unwrap();
+
+        let actual = compute_file_fingerprint(&file_path).unwrap();
+        let mut hasher = Sha256::new();
+        hasher.update(vec![b'a'; 64 * 1024]);
+        let expected = format!("{:x}", hasher.finalize());
+
+        assert_eq!(compute_file_fingerprint(&empty_path), None);
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn extract_and_apply_tags_creates_tags_from_leading_brackets() {
+        let dir = tempdir().unwrap();
+        let pool = db::init_db(dir.path()).await.unwrap();
+        let item_id = db::insert_item(
+            &pool,
+            "C:/Library/book.zip",
+            "file",
+            "book",
+            None,
+            None,
+            "2026-05-21T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+
+        let count = extract_and_apply_tags(&pool, item_id, "[Action, Drama（Sci-Fi）] Book")
+            .await
+            .unwrap();
+        let tags = db::get_tags(&pool).await.unwrap();
+        let mut names: Vec<_> = tags.into_iter().map(|tag| tag.name).collect();
+        names.sort();
+
+        assert_eq!(count, 3);
+        assert_eq!(names, vec!["Action", "Drama", "Sci-Fi"]);
+    }
+
+    #[tokio::test]
+    async fn extract_and_apply_tags_ignores_titles_without_leading_brackets() {
+        let dir = tempdir().unwrap();
+        let pool = db::init_db(dir.path()).await.unwrap();
+        let item_id = db::insert_item(
+            &pool,
+            "C:/Library/book.zip",
+            "file",
+            "book",
+            None,
+            None,
+            "2026-05-21T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+
+        let count = extract_and_apply_tags(&pool, item_id, "Book [Action]")
+            .await
+            .unwrap();
+
+        assert_eq!(count, 0);
+        assert!(db::get_tags(&pool).await.unwrap().is_empty());
+    }
+}

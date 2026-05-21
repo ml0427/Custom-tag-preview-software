@@ -65,7 +65,7 @@ const untrackFromCtx = async () => {
   closeCtxMenu();
   if (!await confirmDialog(`確定移除「${p.replace(/\\/g, '/').split('/').pop()}」的追蹤記錄？\n（不刪除實際檔案）`)) return;
   try {
-    await api.untrackItem(p);
+    await api.untrackItem(p, { allowMissing: true });
     await loadDbFolders();
     emit('folderCreated');
   } catch (e) {

@@ -140,7 +140,7 @@ const batchDelete = async () => {
   if (!await confirmDialog(`確定將選取的 ${paths.length} 個項目移至資源回收筒？`)) return;
   isBatchDeleting.value = true;
   try {
-    await Promise.all(paths.map(p => api.trashItem(p)));
+    await Promise.all(paths.map(p => api.trashItem(p, { allowMissing: !itemByPath.value.has(pathKey(p)) })));
     clearSelection();
     await loadAll();
   } catch (e: any) {
@@ -215,7 +215,7 @@ const handleDelete = async (fileItem: FileItem) => {
   const label = fileItem.isDir ? `資料夾「${fileItem.name}」` : `檔案「${fileItem.name}」`;
   if (!await confirmDialog(`確定將 ${label} 移至資源回收筒？`)) return;
   try {
-    await api.trashItem(fileItem.path);
+    await api.trashItem(fileItem.path, { allowMissing: !itemByPath.value.has(pathKey(fileItem.path)) });
     removeSelectedPath(fileItem.path);
     await loadAll();
   } catch (e: any) {

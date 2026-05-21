@@ -287,6 +287,9 @@ where
     .bind(fingerprint)
     .execute(executor)
     .await?;
+    if result.rows_affected() == 0 {
+        return Ok(0);
+    }
     Ok(result.last_insert_rowid())
 }
 
@@ -475,4 +478,104 @@ pub async fn delete_item_by_path_with_cache(
         affected_rows: result.rows_affected(),
         item_id: id,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::Row;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn init_db_creates_core_tables_and_builtin_types() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+
+        let item_type_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM item_types")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let zip_extension_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM type_extensions WHERE extension = 'zip'"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert!(dir.path().join("comic.db").exists());
+        assert!(item_type_count >= 2);
+        assert_eq!(zip_extension_count, 1);
+    }
+
+    #[tokio::test]
+    async fn insert_item_ignores_duplicate_paths() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+
+        let first_id = insert_item(
+            &pool,
+            "C:/Library/book.zip",
+            "file",
+            "book",
+            Some(123),
+            Some(456),
+            "2026-05-21T10:00:00Z",
+            Some("abc"),
+        )
+        .await
+        .unwrap();
+        let duplicate_id = insert_item(
+            &pool,
+            "C:/Library/book.zip",
+            "file",
+            "book copy",
+            Some(999),
+            Some(999),
+            "2026-05-21T10:00:00Z",
+            Some("def"),
+        )
+        .await
+        .unwrap();
+
+        let row = sqlx::query("SELECT name, file_size, fingerprint FROM items WHERE path = ?")
+            .bind("C:/Library/book.zip")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert!(first_id > 0);
+        assert_eq!(duplicate_id, 0);
+        assert_eq!(row.get::<String, _>("name"), "book");
+        assert_eq!(row.get::<i64, _>("file_size"), 123);
+        assert_eq!(row.get::<String, _>("fingerprint"), "abc");
+    }
+
+    #[tokio::test]
+    async fn tag_crud_and_item_relationships_are_idempotent() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+
+        let tag = create_tag(&pool, "Action").await.unwrap();
+        let item_id = insert_item(
+            &pool,
+            "C:/Library/action.zip",
+            "file",
+            "action",
+            None,
+            None,
+            "2026-05-21T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+
+        let first = add_tag_to_item(&pool, item_id, tag.id).await.unwrap();
+        let second = add_tag_to_item(&pool, item_id, tag.id).await.unwrap();
+        let found = find_tag_by_name(&pool, "Action").await.unwrap().unwrap();
+
+        assert_eq!(first, 1);
+        assert_eq!(second, 0);
+        assert_eq!(found.id, tag.id);
+        assert_eq!(get_tags(&pool).await.unwrap().len(), 1);
+    }
 }

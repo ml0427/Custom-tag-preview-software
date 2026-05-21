@@ -23,7 +23,6 @@
 ### 驗證規則
 - 修改前端後必須執行：
   1. `npm run build`
-  2. `npm run tauri dev`
 - 若有 lint / build 錯誤，必須修到通過
 
 <!-- gitnexus:start -->

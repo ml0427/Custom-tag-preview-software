@@ -9,6 +9,8 @@
     "dev": "vite",
     "prebuild": "node scripts/stamp-build.cjs",
     "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint:css": "stylelint \"src/**/*.{vue,css}\"",
@@ -32,6 +34,7 @@
     "stylelint-declaration-strict-value": "^1.11.1",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
+    "vitest": "^4.1.7",
     "vue-tsc": "^3.2.5"
   }
 }
