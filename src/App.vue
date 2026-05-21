@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { api, type Item, type Tag } from './api'
 import { useToast } from './composables/useToast'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -83,19 +83,48 @@ const { load: loadItemTypes } = useItemTypes()
 const scanProgress = ref<{ active: boolean; current: number; name: string }>({
   active: false, current: 0, name: ''
 })
+const isScanCancelling = ref(false)
+const scanStatusText = computed(() => (
+  isScanCancelling.value ? '取消中...' : `掃描中... ${scanProgress.value.current} 個項目`
+))
 let scanHideTimer: ReturnType<typeof setTimeout> | null = null
 let unlistenScan: UnlistenFn | null = null
 
 const resetScanHideTimer = () => {
   if (scanHideTimer) clearTimeout(scanHideTimer)
-  scanHideTimer = setTimeout(() => { scanProgress.value.active = false }, 1500)
+  scanHideTimer = setTimeout(() => {
+    scanProgress.value.active = false
+    isScanCancelling.value = false
+  }, 1500)
+}
+
+const handleCancelScan = async () => {
+  if (isScanCancelling.value) return
+  isScanCancelling.value = true
+  try {
+    await api.cancelScan()
+    scanProgress.value = {
+      active: true,
+      current: scanProgress.value.current,
+      name: '正在取消掃描...',
+    }
+    showToast('已送出取消掃描', 'info')
+  } catch (e) {
+    console.error('handleCancelScan: failed to cancel scan', e)
+    isScanCancelling.value = false
+    showToast('取消掃描失敗', 'error')
+  }
 }
 
 onMounted(async () => {
   loadGlobalTags()
   loadItemTypes()
-  unlistenScan = await listen<{ current: number; name: string }>('scan-progress', ({ payload }) => {
+  unlistenScan = await listen<{ current: number; name: string; cancelled?: boolean }>('scan-progress', ({ payload }) => {
     scanProgress.value = { active: true, current: payload.current, name: payload.name }
+    if (payload.cancelled) {
+      isScanCancelling.value = false
+      showToast('掃描已取消', 'info')
+    }
     resetScanHideTimer()
   })
 })
@@ -189,8 +218,17 @@ onUnmounted(() => {
       <transition name="scan-bar">
         <div v-if="scanProgress.active" class="scan-progress-bar">
           <span class="scan-spinner"></span>
-          <span class="scan-text">掃描中… {{ scanProgress.current }} 個項目</span>
+          <span class="scan-text">{{ scanStatusText }}</span>
           <span class="scan-name">{{ scanProgress.name }}</span>
+          <button
+            class="scan-cancel-btn"
+            type="button"
+            :disabled="isScanCancelling"
+            @click="handleCancelScan"
+            title="取消掃描"
+          >
+            {{ isScanCancelling ? '取消中' : '取消' }}
+          </button>
         </div>
       </transition>
     </Teleport>
@@ -285,6 +323,30 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
+}
+
+.scan-cancel-btn {
+  flex-shrink: 0;
+  min-width: 52px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-overlay-soft);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.scan-cancel-btn:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.scan-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .scan-bar-enter-active, .scan-bar-leave-active { transition: opacity var(--transition-fast), transform var(--transition-fast); }

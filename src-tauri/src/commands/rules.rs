@@ -14,7 +14,10 @@ pub struct TagRuleTestHit {
     pub error: Option<String>,
 }
 
-fn evaluate_rule_for_name(name: &str, rule: &crate::models::TagRuleInput) -> (Vec<String>, Option<String>) {
+fn evaluate_rule_for_name(
+    name: &str,
+    rule: &crate::models::TagRuleInput,
+) -> (Vec<String>, Option<String>) {
     if rule.pattern.is_empty() {
         return (Vec::new(), None);
     }
@@ -255,8 +258,8 @@ pub async fn apply_tag_scan(
         .app_data_dir()
         .expect("failed to get app data dir")
         .join("thumb_cache");
-    let (added, updated, removed) =
-        scanner::incremental_scan_directory(&pool, &scope_path, &cache_dir, &app)
+    let (added, updated, removed, cancelled) =
+        scanner::incremental_scan_directory(&pool, &scope_path, &cache_dir, &app, None)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -289,7 +292,7 @@ pub async fn apply_tag_scan(
     }
 
     Ok(
-        serde_json::json!({ "added": added, "updated": updated, "removed": removed, "tagged": tagged }),
+        serde_json::json!({ "added": added, "updated": updated, "removed": removed, "tagged": tagged, "cancelled": cancelled }),
     )
 }
 

@@ -1,23 +1,49 @@
-use std::path::Path;
-use walkdir::WalkDir;
-use regex::Regex;
-use anyhow::Result;
-use sqlx::{SqlitePool, Row};
 use crate::db;
+use anyhow::Result;
 use chrono::Local;
+use regex::Regex;
+use sha2::{Digest, Sha256};
+use sqlx::{Row, SqlitePool};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
-use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Emitter};
-use sha2::{Sha256, Digest};
+use walkdir::WalkDir;
+
+#[derive(Default)]
+pub struct ScanCancelState {
+    cancelled: AtomicBool,
+}
+
+impl ScanCancelState {
+    pub fn begin_scan(&self) {
+        self.cancelled.store(false, Ordering::SeqCst);
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+}
+
+fn scan_cancelled(cancel: Option<&ScanCancelState>) -> bool {
+    cancel.map(ScanCancelState::is_cancelled).unwrap_or(false)
+}
 
 pub fn compute_file_fingerprint(path: &Path) -> Option<String> {
     let mut file = fs::File::open(path).ok()?;
     let mut hasher = Sha256::new();
     let mut buf = [0u8; 65536]; // first 64 KB
     let n = file.read(&mut buf).ok()?;
-    if n == 0 { return None; }
+    if n == 0 {
+        return None;
+    }
     hasher.update(&buf[..n]);
     Some(format!("{:x}", hasher.finalize()))
 }
@@ -27,10 +53,11 @@ pub async fn full_rescan_with_clear(
     path_str: &str,
     cache_dir: &Path,
     app: &AppHandle,
-) -> Result<i32> {
+    cancel: Option<&ScanCancelState>,
+) -> Result<(i32, bool)> {
     prepare_full_rescan(pool, cache_dir).await?;
     let scannable_exts = load_scannable_extensions(pool).await;
-    scan_scannable_files(pool, path_str, cache_dir, app, &scannable_exts).await
+    scan_scannable_files(pool, path_str, cache_dir, app, &scannable_exts, cancel).await
 }
 
 async fn prepare_full_rescan(pool: &SqlitePool, cache_dir: &Path) -> Result<()> {
@@ -43,14 +70,12 @@ async fn prepare_full_rescan(pool: &SqlitePool, cache_dir: &Path) -> Result<()> 
 }
 
 async fn load_scannable_extensions(pool: &SqlitePool) -> HashSet<String> {
-    sqlx::query_scalar::<_, String>(
-        "SELECT DISTINCT extension FROM type_extensions"
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default()
-    .into_iter()
-    .collect()
+    sqlx::query_scalar::<_, String>("SELECT DISTINCT extension FROM type_extensions")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .collect()
 }
 
 async fn scan_scannable_files(
@@ -59,35 +84,61 @@ async fn scan_scannable_files(
     cache_dir: &Path,
     app: &AppHandle,
     scannable_exts: &HashSet<String>,
-) -> Result<i32> {
+    cancel: Option<&ScanCancelState>,
+) -> Result<(i32, bool)> {
     let mut added_count = 0;
     let entries = WalkDir::new(path_str)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file() && e.path().extension()
-            .and_then(|ext| ext.to_str())
-            .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
-            .unwrap_or(false));
+        .filter(|e| {
+            e.file_type().is_file()
+                && e.path()
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
+                    .unwrap_or(false)
+        });
 
     for entry in entries {
-        let name = entry.path().file_name()
+        if scan_cancelled(cancel) {
+            let _ = app.emit(
+                "scan-progress",
+                serde_json::json!({
+                    "current": added_count,
+                    "name": "掃描已取消",
+                    "cancelled": true
+                }),
+            );
+            return Ok((added_count, true));
+        }
+        let name = entry
+            .path()
+            .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
         if process_zip_file(pool, entry.path(), cache_dir).await? {
             added_count += 1;
         }
-        let _ = app.emit("scan-progress", serde_json::json!({ "current": added_count, "name": name }));
+        let _ = app.emit(
+            "scan-progress",
+            serde_json::json!({ "current": added_count, "name": name }),
+        );
     }
 
-    Ok(added_count)
+    Ok((added_count, false))
 }
 
 async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> Result<bool> {
     let file_path = path.to_string_lossy().to_string();
-    let title = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let title = path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
     let metadata = fs::metadata(path)?;
     let file_size = metadata.len() as i64;
-    let mtime_unix = metadata.modified()
+    let mtime_unix = metadata
+        .modified()
         .ok()
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs() as i64)
@@ -104,7 +155,8 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
         Some(mtime_unix),
         &import_at,
         fingerprint.as_deref(),
-    ).await?;
+    )
+    .await?;
     if id == 0 {
         db::mark_item_seen_by_path(pool, &file_path, &import_at).await?;
         return Ok(false);
@@ -126,9 +178,14 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
 
 async fn process_folder(pool: &SqlitePool, path: &Path) -> Result<bool> {
     let file_path = path.to_string_lossy().to_string();
-    let title = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let title = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
     let metadata = fs::metadata(path)?;
-    let mtime_unix = metadata.modified()
+    let mtime_unix = metadata
+        .modified()
         .ok()
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs() as i64)
@@ -144,7 +201,8 @@ async fn process_folder(pool: &SqlitePool, path: &Path) -> Result<bool> {
         Some(mtime_unix),
         &import_at,
         None,
-    ).await?;
+    )
+    .await?;
     if id == 0 {
         db::mark_item_seen_by_path(pool, &file_path, &import_at).await?;
         return Ok(false);
@@ -159,7 +217,8 @@ pub async fn incremental_scan_directory(
     path_str: &str,
     cache_dir: &Path,
     app: &AppHandle,
-) -> Result<(i32, i32, i32)> {
+    cancel: Option<&ScanCancelState>,
+) -> Result<(i32, i32, i32, bool)> {
     let scan_root = Path::new(path_str);
     if !scan_root.is_dir() {
         return Err(anyhow::anyhow!(
@@ -170,11 +229,9 @@ pub async fn incremental_scan_directory(
 
     fs::create_dir_all(cache_dir)?;
 
-    let rows = sqlx::query(
-        "SELECT id, path, file_modified_at FROM items"
-    )
-    .fetch_all(pool)
-    .await?;
+    let rows = sqlx::query("SELECT id, path, file_modified_at FROM items")
+        .fetch_all(pool)
+        .await?;
 
     let mut existing: HashMap<String, (i64, i64)> = HashMap::new();
     for row in &rows {
@@ -187,21 +244,31 @@ pub async fn incremental_scan_directory(
         existing.insert(path, (id, mtime));
     }
 
-    let scannable_exts: HashSet<String> = sqlx::query_scalar::<_, String>(
-        "SELECT DISTINCT extension FROM type_extensions"
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default()
-    .into_iter()
-    .collect();
+    let scannable_exts: HashSet<String> =
+        sqlx::query_scalar::<_, String>("SELECT DISTINCT extension FROM type_extensions")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
 
     // 蒐集所有實體存在的路徑（不被 scannable_exts 過濾）。
     // 副檔名白名單只決定「要不要自動匯入」，不決定一筆 row 該不該被刪除。
-    let all_entries: Vec<_> = WalkDir::new(path_str)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .collect();
+    let mut all_entries = Vec::new();
+    for entry in WalkDir::new(path_str).into_iter().filter_map(|e| e.ok()) {
+        if scan_cancelled(cancel) {
+            let _ = app.emit(
+                "scan-progress",
+                serde_json::json!({
+                    "current": 0,
+                    "name": "掃描已取消",
+                    "cancelled": true
+                }),
+            );
+            return Ok((0, 0, 0, true));
+        }
+        all_entries.push(entry);
+    }
 
     let mut found_paths: HashSet<String> = HashSet::new();
     for entry in &all_entries {
@@ -212,6 +279,17 @@ pub async fn incremental_scan_directory(
     let mut updated = 0i32;
 
     for entry in &all_entries {
+        if scan_cancelled(cancel) {
+            let _ = app.emit(
+                "scan-progress",
+                serde_json::json!({
+                    "current": added + updated,
+                    "name": "掃描已取消",
+                    "cancelled": true
+                }),
+            );
+            return Ok((added, updated, 0, true));
+        }
         let file_path = entry.path().to_string_lossy().to_string();
 
         // 跳過根目錄本身（避免把工作目錄當成 folder 匯入）
@@ -223,7 +301,9 @@ pub async fn incremental_scan_directory(
 
         // 對檔案：副檔名不在白名單就不自動匯入（但保留在 found_paths 中以免被誤刪）
         if !is_dir {
-            let scannable = entry.path().extension()
+            let scannable = entry
+                .path()
+                .extension()
                 .and_then(|ext| ext.to_str())
                 .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
                 .unwrap_or(false);
@@ -234,16 +314,23 @@ pub async fn incremental_scan_directory(
 
         let metadata = match fs::metadata(entry.path()) {
             Ok(m) => m,
-            Err(_) => continue,  // 檔案無法讀取（鎖定/損毀/權限）→ 跳過，不中斷整個掃描
+            Err(_) => continue, // 檔案無法讀取（鎖定/損毀/權限）→ 跳過，不中斷整個掃描
         };
-        let file_size = if is_dir { None } else { Some(metadata.len() as i64) };
-        let mtime_unix = metadata.modified()
+        let file_size = if is_dir {
+            None
+        } else {
+            Some(metadata.len() as i64)
+        };
+        let mtime_unix = metadata
+            .modified()
             .ok()
             .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        let name = entry.path().file_name()
+        let name = entry
+            .path()
+            .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
 
@@ -261,21 +348,35 @@ pub async fn incremental_scan_directory(
         } else if process_zip_file(pool, entry.path(), cache_dir).await? {
             added += 1;
         }
-        let _ = app.emit("scan-progress", serde_json::json!({
-            "current": added + updated,
-            "name": name
-        }));
+        let _ = app.emit(
+            "scan-progress",
+            serde_json::json!({
+                "current": added + updated,
+                "name": name
+            }),
+        );
     }
 
     let mut removed = 0i32;
     for (path, (id, _)) in &existing {
+        if scan_cancelled(cancel) {
+            let _ = app.emit(
+                "scan-progress",
+                serde_json::json!({
+                    "current": added + updated + removed,
+                    "name": "掃描已取消",
+                    "cancelled": true
+                }),
+            );
+            return Ok((added, updated, removed, true));
+        }
         if !found_paths.contains(path) {
             db::mark_item_missing(pool, *id, &Local::now().to_rfc3339()).await?;
             removed += 1;
         }
     }
 
-    Ok((added, updated, removed))
+    Ok((added, updated, removed, false))
 }
 
 pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str) -> Result<i64> {
@@ -289,7 +390,9 @@ pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str
 
         for segment in segments {
             let clean_name = segment.trim();
-            if clean_name.is_empty() { continue; }
+            if clean_name.is_empty() {
+                continue;
+            }
 
             let tag_id = if let Some(tag) = db::find_tag_by_name(pool, clean_name).await? {
                 tag.id
@@ -324,6 +427,18 @@ mod tests {
 
         assert_eq!(compute_file_fingerprint(&empty_path), None);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn scan_cancel_state_resets_between_jobs() {
+        let state = ScanCancelState::default();
+
+        assert!(!state.is_cancelled());
+        state.cancel();
+        assert!(state.is_cancelled());
+        state.begin_scan();
+
+        assert!(!state.is_cancelled());
     }
 
     #[tokio::test]

@@ -165,7 +165,7 @@ export function useExternalChanges(sourcePath: () => string | null) {
             const dir = parentDir(change.path);
             if (dir) {
               const result = await api.incrementalScan(dir);
-              if (result.updated > 0) updated++;
+              if ((result.updated ?? 0) > 0) updated++;
             }
           }
         } catch (e) {
@@ -221,8 +221,12 @@ export function useExternalChanges(sourcePath: () => string | null) {
     isFixing.value = true;
     try {
       const result = await api.incrementalScan(dir);
-      lastFixResult.value = result;
-      show(`已同步所在資料夾：更新 ${result.updated}`, 'success');
+      lastFixResult.value = {
+        added: result.added ?? 0,
+        updated: result.updated ?? 0,
+        removed: result.removed ?? 0,
+      };
+      show(`已同步所在資料夾：更新 ${result.updated ?? 0}`, result.cancelled ? 'info' : 'success');
       await refresh();
     } catch (e) {
       console.error('[useExternalChanges] syncFolderOf failed', e);

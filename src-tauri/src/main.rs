@@ -1,12 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod models;
-mod db;
 mod commands;
+mod db;
+mod debug_log;
+mod models;
 mod scanner;
 mod zip_utils;
-mod debug_log;
 
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
@@ -19,11 +19,15 @@ fn main() {
                 .target(Target::new(TargetKind::Stdout))
                 .level(log::LevelFilter::Info)
                 .level_for("sqlx", log::LevelFilter::Warn)
-                .build()
+                .build(),
         )
         .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("comic-cache", |_app_handle, request| {
-            let app_data_dir = _app_handle.app_handle().path().app_data_dir().expect("failed to get app data dir");
+            let app_data_dir = _app_handle
+                .app_handle()
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             let cache_dir = app_data_dir.join("thumb_cache");
             let path = request.uri().path().trim_start_matches('/');
             let file_path = cache_dir.join(path);
@@ -51,18 +55,26 @@ fn main() {
         })
         .setup(|app| {
             let app_handle = app.handle().clone();
-            let app_data_dir = app_handle.path().app_data_dir().expect("failed to get app data dir");
+            let app_data_dir = app_handle
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
 
             let pool = tauri::async_runtime::block_on(async {
                 db::init_db(&app_data_dir).await.expect("failed to init db")
             });
 
             app.manage(pool);
+            app.manage(scanner::ScanCancelState::default());
 
             let log_path = app_data_dir.join("debug.log");
             let settings_path = app_data_dir.join("debug_settings.json");
             let initial_enabled = debug_log::load_initial_enabled(&settings_path);
-            app.manage(debug_log::DebugState::new(log_path, settings_path, initial_enabled));
+            app.manage(debug_log::DebugState::new(
+                log_path,
+                settings_path,
+                initial_enabled,
+            ));
 
             Ok(())
         })
@@ -81,6 +93,7 @@ fn main() {
             commands::scan_directory,
             commands::incremental_scan,
             commands::sync_sources,
+            commands::cancel_scan,
             // Tags
             commands::get_tags,
             commands::get_tag_counts,

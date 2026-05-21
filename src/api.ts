@@ -76,6 +76,15 @@ export interface ScanPreviewItem {
     proposedTags: string[];
 }
 
+export interface ScanResult {
+    message: string;
+    addedCount?: number;
+    added?: number;
+    updated?: number;
+    removed?: number;
+    cancelled: boolean;
+}
+
 export interface TagRuleTestHit {
     index: number;
     matchType: string;
@@ -207,12 +216,16 @@ export const api = {
     },
 
     // ── Scan ──────────────────────────────────────────────────────────────────
-    async scanDirectory(path: string): Promise<{ message: string; addedCount: number }> {
+    async scanDirectory(path: string): Promise<ScanResult> {
         return await invoke('scan_directory', { path, confirmFullRescan: true });
     },
 
-    async incrementalScan(path: string): Promise<{ message: string; added: number; updated: number; removed: number }> {
+    async incrementalScan(path: string): Promise<ScanResult> {
         return await invoke('incremental_scan', { path });
+    },
+
+    async cancelScan(): Promise<{ cancelled: boolean }> {
+        return await invoke('cancel_scan');
     },
 
     // ── Sources ───────────────────────────────────────────────────────────────
@@ -228,7 +241,7 @@ export const api = {
         await invoke('remove_source', { id });
     },
 
-    async syncSources(): Promise<{ added: number; updated: number; removed: number; sourceCount: number; errors: string[] }> {
+    async syncSources(): Promise<{ added: number; updated: number; removed: number; sourceCount: number; errors: string[]; cancelled: boolean }> {
         return await invoke('sync_sources');
     },
 
