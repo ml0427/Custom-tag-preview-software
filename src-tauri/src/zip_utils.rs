@@ -14,7 +14,7 @@ pub fn get_image_entries(zip_path: &str) -> Result<Vec<String>> {
             entries.push(file.name().to_string());
         }
     }
-    entries.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    entries.sort_by_key(|a| a.to_lowercase());
     Ok(entries)
 }
 

@@ -75,7 +75,7 @@ impl DebugState {
     fn persist(&self) {
         let body = json!({ "debug_mode": self.is_enabled() });
         let result = serde_json::to_string_pretty(&body)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
             .and_then(|s| std::fs::write(&self.settings_path, s));
         if let Err(e) = result {
             log::warn!("debug_log: persist settings to {:?} failed: {}", self.settings_path, e);

@@ -385,7 +385,7 @@ pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str
     if let Some(caps) = re.captures(title) {
         let content = &caps[1];
         let segments: Vec<&str> = content
-            .split(|c| c == '(' || c == ')' || c == ',' || c == '（' || c == '）' || c == '、')
+            .split(['(', ')', ',', '（', '）', '、'])
             .collect();
 
         for segment in segments {

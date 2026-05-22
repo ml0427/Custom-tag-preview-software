@@ -32,9 +32,9 @@ fn main() {
             let path = request.uri().path().trim_start_matches('/');
             let file_path = cache_dir.join(path);
 
-            let content_type = if file_path.extension().map_or(false, |e| e == "png") {
+            let content_type = if file_path.extension().is_some_and(|e| e == "png") {
                 "image/png"
-            } else if file_path.extension().map_or(false, |e| e == "webp") {
+            } else if file_path.extension().is_some_and(|e| e == "webp") {
                 "image/webp"
             } else {
                 "image/jpeg"
