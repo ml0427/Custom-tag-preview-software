@@ -10,6 +10,7 @@ import { useToast } from '../composables/useToast';
 import { useGalleryData } from '../composables/useGalleryData';
 import { useGallerySelection } from '../composables/useGallerySelection';
 import { useGalleryViewState } from '../composables/useGalleryViewState';
+import { useGalleryPreviewResize } from '../composables/useGalleryPreviewResize';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
 
@@ -261,33 +262,13 @@ const filterLabel = computed(() => {
 });
 
 
-// Preview logic
-const isPreviewOpen = ref(false);
-const togglePreview = () => { isPreviewOpen.value = !isPreviewOpen.value; };
-const previewWidth = ref(350);
-const isResizing = ref(false);
-
-const startResizing = () => {
-  isResizing.value = true;
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', stopResizing);
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-};
-
-const handleMouseMove = (e: MouseEvent) => {
-  if (!isResizing.value) return;
-  const newWidth = window.innerWidth - e.clientX;
-  if (newWidth >= 200 && newWidth <= 600) previewWidth.value = newWidth;
-};
-
-const stopResizing = () => {
-  isResizing.value = false;
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', stopResizing);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-};
+const {
+  isPreviewOpen,
+  previewWidth,
+  togglePreview,
+  startResizing,
+  stopResizing,
+} = useGalleryPreviewResize();
 
 // loadAll 後 selectedItem 由 computed 自動更新，不需要任何額外操作
 const refresh = () => loadAll();

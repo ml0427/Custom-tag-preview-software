@@ -8,6 +8,7 @@ import { useVirtualScroll } from '../composables/useVirtualScroll';
 import { useContextMenu } from '../composables/useContextMenu';
 import { useThumbnailLoader } from '../composables/useThumbnailLoader';
 import { useFolderRuleActions } from '../composables/useFolderRuleActions';
+import { useFileExplorerColumns } from '../composables/useFileExplorerColumns';
 
 const props = defineProps<{
   items: FileItem[];
@@ -226,37 +227,13 @@ const sortIcon = (col: string) => {
   return props.sortDir === 'asc' ? '↑' : '↓';
 };
 
-// Column visibility
-const storedCols = localStorage.getItem('gallery-col-visibility');
-const visibleCols = reactive(new Set<string>(
-  storedCols ? JSON.parse(storedCols) : ['thumb', 'tags', 'size', 'date']
-));
-const colPickerOpen = ref(false);
-const colPickerRef = ref<HTMLElement | null>(null);
-
-const toggleCol = (col: string) => {
-  if (visibleCols.has(col)) visibleCols.delete(col);
-  else visibleCols.add(col);
-  localStorage.setItem('gallery-col-visibility', JSON.stringify([...visibleCols]));
-};
-
-const colCount = computed(() =>
-  2 + // name + settings always visible
-  (visibleCols.has('thumb') ? 1 : 0) +
-  (visibleCols.has('tags') ? 1 : 0) +
-  (visibleCols.has('size') ? 1 : 0) +
-  (visibleCols.has('date') ? 1 : 0)
-);
-
-const onDocClick = (e: MouseEvent) => {
-  if (colPickerOpen.value && colPickerRef.value && !colPickerRef.value.contains(e.target as Node)) {
-    colPickerOpen.value = false;
-  }
-};
-onMounted(() => document.addEventListener('click', onDocClick));
-onUnmounted(() => {
-  document.removeEventListener('click', onDocClick);
-});
+const {
+  visibleCols,
+  colPickerOpen,
+  colPickerRef,
+  toggleCol,
+  colCount,
+} = useFileExplorerColumns();
 </script>
 
 <template>

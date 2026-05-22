@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { api, type Source, type Tag, type Item, type FileItem } from '../api';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { api, type Tag, type Item, type FileItem } from '../api';
 import LocalDirTree from './LocalDirTree.vue';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useFolderRuleActions } from '../composables/useFolderRuleActions';
+import { useSources } from '../composables/useSources';
 
 const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
@@ -278,48 +278,21 @@ const loadDbFolders = async () => {
   dbFolders.value = page.content;
 };
 
-const sources = ref<Source[]>([]);
-
-const loadSources = async () => {
-  sources.value = await api.getSources();
-  if (props.selectedPath === null && sources.value.length > 0) {
-    emit('select', sources.value[0].path);
-  }
-};
+const {
+  sources,
+  loadSources,
+  handleSelectPath,
+  handleAddSource,
+  handleRemoveSource,
+} = useSources({
+  selectedPath: () => props.selectedPath,
+  select: path => emit('select', path),
+  showToast,
+  confirmDialog,
+});
 
 const initWorkspace = async () => {
-  const [srcs, folderPage] = await Promise.all([
-    api.getSources(),
-    api.getItems(0, 9999, undefined, undefined, undefined, undefined, 'folder'),
-  ]);
-  sources.value = srcs;
-  dbFolders.value = folderPage.content;
-  if (props.selectedPath === null && srcs.length > 0) {
-    emit('select', srcs[0].path);
-  }
-};
-
-const handleSelectPath = (path: string) => {
-  emit('select', path);
-};
-
-const handleAddSource = async () => {
-  const path = await openDialog({ directory: true, multiple: false, title: '新增工作目錄' });
-  if (typeof path !== 'string') return;
-  try {
-    await api.addSource(path);
-    await loadSources();
-  } catch (e) {
-    showToast('新增來源失敗: ' + String(e), 'error');
-  }
-};
-
-const handleRemoveSource = async (source: Source, e: MouseEvent) => {
-  e.stopPropagation();
-  if (!await confirmDialog(`確定移除「${source.path}」？\n（不影響已匯入的項目資料）`)) return;
-  await api.removeSource(source.id);
-  if (props.selectedPath?.startsWith(source.path)) emit('select', null);
-  await loadSources();
+  await Promise.all([loadSources(), loadDbFolders()]);
 };
 
 onMounted(() => {
