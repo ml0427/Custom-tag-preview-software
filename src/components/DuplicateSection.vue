@@ -268,7 +268,7 @@ onUnmounted(() => { unlisten?.(); });
     border-color: var(--color-danger);
 }
 .status-badge.status-moved {
-    background: rgba(240, 178, 41, 0.12);
+    background: var(--accent-bg-subtle);
     color: var(--accent);
     border-color: var(--accent);
 }
@@ -279,10 +279,6 @@ onUnmounted(() => { unlisten?.(); });
 }
 
 .group-actions { display: flex; gap: 6px; }
-
-.item-missing { opacity: 0.55; }
-.item-missing .item-name,
-.item-missing .item-path { text-decoration: line-through; }
 
 .missing-tag {
     display: inline-block;
@@ -360,6 +356,10 @@ onUnmounted(() => { unlisten?.(); });
     white-space: nowrap;
     font-family: monospace;
 }
+
+.item-missing { opacity: 0.55; }
+.item-missing .item-name,
+.item-missing .item-path { text-decoration: line-through; }
 
 .item-date {
     font-size: 0.72rem;

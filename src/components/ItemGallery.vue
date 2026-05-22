@@ -607,8 +607,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   border-radius: 4px;
   line-height: 1.4;
 }
-.page-btn:hover:not(:disabled) { background: var(--bg-overlay-soft); color: var(--text-primary); }
 .page-btn:disabled { opacity: 0.3; cursor: default; }
+.page-btn:hover:not(:disabled) { background: var(--bg-overlay-soft); color: var(--text-primary); }
 
 .page-info { font-family: var(--font-mono); font-size: 0.75rem; }
 
@@ -664,8 +664,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   font-size: 0.85rem;
   transition: all 0.2s;
 }
-.batch-btn:hover:not(:disabled) { background: var(--bg-overlay-strong); border-color: var(--text-secondary); }
 .batch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.batch-btn:hover:not(:disabled) { background: var(--bg-overlay-strong); border-color: var(--text-secondary); }
 .batch-danger { color: var(--color-danger); }
 .batch-danger:hover:not(:disabled) { background: var(--color-danger-bg-subtle); border-color: var(--color-danger); }
 

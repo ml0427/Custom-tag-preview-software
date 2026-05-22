@@ -86,7 +86,7 @@ const placeholderIcon = computed(() => {
   opacity: 0;
   transition: opacity 0.3s ease;
   font-size: 0.85rem;
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .cover-wrapper:hover .zoom-overlay { opacity: 1; }
 </style>

@@ -147,13 +147,6 @@ const onContextMenu = (e: MouseEvent) => {
   border-radius: 0 2px 2px 0;
 }
 
-.node-row.active .node-label { color: var(--accent); }
-
-.node-row.root .node-label {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
 .arrow {
   width: 14px;
   height: 14px;
@@ -176,9 +169,6 @@ const onContextMenu = (e: MouseEvent) => {
   stroke-linejoin: round;
 }
 
-.arrow.expanded svg { transform: rotate(90deg); }
-.arrow.invisible { opacity: 0; pointer-events: none; }
-
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.8s linear infinite; }
 
@@ -200,6 +190,9 @@ const onContextMenu = (e: MouseEvent) => {
   stroke-linejoin: round;
 }
 
+.arrow.expanded svg { transform: rotate(90deg); }
+.arrow.invisible { opacity: 0; pointer-events: none; }
+
 .node-label {
   flex: 1;
   overflow: hidden;
@@ -208,6 +201,13 @@ const onContextMenu = (e: MouseEvent) => {
   font-family: var(--font-jp);
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.node-row.active .node-label { color: var(--accent); }
+
+.node-row.root .node-label {
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .children {

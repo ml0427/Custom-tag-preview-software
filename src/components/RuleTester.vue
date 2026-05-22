@@ -171,8 +171,8 @@ const matchTypeLabel = (mt: string) => {
 }
 .hit-arrow { color: var(--text-tertiary); flex-shrink: 0; }
 .hit-tag {
-  background: rgba(240, 178, 41, 0.12);
-  border: 1px solid rgba(240, 178, 41, 0.3);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent-border);
   color: var(--accent);
   border-radius: 4px;
   padding: 1px 7px;

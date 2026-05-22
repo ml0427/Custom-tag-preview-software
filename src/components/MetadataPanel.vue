@@ -63,7 +63,8 @@ const tagStyle = (color?: string | null) => {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
   margin-bottom: 8px;
 }
 
@@ -119,7 +120,8 @@ const tagStyle = (color?: string | null) => {
   font-size: 0.85rem;
   color: var(--text-secondary);
   line-height: 1.6;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
   white-space: pre-wrap;
 }
 </style>

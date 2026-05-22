@@ -315,7 +315,7 @@ const hasAny = computed(() => changes.value.length > 0);
   border-color: var(--color-danger);
 }
 .kind-modified {
-  background: rgba(240, 178, 41, 0.12);
+  background: var(--accent-bg-subtle);
   color: var(--accent);
   border-color: var(--accent);
 }

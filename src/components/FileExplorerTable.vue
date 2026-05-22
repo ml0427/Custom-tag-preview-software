@@ -437,8 +437,8 @@ const {
 .comic-table tr { cursor: default; transition: background 0.15s; }
 .comic-table tr:hover { background: var(--bg-overlay-soft); }
 .comic-table tr.selected { background: var(--accent-bg-subtle) !important; }
-.comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .spacer-row td { padding: 0; border: none; }
+.comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 
 /* Column widths */
 .col-thumb    { width: 5%; min-width: 52px; padding: 8px; }
@@ -549,8 +549,8 @@ const {
   gap: 3px;
   white-space: nowrap;
   flex-shrink: 0;
-  background: rgba(240, 178, 41, 0.1);
-  border: 1px solid rgba(240, 178, 41, 0.22);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent-border);
   color: var(--accent);
 }
 .mini-tag::before {

@@ -339,14 +339,14 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.scan-cancel-btn:hover:not(:disabled) {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
 .scan-cancel-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.scan-cancel-btn:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 .scan-bar-enter-active, .scan-bar-leave-active { transition: opacity var(--transition-fast), transform var(--transition-fast); }

@@ -59,8 +59,8 @@ const COLOR_PRESETS = [
 .color-swatch.active { border-color: var(--text-on-accent); }
 
 .swatch-none {
-  background: rgba(255,255,255,0.15);
-  border: 2px dashed rgba(255,255,255,0.3);
+  background: var(--bg-overlay-strong);
+  border: 2px dashed var(--border-strong);
   position: relative;
 }
 .swatch-none::after {
@@ -71,6 +71,6 @@ const COLOR_PRESETS = [
   align-items: center;
   justify-content: center;
   font-size: 0.6rem;
-  color: rgba(255,255,255,0.5);
+  color: var(--text-tertiary);
 }
 </style>
