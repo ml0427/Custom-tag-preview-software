@@ -20,6 +20,18 @@ export function useThumbnailLoader() {
     return itemByPath.get(pathKey(item.path)) ?? null;
   };
 
+  /** pathKey 配對失敗時的 fallback：遍歷 itemByPath 用檔案結尾比對 */
+  const getDbItemFallback = (item: FileItem, itemByPath: Map<string, Item>): Item | null => {
+    const targetKey = pathKey(item.path);
+    // 取 path 的尾段（檔名部分）做比對，避免完整路徑差異
+    const tail = targetKey.replace(/^.*[\\/]/, '');
+    for (const [k, dbItem] of itemByPath) {
+      if (k === targetKey) return dbItem;
+      if (k.endsWith('\\' + tail) || k.endsWith('/' + tail)) return dbItem;
+    }
+    return null;
+  };
+
   const hasCategoryAssigned = (item: FileItem, itemByPath: Map<string, Item>): boolean => {
     const dbItem = getDbItem(item, itemByPath);
     return !!dbItem?.category && dbItem.category !== 'default';
@@ -27,7 +39,20 @@ export function useThumbnailLoader() {
 
   const loadThumbUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
     if (item.isDir) return '';
-    const dbItem = getDbItem(item, itemByPath);
+    let dbItem = getDbItem(item, itemByPath);
+
+    if (!dbItem?.id) {
+      // pathKey 配對不到，嘗試 fallback 掃描（日文/特殊字元路徑常見問題）
+      dbItem = getDbItemFallback(item, itemByPath);
+      if (!dbItem?.id) {
+        console.warn(
+          '[useThumbnailLoader] item 不在 itemByPath，fallback 到路徑式載入：',
+          item.path,
+          'pathKey:', pathKey(item.path),
+          'itemByPath 數量:', itemByPath.size,
+        );
+      }
+    }
 
     if (dbItem?.id) {
       // 有 coverCachePath 的 item 優先走 comic-cache://（零 IPC、記憶體友善）
@@ -98,6 +123,7 @@ export function useThumbnailLoader() {
   return {
     onImgError,
     getDbItem,
+    getDbItemFallback,
     hasCategoryAssigned,
     loadThumbUrl,
     getIcon,
