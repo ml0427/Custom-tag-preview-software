@@ -378,9 +378,15 @@ pub async fn ensure_thumb_cache(
         .join("thumb_cache");
     let cache_file = cache_dir.join(format!("{}.jpg", id));
 
-    // 快取已存在 → 直接回傳
+    // 快取已存在且非空 → 直接回傳
+    // 若檔案大小為 0（寫入中斷、磁碟滿等），視為無效快取，刪掉重建
     if cache_file.exists() {
-        return Ok(());
+        let meta = fs::metadata(&cache_file).map_err(|e| e.to_string())?;
+        if meta.len() > 0 {
+            return Ok(());
+        }
+        // 快取檔為空 → 刪除並重建
+        fs::remove_file(&cache_file).map_err(|e| e.to_string())?;
     }
 
     // 確保 thumb_cache 目錄存在
