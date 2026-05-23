@@ -159,7 +159,14 @@ const handleKeydown = (e: KeyboardEvent) => {
 // Thumbnail loading
 const thumbUrls = reactive(new Map<string, string>());
 const thumbLoading = new Set<string>();
-const { getDbItem, hasCategoryAssigned, loadThumbUrl, logThumbDebug, onImgError } = useThumbnailLoader();
+const {
+  getDbItem,
+  hasCategoryAssigned,
+  loadThumbUrl,
+  loadThumbFallbackUrl,
+  logThumbDebug,
+  onImgError,
+} = useThumbnailLoader();
 
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
@@ -173,14 +180,25 @@ const loadThumb = async (item: FileItem) => {
   }
 };
 
-const handleImgError = (item: FileItem, event: Event) => {
+const handleImgError = async (item: FileItem, event: Event) => {
   onImgError(item.path);
+  const failedUrl = thumbUrls.get(item.path);
   logThumbDebug('img.error.table', {
     path: item.path,
     name: item.name,
-    url: thumbUrls.get(item.path),
+    url: failedUrl,
     eventType: event.type,
   });
+  if (failedUrl?.startsWith('data:')) return;
+  const fallbackUrl = await loadThumbFallbackUrl(item, props.itemByPath);
+  if (fallbackUrl) {
+    thumbUrls.set(item.path, fallbackUrl);
+    logThumbDebug('img.fallback.table', {
+      path: item.path,
+      name: item.name,
+      fallbackKind: fallbackUrl.startsWith('data:') ? 'base64' : 'url',
+    });
+  }
 };
 
 watch(visibleItems, items => {

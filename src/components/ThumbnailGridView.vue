@@ -29,7 +29,17 @@ const emit = defineEmits<{
 const { itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
 const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
-const { getDbItem, hasCategoryAssigned, getIcon, getItemType, getTypeColor, loadThumbUrl, logThumbDebug, onImgError } = useThumbnailLoader();
+const {
+  getDbItem,
+  hasCategoryAssigned,
+  getIcon,
+  getItemType,
+  getTypeColor,
+  loadThumbUrl,
+  loadThumbFallbackUrl,
+  logThumbDebug,
+  onImgError,
+} = useThumbnailLoader();
 
 // IPC-based thumbnail loading (same approach as FileExplorerTable)
 const thumbUrls = reactive(new Map<string, string>());
@@ -57,13 +67,24 @@ const loadThumb = async (item: FileItem) => {
   }
 };
 
-const handleImgError = (item: FileItem) => {
+const handleImgError = async (item: FileItem) => {
   onImgError(item.path);
+  const failedUrl = thumbUrls.get(item.path);
   logThumbDebug('img.error.grid', {
     path: item.path,
     name: item.name,
-    url: thumbUrls.get(item.path),
+    url: failedUrl,
   });
+  if (failedUrl?.startsWith('data:')) return;
+  const fallbackUrl = await loadThumbFallbackUrl(item, props.itemByPath);
+  if (fallbackUrl && currentItemPaths.has(item.path)) {
+    thumbUrls.set(item.path, fallbackUrl);
+    logThumbDebug('img.fallback.grid', {
+      path: item.path,
+      name: item.name,
+      fallbackKind: fallbackUrl.startsWith('data:') ? 'base64' : 'url',
+    });
+  }
 };
 
 const pumpThumbQueue = () => {

@@ -95,6 +95,32 @@ export function useThumbnailLoader() {
     return '';
   };
 
+  const loadThumbFallbackUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
+    if (item.isDir) return '';
+    const dbItem = getDbItem(item, itemByPath) ?? getDbItemFallback(item, itemByPath);
+    if (dbItem?.id) {
+      return await api.getCoverBase64(dbItem.id).catch(error => {
+        logThumbDebug('fallback.base64Error', { id: dbItem.id, path: item.path, error });
+        return '';
+      });
+    }
+
+    const ext = item.extension?.toLowerCase() ?? '';
+    if (ARCHIVE_EXTS.has(ext)) {
+      return await api.getZipCoverByPath(item.path).catch(error => {
+        logThumbDebug('fallback.zipPathError', { path: item.path, error });
+        return '';
+      });
+    }
+    if (IMAGE_EXTS.has(ext)) {
+      return await api.getImageBase64ByPath(item.path).catch(error => {
+        logThumbDebug('fallback.imagePathError', { path: item.path, error });
+        return '';
+      });
+    }
+    return '';
+  };
+
   const hasUserCategory = (dbItem: Item | null): boolean =>
     !!dbItem?.category && dbItem.category !== 'default';
 
@@ -149,6 +175,7 @@ export function useThumbnailLoader() {
     hasCategoryAssigned,
     buildThumbCacheUrl,
     loadThumbUrl,
+    loadThumbFallbackUrl,
     getIcon,
     getItemType,
     getTypeColor,
