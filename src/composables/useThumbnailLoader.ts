@@ -20,14 +20,12 @@ export function useThumbnailLoader() {
     return itemByPath.get(pathKey(item.path)) ?? null;
   };
 
-  /** pathKey 配對失敗時的 fallback：遍歷 itemByPath 用檔案結尾比對 */
+  /** 暴力掃描 itemByPath，用 item.name 比對（不靠 pathKey）。
+   *  解決日文/特殊字元路徑導致 key 配對失敗的問題。 */
   const getDbItemFallback = (item: FileItem, itemByPath: Map<string, Item>): Item | null => {
-    const targetKey = pathKey(item.path);
-    // 取 path 的尾段（檔名部分）做比對，避免完整路徑差異
-    const tail = targetKey.replace(/^.*[\\/]/, '');
-    for (const [k, dbItem] of itemByPath) {
-      if (k === targetKey) return dbItem;
-      if (k.endsWith('\\' + tail) || k.endsWith('/' + tail)) return dbItem;
+    const name = item.name.toLowerCase();
+    for (const dbItem of itemByPath.values()) {
+      if (dbItem.name.toLowerCase() === name) return dbItem;
     }
     return null;
   };
@@ -42,20 +40,17 @@ export function useThumbnailLoader() {
     let dbItem = getDbItem(item, itemByPath);
 
     if (!dbItem?.id) {
-      // pathKey 配對不到，嘗試 fallback 掃描（日文/特殊字元路徑常見問題）
       dbItem = getDbItemFallback(item, itemByPath);
       if (!dbItem?.id) {
         console.warn(
-          '[useThumbnailLoader] item 不在 itemByPath，fallback 到路徑式載入：',
+          '[useThumbnailLoader] 找不到 DB 記錄，fallback 到路徑載入：',
           item.path,
-          'pathKey:', pathKey(item.path),
           'itemByPath 數量:', itemByPath.size,
         );
       }
     }
 
     if (dbItem?.id) {
-      // 有 coverCachePath 的 item 優先走 comic-cache://（零 IPC、記憶體友善）
       if (dbItem.coverCachePath) {
         try {
           await api.ensureThumbCache(dbItem.id);
@@ -67,7 +62,7 @@ export function useThumbnailLoader() {
       return await api.getCoverBase64(dbItem.id).catch(() => '');
     }
 
-    // 非 DB item（剛發現、尚未掃描）：沿用舊的 base64 路徑
+    // 非 DB item（剛發現、尚未掃描）
     const ext = item.extension?.toLowerCase() ?? '';
     if (ARCHIVE_EXTS.has(ext)) return await api.getZipCoverByPath(item.path).catch(() => '');
     if (IMAGE_EXTS.has(ext)) return await api.getImageBase64ByPath(item.path).catch(() => '');
