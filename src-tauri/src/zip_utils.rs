@@ -1,7 +1,7 @@
-use zip::ZipArchive;
+use anyhow::Result;
 use std::fs::File;
 use std::io::Read;
-use anyhow::Result;
+use zip::ZipArchive;
 
 pub fn get_image_entries(zip_path: &str) -> Result<Vec<String>> {
     let file = File::open(zip_path)?;
@@ -27,11 +27,29 @@ pub fn extract_image(zip_path: &str, image_name: &str) -> Result<Vec<u8>> {
     Ok(buffer)
 }
 
+pub fn image_content_type(data: &[u8]) -> &'static str {
+    if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "image/jpeg"
+    } else if data.starts_with(b"\x89PNG\r\n\x1A\n") {
+        "image/png"
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        "image/gif"
+    } else if data.len() >= 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
+        "image/webp"
+    } else if data.starts_with(b"BM") {
+        "image/bmp"
+    } else {
+        "image/jpeg"
+    }
+}
+
 fn is_image_file(name: &str) -> bool {
     let lower = name.to_lowercase();
-    lower.ends_with(".jpg") || lower.ends_with(".jpeg") || 
-    lower.ends_with(".png") || lower.ends_with(".gif") || 
-    lower.ends_with(".webp")
+    lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".png")
+        || lower.ends_with(".gif")
+        || lower.ends_with(".webp")
 }
 
 #[cfg(test)]
@@ -85,5 +103,18 @@ mod tests {
         fs::write(&zip_path, b"plain text").unwrap();
 
         assert!(get_image_entries(zip_path.to_str().unwrap()).is_err());
+    }
+
+    #[test]
+    fn image_content_type_sniffs_common_image_formats() {
+        assert_eq!(image_content_type(&[0xFF, 0xD8, 0xFF, 0xE0]), "image/jpeg");
+        assert_eq!(image_content_type(b"\x89PNG\r\n\x1A\nrest"), "image/png");
+        assert_eq!(image_content_type(b"GIF89arest"), "image/gif");
+        assert_eq!(
+            image_content_type(b"RIFF\x00\x00\x00\x00WEBPVP8 "),
+            "image/webp"
+        );
+        assert_eq!(image_content_type(b"BMrest"), "image/bmp");
+        assert_eq!(image_content_type(b"unknown"), "image/jpeg");
     }
 }

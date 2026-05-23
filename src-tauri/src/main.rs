@@ -32,15 +32,8 @@ fn main() {
             let path = request.uri().path().trim_start_matches('/');
             let file_path = cache_dir.join(path);
 
-            let content_type = if file_path.extension().is_some_and(|e| e == "png") {
-                "image/png"
-            } else if file_path.extension().is_some_and(|e| e == "webp") {
-                "image/webp"
-            } else {
-                "image/jpeg"
-            };
-
             if let Ok(data) = std::fs::read(&file_path) {
+                let content_type = zip_utils::image_content_type(&data);
                 tauri::http::Response::builder()
                     .header("Content-Type", content_type)
                     .header("Access-Control-Allow-Origin", "*")

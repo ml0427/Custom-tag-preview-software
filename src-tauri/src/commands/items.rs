@@ -8,6 +8,12 @@ use tauri::{AppHandle, Manager, State};
 
 // ── Items (new primary API) ───────────────────────────────────────────────────
 
+fn image_data_url(data: &[u8]) -> String {
+    let content_type = zip_utils::image_content_type(data);
+    let b64 = general_purpose::STANDARD.encode(data);
+    format!("data:{};base64,{}", content_type, b64)
+}
+
 #[tauri::command]
 pub async fn get_items(
     page: i64,
@@ -262,10 +268,7 @@ fn is_image_path(path: &str) -> bool {
         .and_then(|e| e.to_str())
         .map(|e| {
             let l = e.to_lowercase();
-            matches!(
-                l.as_str(),
-                "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp"
-            )
+            matches!(l.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp")
         })
         .unwrap_or(false)
 }
@@ -329,8 +332,7 @@ pub async fn get_cover_base64(id: i64, pool: State<'_, SqlitePool>) -> Result<St
     // 單張圖片：直接讀檔案內容做封面。
     if is_image_path(&file_path) {
         let data = fs::read(&file_path).map_err(|e| e.to_string())?;
-        let b64 = general_purpose::STANDARD.encode(&data);
-        return Ok(format!("data:image/jpeg;base64,{}", b64));
+        return Ok(image_data_url(&data));
     }
 
     // 不是壓縮包也不是圖片（例如影片、PDF）：沒有封面，回空字串，由前端決定備援顯示。
@@ -348,8 +350,7 @@ pub async fn get_cover_base64(id: i64, pool: State<'_, SqlitePool>) -> Result<St
         zip_utils::extract_image(&file_path, &entries[0]).map_err(|e| e.to_string())?
     };
 
-    let b64 = general_purpose::STANDARD.encode(&image_data);
-    Ok(format!("data:image/jpeg;base64,{}", b64))
+    Ok(image_data_url(&image_data))
 }
 
 #[tauri::command]
@@ -359,8 +360,7 @@ pub async fn get_zip_cover_by_path(path: String) -> Result<String, String> {
         return Err("No images in zip".to_string());
     }
     let image_data = zip_utils::extract_image(&path, &entries[0]).map_err(|e| e.to_string())?;
-    let b64 = general_purpose::STANDARD.encode(&image_data);
-    Ok(format!("data:image/jpeg;base64,{}", b64))
+    Ok(image_data_url(&image_data))
 }
 
 /// 確保縮圖快取存在：若 thumb_cache/{id}.jpg 不存在則現場生成。
