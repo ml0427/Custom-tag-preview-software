@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { api } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useThemeStore, type ThemeId } from '../stores/themeStore';
@@ -113,7 +114,13 @@ const onRunProtocolProbe = async () => {
   protocolProbeBusy.value = true;
   protocolProbeResults.value = [];
   const stamp = Date.now();
+  const convertedJpg = `${convertFileSrc(`${id}.jpg`, 'comic-cache')}?probe=${stamp}`;
+  const convertedWebp = `${convertFileSrc(`${id}.webp`, 'comic-cache')}?probe=${stamp}`;
   const urls = [
+    convertedJpg,
+    convertedWebp,
+    `http://comic-cache.localhost/${id}.jpg?probe=${stamp}`,
+    `http://comic-cache.localhost/${id}.webp?probe=${stamp}`,
     `comic-cache://localhost/${id}.jpg?probe=${stamp}`,
     `comic-cache://localhost/${id}.webp?probe=${stamp}`,
     `comic-cache:///${id}.jpg?probe=${stamp}`,

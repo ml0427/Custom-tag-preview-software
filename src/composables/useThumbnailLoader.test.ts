@@ -14,6 +14,10 @@ vi.mock('./useItemTypes', () => ({
   }),
 }));
 
+vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: (path: string, protocol = 'asset') => `http://${protocol}.localhost/${path}`,
+}));
+
 const fileItem = (path: string): FileItem => ({
   name: path.split(/[\\/]/).pop() ?? path,
   path,
@@ -76,7 +80,7 @@ describe('useThumbnailLoader', () => {
     const url = loader.buildThumbCacheUrl(item);
 
     expect(url).toBe(
-      'comic-cache://localhost/326.jpg?v=001.webp%7C1779340800%7CC%3A%2FLibrary%2Fbook.zip'
+      'http://comic-cache.localhost/326.jpg?v=001.webp%7C1779340800%7CC%3A%2FLibrary%2Fbook.zip'
     );
   });
 });

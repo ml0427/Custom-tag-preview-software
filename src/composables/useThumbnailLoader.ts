@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { api, type Item, type FileItem } from '../api';
 import { useItemTypes } from './useItemTypes';
 import { pathKey } from '../utils/pathKey';
@@ -45,7 +46,7 @@ export function useThumbnailLoader() {
       dbItem.fileModifiedAt ?? '',
       dbItem.path,
     ].join('|'));
-    return `comic-cache://localhost/${dbItem.id}.jpg?v=${cacheVersion}`;
+    return `${convertFileSrc(`${dbItem.id}.jpg`, 'comic-cache')}?v=${cacheVersion}`;
   };
 
   const loadThumbUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
