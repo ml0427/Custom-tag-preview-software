@@ -37,6 +37,7 @@ fn main() {
                 tauri::http::Response::builder()
                     .header("Content-Type", content_type)
                     .header("Access-Control-Allow-Origin", "*")
+                    .header("Cache-Control", "no-store")
                     .body(data)
                     .expect("failed to build HTTP response")
             } else {

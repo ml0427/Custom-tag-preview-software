@@ -35,6 +35,15 @@ export function useThumbnailLoader() {
     return !!dbItem?.category && dbItem.category !== 'default';
   };
 
+  const buildThumbCacheUrl = (dbItem: Item): string => {
+    const cacheVersion = encodeURIComponent([
+      dbItem.coverCachePath ?? '',
+      dbItem.fileModifiedAt ?? '',
+      dbItem.path,
+    ].join('|'));
+    return `comic-cache://localhost/${dbItem.id}.jpg?v=${cacheVersion}`;
+  };
+
   const loadThumbUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
     if (item.isDir) return '';
     let dbItem = getDbItem(item, itemByPath);
@@ -54,7 +63,7 @@ export function useThumbnailLoader() {
       if (dbItem.coverCachePath) {
         try {
           await api.ensureThumbCache(dbItem.id);
-          return `comic-cache://localhost/${dbItem.id}.jpg`;
+          return buildThumbCacheUrl(dbItem);
         } catch {
           // cache 重建失敗，fallback 到 base64
         }
@@ -120,6 +129,7 @@ export function useThumbnailLoader() {
     getDbItem,
     getDbItemFallback,
     hasCategoryAssigned,
+    buildThumbCacheUrl,
     loadThumbUrl,
     getIcon,
     getItemType,

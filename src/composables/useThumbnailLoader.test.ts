@@ -64,4 +64,19 @@ describe('useThumbnailLoader', () => {
     expect(loader.getItemType(item, itemByPath)).toBe('漫畫');
     expect(loader.getTypeColor(item, itemByPath)).toBe('#f0b229');
   });
+
+  it('adds a stable cache-busting query to comic-cache thumbnail urls', () => {
+    const loader = useThumbnailLoader();
+    const item = {
+      ...dbItem('C:/Library/book.zip'),
+      id: 326,
+      coverCachePath: '001.webp',
+    };
+
+    const url = loader.buildThumbCacheUrl(item);
+
+    expect(url).toBe(
+      'comic-cache://localhost/326.jpg?v=001.webp%7C1779340800%7CC%3A%2FLibrary%2Fbook.zip'
+    );
+  });
 });
