@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { api } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useThemeStore, type ThemeId } from '../stores/themeStore';
@@ -19,14 +18,6 @@ const showCategoryManage = ref(false);
 
 const debugMode = ref(false);
 const debugLogPath = ref('');
-const protocolProbeId = ref('326');
-const protocolProbeBusy = ref(false);
-const protocolProbeResults = ref<Array<{
-  mode: string;
-  url: string;
-  ok: boolean;
-  detail: string;
-}>>([]);
 
 const handleCategoryClose = () => {
   showCategoryManage.value = false;
@@ -59,86 +50,6 @@ const onClearDebugLog = async () => {
     showToast('日誌已清空', 'success');
   } catch (e) {
     showToast(`清空失敗：${e}`, 'error');
-  }
-};
-
-const probeWithFetch = async (url: string) => {
-  try {
-    const response = await fetch(url, { cache: 'no-store' });
-    const blob = await response.blob();
-    return {
-      mode: 'fetch',
-      url,
-      ok: response.ok,
-      detail: `status=${response.status}, type=${blob.type || 'n/a'}, bytes=${blob.size}`,
-    };
-  } catch (error) {
-    return {
-      mode: 'fetch',
-      url,
-      ok: false,
-      detail: error instanceof Error ? error.message : String(error),
-    };
-  }
-};
-
-const probeWithImage = (url: string) => new Promise<{
-  mode: string;
-  url: string;
-  ok: boolean;
-  detail: string;
-}>(resolve => {
-  const img = new Image();
-  img.onload = () => resolve({
-    mode: 'img',
-    url,
-    ok: true,
-    detail: `${img.naturalWidth}x${img.naturalHeight}`,
-  });
-  img.onerror = () => resolve({
-    mode: 'img',
-    url,
-    ok: false,
-    detail: 'img onerror',
-  });
-  img.src = url;
-});
-
-const onRunProtocolProbe = async () => {
-  const id = protocolProbeId.value.trim();
-  if (!id) {
-    showToast('請輸入 item id', 'error');
-    return;
-  }
-
-  protocolProbeBusy.value = true;
-  protocolProbeResults.value = [];
-  const stamp = Date.now();
-  const convertedJpg = `${convertFileSrc(`${id}.jpg`, 'comic-cache')}?probe=${stamp}`;
-  const convertedWebp = `${convertFileSrc(`${id}.webp`, 'comic-cache')}?probe=${stamp}`;
-  const urls = [
-    convertedJpg,
-    convertedWebp,
-    `http://comic-cache.localhost/${id}.jpg?probe=${stamp}`,
-    `http://comic-cache.localhost/${id}.webp?probe=${stamp}`,
-    `comic-cache://localhost/${id}.jpg?probe=${stamp}`,
-    `comic-cache://localhost/${id}.webp?probe=${stamp}`,
-    `comic-cache:///${id}.jpg?probe=${stamp}`,
-    `comic-cache:///${id}.webp?probe=${stamp}`,
-  ];
-
-  try {
-    const results = [];
-    for (const url of urls) {
-      results.push(await probeWithFetch(url));
-      results.push(await probeWithImage(url));
-    }
-    protocolProbeResults.value = results;
-    console.table(results);
-    const okCount = results.filter(r => r.ok).length;
-    showToast(`Protocol probe 完成：${okCount}/${results.length} 成功`, okCount ? 'success' : 'error');
-  } finally {
-    protocolProbeBusy.value = false;
   }
 };
 
@@ -243,31 +154,6 @@ const themes: { id: ThemeId; label: string; color: string }[] = [
         <div class="field debug-actions">
           <button class="debug-btn" @click="onOpenDebugLog">開啟日誌</button>
           <button class="debug-btn debug-btn-danger" @click="onClearDebugLog">清空日誌</button>
-        </div>
-        <div class="field probe-row">
-          <label class="field-label">縮圖協議測試</label>
-          <input
-            v-model="protocolProbeId"
-            class="probe-input"
-            type="number"
-            min="1"
-            placeholder="item id"
-          />
-          <button class="debug-btn" :disabled="protocolProbeBusy" @click="onRunProtocolProbe">
-            {{ protocolProbeBusy ? '測試中' : '測試' }}
-          </button>
-        </div>
-        <div v-if="protocolProbeResults.length" class="probe-results">
-          <div
-            v-for="(result, index) in protocolProbeResults"
-            :key="`${result.mode}-${index}`"
-            class="probe-result"
-            :class="{ ok: result.ok }"
-          >
-            <span class="probe-mode">{{ result.mode }}</span>
-            <span class="probe-url" :title="result.url">{{ result.url }}</span>
-            <span class="probe-detail">{{ result.ok ? 'OK' : 'FAIL' }} · {{ result.detail }}</span>
-          </div>
         </div>
       </section>
 
@@ -463,65 +349,4 @@ const themes: { id: ThemeId; label: string; color: string }[] = [
 }
 .debug-btn:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
 .debug-btn-danger:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); border-color: var(--color-danger); }
-.debug-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.probe-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 90px) minmax(0, 90px);
-  align-items: center;
-  gap: 8px;
-}
-
-.probe-input {
-  min-width: 0;
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  padding: 6px 8px;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-}
-
-.probe-results {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.probe-result {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 4px 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-sm);
-  background: var(--color-danger-bg-subtle);
-  color: var(--text-secondary);
-  font-size: 0.72rem;
-}
-
-.probe-result.ok {
-  border-color: var(--accent);
-  background: var(--accent-bg-subtle);
-}
-
-.probe-mode {
-  font-family: var(--font-mono);
-  color: var(--text-primary);
-}
-
-.probe-url {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-}
-
-.probe-detail {
-  grid-column: 2;
-  color: var(--text-tertiary);
-}
 </style>
