@@ -29,7 +29,7 @@ const emit = defineEmits<{
 const { itemTypes } = useItemTypes();
 const { show: showToast } = useToast();
 const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
-const { getDbItem, hasCategoryAssigned, getIcon, getItemType, getTypeColor, loadThumbUrl } = useThumbnailLoader();
+const { getDbItem, hasCategoryAssigned, getIcon, getItemType, getTypeColor, loadThumbUrl, logThumbDebug, onImgError } = useThumbnailLoader();
 
 // IPC-based thumbnail loading (same approach as FileExplorerTable)
 const thumbUrls = reactive(new Map<string, string>());
@@ -55,6 +55,15 @@ const loadThumb = async (item: FileItem) => {
   } finally {
     thumbLoading.delete(path);
   }
+};
+
+const handleImgError = (item: FileItem) => {
+  onImgError(item.path);
+  logThumbDebug('img.error.grid', {
+    path: item.path,
+    name: item.name,
+    url: thumbUrls.get(item.path),
+  });
 };
 
 const pumpThumbQueue = () => {
@@ -198,6 +207,7 @@ const startRenameCtx = () => {
           @dblclick="emit('dblclick', item)"
           @contextmenu="showContextMenu($event, item)"
           @rename="emit('rename', item, $event)"
+          @imgError="handleImgError(item)"
         />
       </div>
     </div>

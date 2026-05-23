@@ -43,6 +43,14 @@ pub fn image_content_type(data: &[u8]) -> &'static str {
     }
 }
 
+pub fn debug_hex_prefix(data: &[u8], len: usize) -> String {
+    data.iter()
+        .take(len)
+        .map(|byte| format!("{:02X}", byte))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn is_image_file(name: &str) -> bool {
     let lower = name.to_lowercase();
     lower.ends_with(".jpg")
@@ -116,5 +124,10 @@ mod tests {
         );
         assert_eq!(image_content_type(b"BMrest"), "image/bmp");
         assert_eq!(image_content_type(b"unknown"), "image/jpeg");
+    }
+
+    #[test]
+    fn debug_hex_prefix_formats_initial_bytes() {
+        assert_eq!(debug_hex_prefix(&[0x52, 0x49, 0x46, 0x46], 3), "52 49 46");
     }
 }

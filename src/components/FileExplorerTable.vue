@@ -159,7 +159,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 // Thumbnail loading
 const thumbUrls = reactive(new Map<string, string>());
 const thumbLoading = new Set<string>();
-const { getDbItem, hasCategoryAssigned, loadThumbUrl } = useThumbnailLoader();
+const { getDbItem, hasCategoryAssigned, loadThumbUrl, logThumbDebug, onImgError } = useThumbnailLoader();
 
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
@@ -171,6 +171,16 @@ const loadThumb = async (item: FileItem) => {
   } finally {
     thumbLoading.delete(path);
   }
+};
+
+const handleImgError = (item: FileItem, event: Event) => {
+  onImgError(item.path);
+  logThumbDebug('img.error.table', {
+    path: item.path,
+    name: item.name,
+    url: thumbUrls.get(item.path),
+    eventType: event.type,
+  });
 };
 
 watch(visibleItems, items => {
@@ -283,6 +293,7 @@ const {
                 :src="thumbUrls.get(item.path)"
                 class="thumb-img"
                 draggable="false"
+                @error="handleImgError(item, $event)"
               />
               <span v-else class="thumb-icon">{{ getFileIcon(item) }}</span>
             </div>

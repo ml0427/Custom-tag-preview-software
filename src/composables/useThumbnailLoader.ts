@@ -35,6 +35,10 @@ export function useThumbnailLoader() {
     return !!dbItem?.category && dbItem.category !== 'default';
   };
 
+  const logThumbDebug = (event: string, payload: Record<string, unknown>) => {
+    console.debug(`[thumbnail.${event}]`, payload);
+  };
+
   const buildThumbCacheUrl = (dbItem: Item): string => {
     const cacheVersion = encodeURIComponent([
       dbItem.coverCachePath ?? '',
@@ -60,15 +64,28 @@ export function useThumbnailLoader() {
     }
 
     if (dbItem?.id) {
+      logThumbDebug('load.dbItem', {
+        id: dbItem.id,
+        itemPath: item.path,
+        dbPath: dbItem.path,
+        name: item.name,
+        coverCachePath: dbItem.coverCachePath,
+      });
       if (dbItem.coverCachePath) {
         try {
           await api.ensureThumbCache(dbItem.id);
-          return buildThumbCacheUrl(dbItem);
-        } catch {
+          const url = buildThumbCacheUrl(dbItem);
+          logThumbDebug('load.cacheUrl', { id: dbItem.id, url });
+          return url;
+        } catch (error) {
+          logThumbDebug('load.cacheFallback', { id: dbItem.id, error });
           // cache 重建失敗，fallback 到 base64
         }
       }
-      return await api.getCoverBase64(dbItem.id).catch(() => '');
+      return await api.getCoverBase64(dbItem.id).catch(error => {
+        logThumbDebug('load.base64Error', { id: dbItem.id, error });
+        return '';
+      });
     }
 
     // 非 DB item（剛發現、尚未掃描）
@@ -126,6 +143,7 @@ export function useThumbnailLoader() {
 
   return {
     onImgError,
+    logThumbDebug,
     getDbItem,
     getDbItemFallback,
     hasCategoryAssigned,

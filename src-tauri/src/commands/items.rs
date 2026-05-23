@@ -1,7 +1,9 @@
 use super::helpers::{fetch_item_tags, read_item_from_row};
+use crate::debug_log::DebugState;
 use crate::models::{Item, Page};
 use crate::{db, zip_utils};
 use base64::{engine::general_purpose, Engine as _};
+use serde_json::json;
 use sqlx::{Row, SqlitePool};
 use std::fs;
 use tauri::{AppHandle, Manager, State};
@@ -370,6 +372,7 @@ pub async fn ensure_thumb_cache(
     id: i64,
     pool: State<'_, SqlitePool>,
     app: AppHandle,
+    debug_state: State<'_, DebugState>,
 ) -> Result<(), String> {
     let cache_dir = app
         .path()
@@ -383,9 +386,27 @@ pub async fn ensure_thumb_cache(
     if cache_file.exists() {
         let meta = fs::metadata(&cache_file).map_err(|e| e.to_string())?;
         if meta.len() > 0 {
+            let data = fs::read(&cache_file).map_err(|e| e.to_string())?;
+            debug_state.log_info(
+                "thumbnail.ensure_cache.hit",
+                json!({
+                    "id": id,
+                    "cache_file": cache_file.to_string_lossy(),
+                    "bytes": meta.len(),
+                    "content_type": zip_utils::image_content_type(&data),
+                    "head": zip_utils::debug_hex_prefix(&data, 16),
+                }),
+            );
             return Ok(());
         }
         // 快取檔為空 → 刪除並重建
+        debug_state.log_warn(
+            "thumbnail.ensure_cache.empty",
+            json!({
+                "id": id,
+                "cache_file": cache_file.to_string_lossy(),
+            }),
+        );
         fs::remove_file(&cache_file).map_err(|e| e.to_string())?;
     }
 
@@ -401,6 +422,16 @@ pub async fn ensure_thumb_cache(
 
     let file_path: String = row.get("path");
     let cover_cache_path: Option<String> = row.get("cover_cache_path");
+
+    debug_state.log_info(
+        "thumbnail.ensure_cache.build",
+        json!({
+            "id": id,
+            "file_path": file_path,
+            "cover_cache_path": cover_cache_path,
+            "cache_file": cache_file.to_string_lossy(),
+        }),
+    );
 
     let image_data = if is_image_path(&file_path) {
         // 單張圖片：直接讀取寫入快取
@@ -422,5 +453,15 @@ pub async fn ensure_thumb_cache(
     };
 
     fs::write(&cache_file, &image_data).map_err(|e| e.to_string())?;
+    debug_state.log_info(
+        "thumbnail.ensure_cache.written",
+        json!({
+            "id": id,
+            "cache_file": cache_file.to_string_lossy(),
+            "bytes": image_data.len(),
+            "content_type": zip_utils::image_content_type(&image_data),
+            "head": zip_utils::debug_hex_prefix(&image_data, 16),
+        }),
+    );
     Ok(())
 }

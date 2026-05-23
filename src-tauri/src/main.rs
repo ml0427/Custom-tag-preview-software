@@ -10,6 +10,7 @@ mod zip_utils;
 
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
+use serde_json::json;
 
 fn main() {
     tauri::Builder::default()
@@ -34,6 +35,22 @@ fn main() {
 
             if let Ok(data) = std::fs::read(&file_path) {
                 let content_type = zip_utils::image_content_type(&data);
+                if let Some(debug_state) = _app_handle
+                    .app_handle()
+                    .try_state::<debug_log::DebugState>()
+                {
+                    debug_state.log_info(
+                        "thumbnail.protocol.hit",
+                        json!({
+                            "uri": request.uri().to_string(),
+                            "path": path,
+                            "file_path": file_path.to_string_lossy(),
+                            "bytes": data.len(),
+                            "content_type": content_type,
+                            "head": zip_utils::debug_hex_prefix(&data, 16),
+                        }),
+                    );
+                }
                 tauri::http::Response::builder()
                     .header("Content-Type", content_type)
                     .header("Access-Control-Allow-Origin", "*")
@@ -41,6 +58,19 @@ fn main() {
                     .body(data)
                     .expect("failed to build HTTP response")
             } else {
+                if let Some(debug_state) = _app_handle
+                    .app_handle()
+                    .try_state::<debug_log::DebugState>()
+                {
+                    debug_state.log_warn(
+                        "thumbnail.protocol.miss",
+                        json!({
+                            "uri": request.uri().to_string(),
+                            "path": path,
+                            "file_path": file_path.to_string_lossy(),
+                        }),
+                    );
+                }
                 tauri::http::Response::builder()
                     .status(404)
                     .body(Vec::new())
