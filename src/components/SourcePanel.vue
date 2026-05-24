@@ -263,6 +263,7 @@ const submitFolderModal = async () => {
 onUnmounted(() => {
   document.removeEventListener('click', closeCtxMenu);
   document.removeEventListener('scroll', closeCtxMenu, { capture: true } as any);
+  document.removeEventListener('contextmenu', closeCtxMenu);
   document.removeEventListener('contextmenu', preventNativeContextMenu, { capture: true } as any);
 });
 
@@ -332,6 +333,7 @@ onMounted(() => {
   loadItemTypes();
   document.addEventListener('click', closeCtxMenu);
   document.addEventListener('scroll', closeCtxMenu, { capture: true });
+  document.addEventListener('contextmenu', closeCtxMenu);
   document.addEventListener('contextmenu', preventNativeContextMenu, { capture: true });
 });
 </script>

@@ -63,11 +63,13 @@ export function useContextMenu<T>() {
   onMounted(() => {
     document.addEventListener('click', hideContextMenu);
     document.addEventListener('scroll', hideContextMenu, { capture: true });
+    document.addEventListener('contextmenu', hideContextMenu);
   });
 
   onUnmounted(() => {
     document.removeEventListener('click', hideContextMenu);
     document.removeEventListener('scroll', hideContextMenu, { capture: true });
+    document.removeEventListener('contextmenu', hideContextMenu);
   });
 
   return {
