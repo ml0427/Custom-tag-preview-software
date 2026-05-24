@@ -1,0 +1,614 @@
+schema_version: "0.1"
+name: "portable-ai-workflows"
+description: >
+  Cross-AI workflow specifications for repeatable engineering tasks.
+  The workflow defines steps, evidence, gates, and report format.
+  AI providers are adapters, not part of the workflow contract.
+
+runtime_contract:
+  principles:
+    - "Workflow fixes the route, not the answer."
+    - "Judgment stays in AI steps; evidence collection and verification stay in tool steps."
+    - "Provider-specific features must be hidden behind adapters."
+    - "Low-judgment execution can be delegated; decisions remain with the lead agent."
+  adapters:
+    ai:
+      required_capabilities:
+        - "read provided context"
+        - "return structured JSON or Markdown"
+        - "explain uncertainty"
+    shell:
+      required_capabilities:
+        - "run commands in workspace"
+        - "capture stdout, stderr, and exit code"
+    file:
+      required_capabilities:
+        - "read files"
+        - "write generated reports"
+    optional:
+      github:
+        required_capabilities:
+          - "fetch issue or pull request metadata"
+          - "read changed files"
+      vector_memory:
+        required_capabilities:
+          - "search architecture knowledge"
+          - "upsert durable architecture notes"
+
+delegation_policy:
+  low_model_task_classes:
+    shell_exact:
+      description: "Run exact commands supplied by the lead agent."
+      examples:
+        - "git status --short"
+        - "npm test -- api"
+        - "cargo test"
+      required_capabilities:
+        - "run shell command in workspace"
+        - "return stdout, stderr, and exit code"
+    search_exact:
+      description: "Search exact strings or regex patterns supplied by the lead agent."
+      examples:
+        - "rg -n \"add_source|remove_source\" src src-tauri"
+      required_capabilities:
+        - "run ripgrep or equivalent"
+        - "return concise hit list"
+    file_excerpt:
+      description: "Read fixed files or fixed line ranges supplied by the lead agent."
+      examples:
+        - "read src-tauri/src/commands/sources.rs"
+      required_capabilities:
+        - "read workspace files"
+        - "preserve path and line references"
+    log_filter:
+      description: "Filter known logs with exact keywords supplied by the lead agent."
+      examples:
+        - "filter logs for app.exe lock"
+      required_capabilities:
+        - "read log files"
+        - "return matching lines and timestamps"
+    diff_summary:
+      description: "Collect git status, changed file lists, and diff stats."
+      examples:
+        - "git diff --stat"
+        - "git diff --name-status"
+      required_capabilities:
+        - "run git read-only commands"
+        - "return file list and stats"
+    closeout_exact:
+      description: "Stage, commit, push, or close an issue only when every file path and message is supplied."
+      examples:
+        - "git add <explicit files>"
+        - "git commit -m \"fix #123\""
+      required_capabilities:
+        - "run exact git or gh command"
+        - "stop on non-zero exit"
+      constraints:
+        - "no choosing files"
+        - "no inventing commit messages"
+        - "no force push"
+  forbidden_for_low_judgment_workers:
+    - "choose the root cause"
+    - "decide whether a PR is safe"
+    - "edit code without a fully specified patch scope"
+    - "rewrite architecture"
+    - "invent new requirements"
+  runner_registry:
+    local-small-worker:
+      display_name: "小N"
+      availability_probe: "ollama --version"
+      status_if_probe_passes: "available"
+      intended_task_classes:
+        - "shell_exact"
+        - "search_exact"
+        - "file_excerpt"
+        - "log_filter"
+        - "diff_summary"
+        - "closeout_exact"
+      notes:
+        - "Prefer this for fast deterministic execution when Ollama exists."
+        - "Do not ask it to reason about architecture or root cause."
+    remote-general-worker:
+      display_name: "小G"
+      availability_probe: "adapter-managed"
+      status_if_probe_passes: "available"
+      intended_task_classes:
+        - "file_excerpt"
+        - "diff_summary"
+        - "checklist_review"
+        - "summary_draft"
+      notes:
+        - "Use when local-small-worker is unavailable or the task needs light summarization."
+        - "Lead agent still owns final decisions."
+    lead-agent:
+      display_name: "Lead"
+      availability_probe: "current session"
+      intended_task_classes:
+        - "root_cause"
+        - "architecture_decision"
+        - "code_edit"
+        - "risk_acceptance"
+        - "final_integration"
+      notes:
+        - "Owns judgment, patch design, and final verification decision."
+  runner_selection:
+    rule: "Match the step's task_class to a runner with a passing availability_probe. If no low-model runner is available, the lead agent performs or skips delegation without changing the workflow route."
+    prefer_order:
+      - "local-small-worker"
+      - "remote-general-worker"
+      - "lead-agent"
+
+workflows:
+  github-issue-fix:
+    description: "Fix a GitHub Issue using fixed evidence routes, explicit low-model delegation boundaries, and project closeout gates."
+    inputs:
+      required:
+        - name: "issue_number"
+          example: 63
+        - name: "repo"
+          example: "ml0427/Custom-tag-preview-software"
+      optional:
+        - name: "focus"
+          example: "source lifecycle, DB cleanup, frontend API shape"
+        - name: "base_ref"
+          example: "origin/main"
+
+    evidence:
+      required_artifacts:
+        - "GitHub issue title, body, labels, and comments"
+        - "git status before editing"
+        - "architecture or trap memory search"
+        - "impact analysis for symbols before editing"
+        - "build/test/dev verification output"
+        - "detect_changes output before commit"
+      commands:
+        issue_json: "gh issue view {issue_number} --repo {repo} --json number,title,body,labels,comments,state,url"
+        git_status: "git status --short --branch"
+        search_issue_terms: "rg -n \"{summarize-issue.issue_keywords}\" src src-tauri"
+        diff_stat: "git diff --stat"
+        changed_files: "git diff --name-status"
+        recent_commits: "git log --oneline --decorate -n 10"
+
+    steps:
+      - id: "collect-issue"
+        type: "shell"
+        command_ref: "issue_json"
+        output: "issue_json"
+        delegate: "allowed"
+        task_class: "shell_exact"
+
+      - id: "collect-status"
+        type: "shell"
+        command_ref: "git_status"
+        output: "git_status"
+        delegate: "allowed"
+        task_class: "diff_summary"
+
+      - id: "summarize-issue"
+        type: "ai"
+        input:
+          - "issue_json"
+          - "focus"
+        output_schema:
+          type: "object"
+          required:
+            - "plain_language_goal"
+            - "acceptance_checks"
+            - "candidate_symbols"
+            - "issue_keywords"
+
+      - id: "search-related-code"
+        type: "shell"
+        command_ref: "search_issue_terms"
+        output: "code_hits"
+        delegate: "allowed"
+        task_class: "search_exact"
+
+      - id: "memory-search"
+        type: "tool-or-shell"
+        strategy:
+          preferred:
+            - "vector memory search for architecture decisions and traps"
+          fallback:
+            - "read local project docs and comments"
+        output: "memory_notes"
+
+      - id: "impact-before-edit"
+        type: "tool-or-shell"
+        strategy:
+          preferred:
+            - "GitNexus impact for each candidate symbol"
+          fallback:
+            - "rg imports and call sites"
+        output: "impact_notes"
+
+      - id: "implementation-plan"
+        type: "ai"
+        input:
+          - "issue_json"
+          - "code_hits"
+          - "memory_notes"
+          - "impact_notes"
+        output_schema:
+          type: "object"
+          required:
+            - "files_to_change"
+            - "minimal_patch_plan"
+            - "tests_to_run"
+            - "low_model_subtasks"
+
+      - id: "fix"
+        type: "code-edit"
+        constraints:
+          - "lead agent owns code edits"
+          - "minimal scoped change"
+          - "preserve unrelated user changes"
+          - "increment version manually when code changes"
+        output: "patch_summary"
+
+      - id: "verify"
+        type: "shell"
+        commands:
+          - "npm run build"
+          - "npm run tauri dev"
+        continue_on_failure: true
+        output: "verification_output"
+        delegate: "allowed"
+        task_class: "shell_exact"
+
+      - id: "detect-changes"
+        type: "tool-or-shell"
+        strategy:
+          preferred:
+            - "GitNexus detect_changes"
+          fallback:
+            - "git diff --stat and changed file review"
+        output: "change_impact"
+
+      - id: "closeout-checklist"
+        type: "ai"
+        input:
+          - "patch_summary"
+          - "verification_output"
+          - "change_impact"
+        checks:
+          - "version incremented"
+          - "AI note written"
+          - "vector memory updated when durable"
+          - "commit message matches issue closeout rules"
+          - "issue is actually closed after push"
+        output_format: "markdown"
+
+    gates:
+      fail_if:
+        - "impact-before-edit did not run before fix"
+        - "npm run build exits non-zero"
+        - "code changed without version increment"
+        - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
+      warn_if:
+        - "npm run tauri dev cannot run because of environment lock"
+        - "low-model runner is unavailable and delegation was skipped"
+
+  pr-review:
+    description: "Review a pull request or branch diff with fixed evidence collection and findings-first output."
+    inputs:
+      required:
+        - name: "base_ref"
+          example: "main"
+        - name: "target_ref"
+          example: "HEAD"
+      optional:
+        - name: "pr_number"
+          example: 123
+        - name: "focus"
+          example: "security, API shape, regression risk"
+
+    evidence:
+      required_artifacts:
+        - "git diff"
+        - "changed file list"
+        - "build or test output when available"
+        - "callers or consumers for shared/API changes when available"
+      commands:
+        diff: "git diff --stat {base_ref}...{target_ref} && git diff {base_ref}...{target_ref}"
+        changed_files: "git diff --name-status {base_ref}...{target_ref}"
+        recent_commits: "git log --oneline --decorate -n 20 {base_ref}..{target_ref}"
+
+    steps:
+      - id: "collect-diff"
+        type: "shell"
+        command_ref: "diff"
+        output: "raw_diff"
+
+      - id: "collect-changed-files"
+        type: "shell"
+        command_ref: "changed_files"
+        output: "changed_files"
+        delegate: "allowed"
+
+      - id: "classify-change"
+        type: "ai"
+        input:
+          - "changed_files"
+          - "raw_diff"
+        output_schema:
+          type: "object"
+          required:
+            - "change_kinds"
+            - "risk_areas"
+            - "files_requiring_callers"
+          properties:
+            change_kinds:
+              type: "array"
+              allowed_values:
+                - "api"
+                - "ui"
+                - "state"
+                - "database"
+                - "config"
+                - "shared-util"
+                - "tests"
+                - "docs"
+            risk_areas:
+              type: "array"
+            files_requiring_callers:
+              type: "array"
+
+      - id: "collect-impact"
+        type: "tool-or-shell"
+        when: "classify-change.files_requiring_callers is not empty"
+        strategy:
+          preferred:
+            - "code graph impact query"
+            - "route/API consumer map"
+          fallback:
+            - "rg imports and function references"
+        output: "impact_notes"
+
+      - id: "check-api-contracts"
+        type: "ai"
+        when: "api in classify-change.change_kinds"
+        input:
+          - "raw_diff"
+          - "impact_notes"
+        checks:
+          - "response shape compatibility"
+          - "status code changes"
+          - "auth or permission drift"
+          - "consumer property access mismatch"
+        output: "api_findings"
+
+      - id: "check-ui-regressions"
+        type: "ai"
+        when: "ui in classify-change.change_kinds or state in classify-change.change_kinds"
+        input:
+          - "raw_diff"
+        checks:
+          - "loading state"
+          - "empty state"
+          - "error state"
+          - "race condition"
+          - "stale state"
+          - "responsive layout risk"
+        output: "ui_findings"
+
+      - id: "check-tests"
+        type: "ai"
+        input:
+          - "raw_diff"
+          - "classify-change"
+        checks:
+          - "coverage for changed behavior"
+          - "snapshot-only changes"
+          - "deleted or weakened assertions"
+          - "missing regression test"
+        output: "test_findings"
+
+      - id: "verify"
+        type: "shell"
+        commands:
+          - "npm run build"
+        continue_on_failure: true
+        output: "verification_output"
+
+      - id: "final-review"
+        type: "ai"
+        input:
+          - "raw_diff"
+          - "classify-change"
+          - "impact_notes"
+          - "api_findings"
+          - "ui_findings"
+          - "test_findings"
+          - "verification_output"
+        output_format: "markdown"
+        report_contract:
+          order:
+            - "blocking_findings"
+            - "risky_findings"
+            - "missing_tests"
+            - "safe_parts"
+            - "merge_recommendation"
+          finding_fields:
+            - "severity"
+            - "file"
+            - "line_or_area"
+            - "problem"
+            - "why_it_matters"
+            - "suggested_fix"
+
+    gates:
+      fail_if:
+        - "npm run build exits non-zero"
+        - "blocking_findings is not empty"
+        - "API contract changed without caller evidence"
+      warn_if:
+        - "shared-util changed without tests"
+        - "UI behavior changed without loading/error/empty state coverage"
+
+  bug-scan:
+    description: "Trace a reported bug through fixed evidence routes before editing."
+    inputs:
+      required:
+        - name: "symptom"
+          example: "Clicking import asks the same category question repeatedly."
+      optional:
+        - name: "error_message"
+          example: "TypeError: Cannot read properties of undefined"
+        - name: "log_path"
+          example: "logs/app.log"
+        - name: "suspected_area"
+          example: "external-change import workflow"
+        - name: "reproduction_steps"
+          example:
+            - "Open app"
+            - "Run batch import"
+            - "Observe repeated prompt"
+
+    evidence:
+      required_artifacts:
+        - "symptom summary"
+        - "exact error text when provided"
+        - "related source locations"
+        - "runtime evidence or probe result before third fix attempt"
+      commands:
+        search_error: "rg -n --fixed-strings \"{error_message}\" ."
+        search_symptom_terms: "rg -n \"{symptom_keywords}\" ."
+        recent_changes: "git log --oneline --decorate -n 30 && git diff --stat"
+        git_status: "git status --short"
+
+    stop_rules:
+      max_speculative_fixes: 2
+      after_limit:
+        required_action: "add log/probe or inspect runtime data before another code edit"
+        report_phrase: "已經兩次修正仍未確認，先改走 probe 蒐證。"
+
+    steps:
+      - id: "explain-symptom"
+        type: "ai"
+        input:
+          - "symptom"
+          - "error_message"
+        output_schema:
+          type: "object"
+          required:
+            - "plain_language_meaning"
+            - "initial_hypotheses"
+            - "keywords"
+
+      - id: "collect-status"
+        type: "shell"
+        command_ref: "git_status"
+        output: "git_status"
+        delegate: "allowed"
+
+      - id: "search-error"
+        type: "shell"
+        when: "error_message is provided"
+        command_ref: "search_error"
+        output: "error_hits"
+        delegate: "allowed"
+
+      - id: "search-related-code"
+        type: "shell"
+        command_ref: "search_symptom_terms"
+        output: "code_hits"
+        delegate: "allowed"
+
+      - id: "trace-data-flow"
+        type: "ai"
+        input:
+          - "code_hits"
+          - "error_hits"
+          - "suspected_area"
+        output_schema:
+          type: "object"
+          required:
+            - "entry_points"
+            - "data_flow"
+            - "likely_breakpoints"
+            - "files_to_read"
+
+      - id: "read-focused-files"
+        type: "file"
+        input: "trace-data-flow.files_to_read"
+        output: "focused_source"
+
+      - id: "diagnose"
+        type: "ai"
+        input:
+          - "focused_source"
+          - "trace-data-flow"
+          - "git_status"
+        checks:
+          - "null or undefined"
+          - "async race"
+          - "stale state"
+          - "response shape mismatch"
+          - "path or encoding issue"
+          - "concurrency or repeated prompt issue"
+        output_schema:
+          type: "object"
+          required:
+            - "root_cause_candidate"
+            - "confidence"
+            - "minimal_fix_plan"
+            - "probe_needed"
+
+      - id: "probe-before-third-fix"
+        type: "tool-or-code-edit"
+        when: "attempt_count >= 2 or diagnose.probe_needed is true"
+        action: "add temporary diagnostic log, breakpoint, or focused assertion"
+        output: "probe_result"
+
+      - id: "fix"
+        type: "code-edit"
+        when: "diagnose.confidence is high or probe_result confirms cause"
+        constraints:
+          - "minimal scoped change"
+          - "do not refactor unrelated code"
+          - "preserve user changes"
+        output: "patch_summary"
+
+      - id: "verify"
+        type: "shell"
+        commands:
+          - "npm run build"
+        continue_on_failure: true
+        output: "verification_output"
+
+      - id: "final-bug-report"
+        type: "ai"
+        input:
+          - "symptom"
+          - "diagnose"
+          - "probe_result"
+          - "patch_summary"
+          - "verification_output"
+        output_format: "markdown"
+        report_contract:
+          order:
+            - "root_cause"
+            - "what_changed"
+            - "verification"
+            - "remaining_risk"
+
+    gates:
+      fail_if:
+        - "fix step ran without diagnosis confidence or probe confirmation"
+        - "third speculative fix attempted without probe_result"
+      warn_if:
+        - "verification command cannot run in current environment"
+        - "bug is fixed without a regression test or manual reproduction note"
+
+closeout_policy:
+  when_code_was_changed:
+    required:
+      - "increment version manually"
+      - "run npm run build"
+      - "append factual implementation note to C:\\AI紀錄\\AI筆記.txt"
+      - "upsert durable architecture/trap/design note to vector memory when applicable"
+    forbidden:
+      - "write task TODOs to C:\\AI紀錄\\AI筆記.txt"
+      - "store transient task state in vector memory"
+  report_language: "Traditional Chinese"
