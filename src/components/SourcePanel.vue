@@ -17,6 +17,7 @@ const emit = defineEmits<{
 const { show: showToast, confirm: confirmDialog } = useToast();
 const { itemTypes, load: loadItemTypes, getTypeConfig } = useItemTypes();
 // 右鍵選單
+const panelRef = ref<HTMLElement | null>(null);
 const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const showFolderModal = ref(false);
 const modalPhase = ref<'edit' | 'tags'>('edit');
@@ -55,7 +56,6 @@ const {
 });
 
 const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
-  if (ctxMenu.value.visible) return;
   const menuWidth = 160;
   const menuHeight = 200;
   let x = payload.x;
@@ -66,6 +66,11 @@ const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
 };
 
 const closeCtxMenu = () => { ctxMenu.value.visible = false; };
+
+const preventNativeContextMenu = (event: MouseEvent) => {
+  if (!(event.target instanceof Node) || !panelRef.value?.contains(event.target)) return;
+  event.preventDefault();
+};
 
 const untrackFromCtx = async () => {
   const p = ctxMenu.value.path;
@@ -258,6 +263,7 @@ const submitFolderModal = async () => {
 onUnmounted(() => {
   document.removeEventListener('click', closeCtxMenu);
   document.removeEventListener('scroll', closeCtxMenu, { capture: true } as any);
+  document.removeEventListener('contextmenu', preventNativeContextMenu, { capture: true } as any);
 });
 
 const dbFolders = ref<Item[]>([]);
@@ -324,11 +330,12 @@ onMounted(() => {
   loadItemTypes();
   document.addEventListener('click', closeCtxMenu);
   document.addEventListener('scroll', closeCtxMenu, { capture: true });
+  document.addEventListener('contextmenu', preventNativeContextMenu, { capture: true });
 });
 </script>
 
 <template>
-  <div class="panel">
+  <div ref="panelRef" class="panel" @contextmenu.prevent>
     <div class="panel-header">
       <h2>工作目錄</h2>
     </div>
@@ -351,7 +358,7 @@ onMounted(() => {
       <div class="ctx-item" @click="enterFolderFromCtx">進入資料夾</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item" @click="openModifyTypeFromCtx">{{ hasFolderCategory(ctxMenu.path) ? '修改類別' : '新增類別' }}</div>
-      <div class="ctx-item" @click="applyRulesFromCtx">重新套用類別</div>
+      <div v-if="hasFolderCategory(ctxMenu.path)" class="ctx-item" @click="applyRulesFromCtx">重新套用類別</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item" @click="openInExplorerFromCtx">在檔案總管中顯示</div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">移除追蹤記錄</div>

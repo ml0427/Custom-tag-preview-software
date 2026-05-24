@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
-import DuplicateSection from './DuplicateSection.vue';
 import { useExternalChanges, type ExternalChangeKind } from '../composables/useExternalChanges';
 
 const props = defineProps<{
@@ -151,7 +150,6 @@ const hasAny = computed(() => changes.value.length > 0);
       </div>
     </section>
 
-    <DuplicateSection :key="'dup-' + (props.sourcePath ?? '')" />
   </div>
 </template>
 
@@ -165,9 +163,7 @@ const hasAny = computed(() => changes.value.length > 0);
 }
 
 .ext-section {
-  border-bottom: 1px solid var(--border-default);
-  flex: 0 0 auto;
-  max-height: 50%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;

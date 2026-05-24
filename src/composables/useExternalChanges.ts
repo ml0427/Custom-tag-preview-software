@@ -106,7 +106,7 @@ export function computeExternalChanges(
 }
 
 export function useExternalChanges(sourcePath: () => string | null) {
-  const { show } = useToast();
+  const { show, confirm } = useToast();
   const changes = ref<ExternalChange[]>([]);
   const isLoading = ref(false);
   const isFixing = ref(false);
@@ -120,6 +120,52 @@ export function useExternalChanges(sourcePath: () => string | null) {
   }));
 
   const changeKey = (change: ExternalChange) => `${change.kind}::${pathKey(change.path)}`;
+
+  const getParentCategory = async (path: string): Promise<{ path: string; name: string; category: string } | null> => {
+    const parent = parentDir(path);
+    if (!parent || parent === path) return null;
+    try {
+      const parentItem = await api.getItemByPath(parent);
+      if (!parentItem?.category || parentItem.category === 'default') return null;
+      return {
+        path: parent,
+        name: parentItem.name,
+        category: parentItem.category,
+      };
+    } catch (e) {
+      console.error(`[useExternalChanges] failed to load parent category: ${parent}`, e);
+      return null;
+    }
+  };
+
+  const shouldApplyParentCategory = async (
+    path: string,
+    decisions: Map<string, boolean>,
+  ): Promise<string | null> => {
+    const parent = await getParentCategory(path);
+    if (!parent) return null;
+
+    const key = `${pathKey(parent.path)}::${parent.category}`;
+    if (!decisions.has(key)) {
+      const apply = await confirm(
+        `「${parent.name}」已有「${parent.category}」類別。\n要把這個類別套用到匯入項目嗎？`
+      );
+      decisions.set(key, apply);
+    }
+    return decisions.get(key) ? parent.category : null;
+  };
+
+  const importWithOptionalParentCategory = async (
+    path: string,
+    decisions: Map<string, boolean>,
+  ): Promise<boolean> => {
+    const category = await shouldApplyParentCategory(path, decisions);
+    const item = await api.quickImportItem(path);
+    if (!category) return false;
+
+    await api.setItemCategory(item.id, category);
+    return true;
+  };
 
   const refresh = async () => {
     const path = sourcePath();
@@ -150,12 +196,19 @@ export function useExternalChanges(sourcePath: () => string | null) {
 
     let added = 0, removed = 0, updated = 0, errors = 0;
     const snapshot = [...changes.value];
+    const categoryDecisions = new Map<string, boolean>();
 
     try {
+      for (const change of snapshot) {
+        if (change.kind === 'untracked') {
+          await shouldApplyParentCategory(change.path, categoryDecisions);
+        }
+      }
+
       await runInBatches(snapshot, FIX_CONCURRENCY, async change => {
         try {
           if (change.kind === 'untracked') {
-            await api.quickImportItem(change.path);
+            await importWithOptionalParentCategory(change.path, categoryDecisions);
             added++;
           } else if (change.kind === 'missing') {
             await api.untrackItem(change.path, { allowMissing: true });
@@ -190,8 +243,9 @@ export function useExternalChanges(sourcePath: () => string | null) {
   const importOne = async (path: string) => {
     isFixing.value = true;
     try {
-      await api.quickImportItem(path);
+      const appliedCategory = await importWithOptionalParentCategory(path, new Map());
       show('已匯入', 'success');
+      if (appliedCategory) show('已套用父資料夾類別', 'success');
       await refresh();
     } catch (e) {
       console.error('[useExternalChanges] importOne failed', e);

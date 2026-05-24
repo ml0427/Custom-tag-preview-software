@@ -136,7 +136,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="layout">
+  <div class="layout" @contextmenu.prevent>
     <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
 
     <transition name="panel-slide">

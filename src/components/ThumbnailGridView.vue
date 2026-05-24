@@ -205,7 +205,7 @@ const startRenameCtx = () => {
 </script>
 
 <template>
-  <div class="thumb-grid-outer" ref="outerRef">
+  <div class="thumb-grid-outer" ref="outerRef" @contextmenu.prevent>
     <div class="thumb-grid">
       <div
         v-for="item in items"

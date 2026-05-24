@@ -9,7 +9,9 @@ vi.mock('../api', async importOriginal => {
     api: {
       listDirFiles: vi.fn(),
       getItems: vi.fn(),
+      getItemByPath: vi.fn(),
       quickImportItem: vi.fn(),
+      setItemCategory: vi.fn(),
       untrackItem: vi.fn(),
       incrementalScan: vi.fn(),
     },
@@ -19,6 +21,7 @@ vi.mock('../api', async importOriginal => {
 vi.mock('./useToast', () => ({
   useToast: () => ({
     show: vi.fn(),
+    confirm: vi.fn().mockResolvedValue(true),
   }),
 }));
 
@@ -152,5 +155,56 @@ describe('useExternalChanges', () => {
     expect(apiMock.getItems).toHaveBeenNthCalledWith(1, 0, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
     expect(apiMock.getItems).toHaveBeenNthCalledWith(2, 1, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
     expect(externalChanges.changes.value).toEqual([]);
+  });
+
+  it('asks to apply parent folder category when importing one untracked item', async () => {
+    apiMock.getItemByPath.mockResolvedValueOnce(dbItem({
+      id: 10,
+      path: 'C:/Library',
+      name: 'Library',
+      itemType: 'folder',
+      category: 'comic',
+    }));
+    apiMock.quickImportItem.mockResolvedValueOnce(dbItem({
+      id: 20,
+      path: 'C:/Library/new.zip',
+      name: 'new.zip',
+      category: 'default',
+    }));
+    apiMock.listDirFiles.mockResolvedValueOnce([]);
+    apiMock.getItems.mockResolvedValueOnce(page([]));
+
+    const externalChanges = useExternalChanges(() => 'C:/Library');
+
+    await externalChanges.importOne('C:/Library/new.zip');
+
+    expect(apiMock.getItemByPath).toHaveBeenCalledWith('C:/Library');
+    expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
+    expect(apiMock.setItemCategory).toHaveBeenCalledWith(20, 'comic');
+  });
+
+  it('does not apply parent category when the parent has only the default category', async () => {
+    apiMock.getItemByPath.mockResolvedValueOnce(dbItem({
+      id: 10,
+      path: 'C:/Library',
+      name: 'Library',
+      itemType: 'folder',
+      category: 'default',
+    }));
+    apiMock.quickImportItem.mockResolvedValueOnce(dbItem({
+      id: 20,
+      path: 'C:/Library/new.zip',
+      name: 'new.zip',
+      category: 'default',
+    }));
+    apiMock.listDirFiles.mockResolvedValueOnce([]);
+    apiMock.getItems.mockResolvedValueOnce(page([]));
+
+    const externalChanges = useExternalChanges(() => 'C:/Library');
+
+    await externalChanges.importOne('C:/Library/new.zip');
+
+    expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
+    expect(apiMock.setItemCategory).not.toHaveBeenCalled();
   });
 });
