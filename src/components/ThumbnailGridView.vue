@@ -239,7 +239,7 @@ const startRenameCtx = () => {
       v-if="contextMenu.visible"
       class="context-menu"
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
-      @click.stop
+      @click.stop @contextmenu.prevent.stop
     >
       <template v-if="contextMenu.item?.isDir">
         <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">進入資料夾</button>

@@ -26,6 +26,9 @@ export function useContextMenu<T>() {
   const showContextMenu = (e: MouseEvent, item: T) => {
     e.preventDefault();
 
+    // 選單已開啟時忽略重複右鍵（防止在選單上再按右鍵觸發新選單）
+    if (contextMenu.value.visible) return;
+
     // 預估選單的寬高（可依實際樣式調整）
     const menuWidth = 180;
     const menuHeight = 220;

@@ -55,6 +55,7 @@ const {
 });
 
 const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
+  if (ctxMenu.value.visible) return;
   const menuWidth = 160;
   const menuHeight = 200;
   let x = payload.x;
