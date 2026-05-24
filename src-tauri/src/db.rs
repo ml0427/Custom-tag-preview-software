@@ -1,4 +1,4 @@
-use sqlx::{sqlite::SqliteConnectOptions, Executor, Sqlite, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, Executor, Row, Sqlite, SqlitePool};
 use std::fs;
 use std::path::{Path, PathBuf};
 use anyhow::Result;
@@ -271,6 +271,16 @@ pub async fn remove_source(pool: &SqlitePool, id: i64) -> Result<()> {
         .execute(pool)
         .await?;
     Ok(())
+}
+
+pub async fn get_source_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Source>> {
+    let source = sqlx::query_as::<_, Source>(
+        "SELECT id, path, last_sync FROM sources WHERE id = ?"
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(source)
 }
 
 pub async fn update_source_sync_time(pool: &SqlitePool, id: i64) -> Result<()> {
@@ -566,6 +576,35 @@ pub async fn delete_item_by_path_with_cache(
     })
 }
 
+pub async fn delete_items_under_path_with_cache(
+    pool: &SqlitePool,
+    cache_dir: &Path,
+    root_path: &str,
+) -> Result<u64> {
+    let trimmed_root = root_path.trim_end_matches(['\\', '/']);
+    let forward_pattern = format!("{}/%", trimmed_root);
+    let backward_pattern = format!("{}\\%", trimmed_root);
+    let rows = sqlx::query("SELECT id FROM items WHERE path = ? OR path LIKE ? OR path LIKE ?")
+        .bind(root_path)
+        .bind(&forward_pattern)
+        .bind(&backward_pattern)
+        .fetch_all(pool)
+        .await?;
+
+    for row in &rows {
+        let id: i64 = row.get("id");
+        let _ = fs::remove_file(thumbnail_cache_path(cache_dir, id));
+    }
+
+    let result = sqlx::query("DELETE FROM items WHERE path = ? OR path LIKE ? OR path LIKE ?")
+        .bind(root_path)
+        .bind(forward_pattern)
+        .bind(backward_pattern)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -788,5 +827,65 @@ mod tests {
         assert_eq!(seen_row.get::<i64, _>("exists_on_disk"), 1);
         assert_eq!(seen_row.get::<Option<String>, _>("missing_since"), None);
         assert_eq!(seen_row.get::<String, _>("last_seen_at"), "2026-05-21T13:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn delete_items_under_path_respects_path_boundaries() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+        let cache_dir = dir.path().join("thumb_cache");
+        fs::create_dir_all(&cache_dir).unwrap();
+
+        let target_id = insert_item(
+            &pool,
+            "C:/Library/Series",
+            "folder",
+            "Series",
+            None,
+            None,
+            "2026-05-24T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+        insert_item(
+            &pool,
+            "C:/Library/Series/Vol1",
+            "folder",
+            "Vol1",
+            None,
+            None,
+            "2026-05-24T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+        let sibling_id = insert_item(
+            &pool,
+            "C:/Library/SeriesExtra",
+            "folder",
+            "SeriesExtra",
+            None,
+            None,
+            "2026-05-24T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+        fs::write(thumbnail_cache_path(&cache_dir, target_id), b"cache").unwrap();
+        fs::write(thumbnail_cache_path(&cache_dir, sibling_id), b"cache").unwrap();
+
+        let removed = delete_items_under_path_with_cache(&pool, &cache_dir, "C:/Library/Series")
+            .await
+            .unwrap();
+        let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(removed, 2);
+        assert_eq!(remaining, 1);
+        assert!(!thumbnail_cache_path(&cache_dir, target_id).exists());
+        assert!(thumbnail_cache_path(&cache_dir, sibling_id).exists());
     }
 }

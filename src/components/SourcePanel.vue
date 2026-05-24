@@ -310,6 +310,8 @@ const loadDbFolders = async () => {
 
 const {
   sources,
+  isSourceBusy,
+  sourceProgressLabel,
   loadSources,
   handleSelectPath,
   handleAddSource,
@@ -459,7 +461,17 @@ onMounted(() => {
     </div>
 
     <div class="panel-footer">
-      <button class="btn-add" @click="handleAddSource">＋ 新增目錄</button>
+      <div v-if="isSourceBusy" class="folder-progress source-progress" aria-live="polite">
+        <div class="progress-meta">
+          <span>{{ sourceProgressLabel }}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar progress-bar-indeterminate"></div>
+        </div>
+      </div>
+      <button class="btn-add" :disabled="isSourceBusy" @click="handleAddSource">
+        {{ isSourceBusy ? '處理中...' : '＋ 新增目錄' }}
+      </button>
     </div>
   </div>
 </template>
@@ -647,6 +659,20 @@ onMounted(() => {
   border-radius: inherit;
   background: var(--accent);
   transition: width 0.18s ease;
+}
+
+.source-progress {
+  padding: 0 0 8px;
+}
+
+.progress-bar-indeterminate {
+  width: 42%;
+  animation: progress-slide 1s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(240%); }
 }
 
 .tag-chips {

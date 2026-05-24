@@ -59,6 +59,27 @@ describe('api', () => {
     });
   });
 
+  it('returns add source import counts', async () => {
+    invokeMock.mockResolvedValueOnce({
+      source: { id: 1, path: 'C:/Library', lastSync: null },
+      importedCount: 3,
+    });
+
+    const result = await api.addSource('C:/Library');
+
+    expect(invokeMock).toHaveBeenCalledWith('add_source', { path: 'C:/Library' });
+    expect(result.importedCount).toBe(3);
+  });
+
+  it('returns remove source cleanup counts', async () => {
+    invokeMock.mockResolvedValueOnce({ removedCount: 4 });
+
+    const result = await api.removeSource(1);
+
+    expect(invokeMock).toHaveBeenCalledWith('remove_source', { id: 1 });
+    expect(result.removedCount).toBe(4);
+  });
+
   it('defaults untrackItem allowMissing to false', async () => {
     invokeMock.mockResolvedValueOnce(undefined);
 

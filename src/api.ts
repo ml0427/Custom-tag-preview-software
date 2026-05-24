@@ -41,6 +41,15 @@ export interface Source {
     lastSync: string | null;
 }
 
+export interface AddSourceResult {
+    source: Source;
+    importedCount: number;
+}
+
+export interface RemoveSourceResult {
+    removedCount: number;
+}
+
 export interface Page<T> {
     content: T[];
     totalPages: number;
@@ -233,12 +242,12 @@ export const api = {
         return await invoke<Source[]>('get_sources');
     },
 
-    async addSource(path: string): Promise<Source> {
-        return await invoke<Source>('add_source', { path });
+    async addSource(path: string): Promise<AddSourceResult> {
+        return await invoke<AddSourceResult>('add_source', { path });
     },
 
-    async removeSource(id: number): Promise<void> {
-        await invoke('remove_source', { id });
+    async removeSource(id: number): Promise<RemoveSourceResult> {
+        return await invoke<RemoveSourceResult>('remove_source', { id });
     },
 
     async syncSources(): Promise<{ added: number; updated: number; removed: number; sourceCount: number; errors: string[]; cancelled: boolean }> {
