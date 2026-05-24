@@ -271,6 +271,11 @@ export const api = {
         await invoke('open_file', { path });
     },
 
+    /** 在檔案總管中顯示（選中路徑） */
+    async openInExplorer(path: string): Promise<void> {
+        await invoke('open_in_explorer', { path });
+    },
+
     async listSubdirs(path: string): Promise<string[]> {
         return await invoke<string[]>('list_subdirs', { path });
     },

@@ -155,6 +155,7 @@ fn main() {
             // File system
             commands::quick_import_item,
             commands::open_file,
+            commands::open_in_explorer,
             commands::list_subdirs,
             commands::list_dir_files,
             commands::get_image_base64_by_path,

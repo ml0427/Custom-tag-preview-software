@@ -55,7 +55,13 @@ const {
 });
 
 const openCtxMenu = (payload: { path: string; x: number; y: number }) => {
-  ctxMenu.value = { visible: true, x: payload.x, y: payload.y, path: payload.path };
+  const menuWidth = 160;
+  const menuHeight = 200;
+  let x = payload.x;
+  let y = payload.y;
+  if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8;
+  if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8;
+  ctxMenu.value = { visible: true, x: Math.max(0, x), y: Math.max(0, y), path: payload.path };
 };
 
 const closeCtxMenu = () => { ctxMenu.value.visible = false; };
@@ -248,7 +254,10 @@ const submitFolderModal = async () => {
   }
 };
 
-onUnmounted(() => document.removeEventListener('click', closeCtxMenu));
+onUnmounted(() => {
+  document.removeEventListener('click', closeCtxMenu);
+  document.removeEventListener('scroll', closeCtxMenu, { capture: true } as any);
+});
 
 const dbFolders = ref<Item[]>([]);
 const folderByPath = computed(() => new Map(dbFolders.value.map(f => [f.path, f])));
@@ -271,6 +280,20 @@ const applyRulesFromCtx = async () => {
     category: folderByPath.value.get(path)?.category,
   });
   emit('folderCreated');
+};
+
+const enterFolderFromCtx = () => {
+  emit('select', ctxMenu.value.path);
+  closeCtxMenu();
+};
+
+const openInExplorerFromCtx = async () => {
+  try {
+    await api.openInExplorer(ctxMenu.value.path);
+  } catch (e) {
+    showToast('開啟檔案總管失敗: ' + String(e), 'error');
+  }
+  closeCtxMenu();
 };
 
 const loadDbFolders = async () => {
@@ -299,6 +322,7 @@ onMounted(() => {
   initWorkspace();
   loadItemTypes();
   document.addEventListener('click', closeCtxMenu);
+  document.addEventListener('scroll', closeCtxMenu, { capture: true });
 });
 </script>
 
@@ -323,9 +347,12 @@ onMounted(() => {
       :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
       @click.stop
     >
+      <div class="ctx-item" @click="enterFolderFromCtx">進入資料夾</div>
+      <div class="ctx-divider"></div>
       <div class="ctx-item" @click="openModifyTypeFromCtx">{{ hasFolderCategory(ctxMenu.path) ? '修改類別' : '新增類別' }}</div>
       <div class="ctx-item" @click="applyRulesFromCtx">重新套用類別</div>
       <div class="ctx-divider"></div>
+      <div class="ctx-item" @click="openInExplorerFromCtx">在檔案總管中顯示</div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">移除追蹤記錄</div>
     </div>
 

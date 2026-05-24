@@ -34,6 +34,37 @@ pub async fn open_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn open_in_explorer(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        // /select, 會打開檔案總管並選中該路徑
+        std::process::Command::new("explorer")
+            .args(["/select,", &path])
+            .spawn()
+            .map_err(|e| format!("開啟檔案總管失敗: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("開啟檔案總管失敗: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let parent = std::path::Path::new(&path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or(path.clone());
+        std::process::Command::new("xdg-open")
+            .arg(&parent)
+            .spawn()
+            .map_err(|e| format!("開啟檔案總管失敗: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Result<Item, String> {
     use std::time::UNIX_EPOCH;
     let p = std::path::Path::new(&path);
