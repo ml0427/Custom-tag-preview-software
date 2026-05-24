@@ -159,6 +159,10 @@ const handleKeydown = (e: KeyboardEvent) => {
 // Thumbnail loading
 const thumbUrls = reactive(new Map<string, string>());
 const thumbLoading = new Set<string>();
+const queuedThumbs = new Set<string>();
+const thumbQueue: FileItem[] = [];
+let activeThumbLoads = 0;
+const MAX_THUMB_LOADS = 6;
 const {
   getDbItem,
   hasCategoryAssigned,
@@ -178,6 +182,27 @@ const loadThumb = async (item: FileItem) => {
   } finally {
     thumbLoading.delete(path);
   }
+};
+
+const pumpThumbQueue = () => {
+  while (activeThumbLoads < MAX_THUMB_LOADS && thumbQueue.length > 0) {
+    const item = thumbQueue.shift();
+    if (!item) continue;
+    queuedThumbs.delete(item.path);
+    if (thumbUrls.has(item.path) || thumbLoading.has(item.path) || item.isDir) continue;
+    activeThumbLoads++;
+    loadThumb(item).finally(() => {
+      activeThumbLoads--;
+      pumpThumbQueue();
+    });
+  }
+};
+
+const enqueueThumb = (item: FileItem) => {
+  if (item.isDir || thumbUrls.has(item.path) || thumbLoading.has(item.path) || queuedThumbs.has(item.path)) return;
+  queuedThumbs.add(item.path);
+  thumbQueue.push(item);
+  pumpThumbQueue();
 };
 
 const handleImgError = async (item: FileItem, event: Event) => {
@@ -202,7 +227,7 @@ const handleImgError = async (item: FileItem, event: Event) => {
 };
 
 watch(visibleItems, items => {
-  items.forEach(item => loadThumb(item));
+  items.forEach(item => enqueueThumb(item));
 }, { immediate: true });
 
 const { getTypeConfig, itemTypes } = useItemTypes();
