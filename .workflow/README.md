@@ -28,6 +28,70 @@ node workflow-runner.js runners
 
 Workflow step 只標 `task_class`，不直接綁小G或小N。低模型不可用時，流程不改路線，只是由 lead agent 自己做或記錄委派略過。
 
+## 查看 Adapter 設定
+
+```powershell
+node workflow-runner.js adapters
+```
+
+預設狀態是：
+
+- `WORKFLOW_AI_ADAPTER=placeholder`：AI step 只寫 prompt 檔並使用少量內建 placeholder。
+- `WORKFLOW_LOW_MODEL_MODE=record`：可委派的 shell step 會產生 `*.low-model.packet.json`，但不送出。
+
+主要低模型呼叫層是 Hermes：
+
+```powershell
+$env:WORKFLOW_LOW_MODEL_MODE='hermes'
+node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software --dry-run
+```
+
+`--dry-run` 預設只產生 low-model packet，不會真的呼叫 Hermes。若要測 Hermes 接線，可明確打開：
+
+```powershell
+$env:WORKFLOW_DELEGATE_IN_DRY_RUN='1'
+```
+
+Hermes mode 會先 resolve `hermes.exe`，再跑 `ollama --version`。有 Ollama 就呼叫小N：
+
+```powershell
+& $hermes --provider ollama-nemotron-3-super-cloud --model nemotron-3-super:cloud -z "<packet>"
+```
+
+沒有 Ollama 就 fallback 小G：
+
+```powershell
+& $hermes --provider github-copilot --model gpt-5-mini -z "<packet>"
+```
+
+要真的接 AI adapter，可使用 OpenAI-compatible API：
+
+```powershell
+$env:WORKFLOW_AI_ADAPTER='openai-compatible'
+$env:WORKFLOW_AI_BASE_URL='https://api.openai.com/v1'
+$env:WORKFLOW_AI_MODEL='gpt-4.1-mini'
+$env:WORKFLOW_AI_API_KEY='...'
+node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software
+```
+
+不用 Hermes 時，也可以把低判斷 shell step 送到 OpenAI-compatible endpoint 做執行前檢查紀錄：
+
+```powershell
+$env:WORKFLOW_LOW_MODEL_MODE='ollama-review'
+$env:WORKFLOW_LOW_MODEL_BASE_URL='http://localhost:11434/v1'
+$env:WORKFLOW_LOW_MODEL='llama3.1'
+node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software --dry-run
+```
+
+如果有其他真正能執行任務 packet 的外部 wrapper，可用 command mode：
+
+```powershell
+$env:WORKFLOW_LOW_MODEL_MODE='command'
+$env:WORKFLOW_LOW_MODEL_COMMAND='hermes-runner --packet {packet}'
+```
+
+注意：純 Ollama `/v1/chat/completions` 只能做低判斷檢查或摘要，不能自己執行 shell。要讓小N 真正跑命令，需要外部 wrapper 或 Hermes 類 runner 接 `*.low-model.packet.json`。
+
 ## 只看執行計畫
 
 ```powershell
@@ -67,8 +131,9 @@ node workflow-runner.js run github-issue-fix --input issue_number=63 --input rep
 每次執行會在 `.workflow-runs/` 產生：
 
 - `*.prompt.md`：交給任意 AI adapter 的步驟提示
+- `*.low-model.packet.json`：可委派 shell step 的低模型任務封包
 - `run-report.json`：執行結果、shell output、AI placeholder output
 
-目前 AI adapter 是 placeholder。它會針對少數固定步驟做簡單啟發式輸出，其餘步驟產生 prompt 檔，之後可以接 Claude、Codex、Gemini、Ollama 或其他 runner。
+目前 AI adapter 預設是 placeholder。設定 `WORKFLOW_AI_ADAPTER=openai-compatible` 或 `WORKFLOW_AI_ADAPTER=ollama` 後，AI step 會真的呼叫 `/chat/completions`，並把回傳寫入 `run-report.json`。
 
 低模型任務分類與 runner 清單另外整理在 `low-models.md`。那份文件是人看的；`workflow.yaml` 裡的 registry 是機器讀的。

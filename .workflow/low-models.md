@@ -27,3 +27,25 @@
 2. 跑對應 runner 的 `availability_probe`。
 3. 有通過才委派；沒有低模型可用時，由 lead agent 自己做或略過委派。
 4. 委派失敗不改 workflow 路線，只記錄成環境限制。
+
+## Execution Modes
+
+Runner 目前支援四種低模型模式：
+
+| Mode | 環境變數 | 實際行為 |
+|---|---|---|
+| record | `WORKFLOW_LOW_MODEL_MODE=record` | 只產生 `*.low-model.packet.json`，不送出。 |
+| hermes | `WORKFLOW_LOW_MODEL_MODE=hermes` | 透過 Hermes CLI 呼叫小N；若 `ollama --version` 不通，改呼叫小G。 |
+| ollama-review | `WORKFLOW_LOW_MODEL_MODE=ollama-review` | 把 packet 送到 OpenAI-compatible `/chat/completions`，例如 Ollama，讓低模型做執行前檢查或摘要。 |
+| command | `WORKFLOW_LOW_MODEL_MODE=command` + `WORKFLOW_LOW_MODEL_COMMAND='tool --packet {packet}'` | 把 packet 交給外部 wrapper，外部 wrapper 才能真正執行命令或接 Hermes。 |
+
+Hermes 是目前主要呼叫層。`hermes` mode 會先 resolve `hermes.exe`，再依 `ollama --version` 選小N或小G：
+
+```powershell
+& $hermes --provider ollama-nemotron-3-super-cloud --model nemotron-3-super:cloud -z "<packet>"
+& $hermes --provider github-copilot --model gpt-5-mini -z "<packet>"
+```
+
+純 Ollama chat API 沒有 shell tool，所以不能把 `shell_exact` 真的「交給 Ollama 執行」。若要不用 Hermes，也可以用 `ollama-review` 做低判斷檢查，或用 `command` 接其他外部 wrapper。這樣 workflow 不會謊稱已委派執行。
+
+`--dry-run` 預設只記錄 packet，不呼叫 Hermes。要測試 Hermes 接線時才設定 `WORKFLOW_DELEGATE_IN_DRY_RUN=1`。

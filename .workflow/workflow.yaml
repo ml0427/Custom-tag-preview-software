@@ -133,6 +133,11 @@ delegation_policy:
         - "Owns judgment, patch design, and final verification decision."
   runner_selection:
     rule: "Match the step's task_class to a runner with a passing availability_probe. If no low-model runner is available, the lead agent performs or skips delegation without changing the workflow route."
+    execution_modes:
+      record: "Write a low-model packet but do not call a model or external runner."
+      hermes: "Resolve Hermes CLI, probe ollama --version, then send the packet to 小N when available or 小G fallback when Ollama is unavailable."
+      ollama-review: "Send the packet to an OpenAI-compatible chat completions endpoint for low-judgment review only."
+      command: "Pass the packet path to an external wrapper via WORKFLOW_LOW_MODEL_COMMAND. Use this when a non-Hermes external runner should execute delegated work."
     prefer_order:
       - "local-small-worker"
       - "remote-general-worker"
@@ -250,7 +255,6 @@ workflows:
         type: "shell"
         commands:
           - "npm run build"
-          - "npm run tauri dev"
         continue_on_failure: true
         output: "verification_output"
         delegate: "allowed"
@@ -286,7 +290,6 @@ workflows:
         - "code changed without version increment"
         - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
       warn_if:
-        - "npm run tauri dev cannot run because of environment lock"
         - "low-model runner is unavailable and delegation was skipped"
 
   pr-review:

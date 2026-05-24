@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { exec } from "node:child_process";
+import { exec, execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,7 +16,7 @@ function parseArgs(argv) {
     workflowName,
     inputs: {},
     spec: DEFAULT_SPEC,
-    cwd: process.cwd(),
+    cwd: path.resolve(__dirname, '..'),
     dryRun: false,
   };
 
@@ -42,6 +43,38 @@ function parseArgs(argv) {
   return options;
 }
 
+function adapterConfig(env = process.env) {
+  const aiAdapter = env.WORKFLOW_AI_ADAPTER ?? "placeholder";
+  const lowModelMode = env.WORKFLOW_LOW_MODEL_MODE ?? "record";
+  const ollamaBaseUrl = env.WORKFLOW_OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
+  const hermesPath = env.WORKFLOW_HERMES_PATH ?? "C:\\Users\\ml042\\Projects\\Hermes-Agent\\venv\\Scripts\\hermes.exe";
+  return {
+    ai: {
+      adapter: aiAdapter,
+      baseUrl: env.WORKFLOW_AI_BASE_URL ?? (aiAdapter === "ollama" ? ollamaBaseUrl : "https://api.openai.com/v1"),
+      model: env.WORKFLOW_AI_MODEL ?? (aiAdapter === "ollama" ? "llama3.1" : ""),
+      apiKey: env.WORKFLOW_AI_API_KEY ?? "",
+      timeoutMs: Number(env.WORKFLOW_AI_TIMEOUT_MS ?? 30000),
+      maxTokens: Number(env.WORKFLOW_AI_MAX_TOKENS ?? 800),
+    },
+    lowModel: {
+      mode: lowModelMode,
+      baseUrl: env.WORKFLOW_LOW_MODEL_BASE_URL ?? ollamaBaseUrl,
+      model: env.WORKFLOW_LOW_MODEL ?? env.WORKFLOW_OLLAMA_MODEL ?? "llama3.1",
+      apiKey: env.WORKFLOW_LOW_MODEL_API_KEY ?? "",
+      command: env.WORKFLOW_LOW_MODEL_COMMAND ?? "",
+      hermesPath,
+      smallProvider: env.WORKFLOW_HERMES_SMALL_PROVIDER ?? "ollama-nemotron-3-super-cloud",
+      smallModel: env.WORKFLOW_HERMES_SMALL_MODEL ?? "nemotron-3-super:cloud",
+      fallbackProvider: env.WORKFLOW_HERMES_FALLBACK_PROVIDER ?? "github-copilot",
+      fallbackModel: env.WORKFLOW_HERMES_FALLBACK_MODEL ?? "gpt-5-mini",
+      delegateInDryRun: env.WORKFLOW_DELEGATE_IN_DRY_RUN === "1",
+      timeoutMs: Number(env.WORKFLOW_LOW_MODEL_TIMEOUT_MS ?? 20000),
+      maxTokens: Number(env.WORKFLOW_LOW_MODEL_MAX_TOKENS ?? 400),
+    },
+  };
+}
+
 async function loadSpec(specPath) {
   const raw = await readFile(specPath, "utf8");
   const spec = YAML.parse(raw);
@@ -56,6 +89,7 @@ function usage(specPath = DEFAULT_SPEC) {
     "Usage:",
     "  node workflow-runner.js list [--spec workflow.yaml]",
     "  node workflow-runner.js runners [--spec workflow.yaml]",
+    "  node workflow-runner.js adapters [--spec workflow.yaml]",
     "  node workflow-runner.js plan <workflow> --input key=value ...",
     "  node workflow-runner.js run <workflow> --input key=value ... [--dry-run] [--cwd path]",
     "  node workflow-runner.js validate [--spec workflow.yaml]",
@@ -63,6 +97,7 @@ function usage(specPath = DEFAULT_SPEC) {
     "Examples:",
     "  node workflow-runner.js list",
     "  node workflow-runner.js runners",
+    "  node workflow-runner.js adapters",
     "  node workflow-runner.js plan pr-review -i base_ref=main -i target_ref=HEAD",
     "  node workflow-runner.js run bug-scan -i symptom=\"Import repeats prompt\" --dry-run",
     "",
@@ -231,10 +266,24 @@ function summarizeIssue(context) {
   const labels = Array.isArray(issue.labels)
     ? issue.labels.map((label) => label.name).filter(Boolean)
     : [];
-  const body = `${issue.title ?? ""}\n${issue.body ?? ""}\n${context.focus ?? ""}`;
-  const words = [...new Set(body.match(/[A-Za-z0-9_\-/.#]+|[\u4e00-\u9fff]{2,}/g) ?? [])]
-    .filter((word) => String(word).length >= 2)
-    .slice(0, 12);
+  const body = (issue.body ?? "") + "\n" + (context.focus ?? "");
+
+  // Extract file paths from backtick-quoted patterns (e.g. `src/composables/useContextMenu.ts`)
+  const backtickPaths = [...body.matchAll(/`([^`]+\.[a-z]{2,4})`/gi)]
+    .map((m) => m[1].trim())
+    .filter((p) => /[/\\]/.test(p));
+
+  // Extract symbol names (camelCase / PascalCase)
+  const symbols = [...new Set(body.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b|\b[a-z]+(?:[A-Z][a-z]+)+\b/g) ?? [])]
+    .filter((s) => s.length > 3 && !/^(http|https|www)$/i.test(s));
+
+  const candidate_symbols = [...new Set([...backtickPaths, ...symbols])].slice(0, 10);
+  const keywordTerms = [
+    ...symbols.slice(0, 5),
+    ...backtickPaths.map((p) => p.split(/[/\\]/).pop()?.replace(/\.[^.]+$/, "")).filter(Boolean),
+  ];
+  const issue_keywords = keywordTerms.length > 0 ? [...new Set(keywordTerms)].map(escapeRegex).join("|") : ".";
+
   return {
     plain_language_goal: issue.title ?? context.focus ?? "Issue goal requires adapter review",
     acceptance_checks: [
@@ -242,9 +291,9 @@ function summarizeIssue(context) {
       "project verification commands passed",
       "issue closeout completed when pushed",
     ],
-    candidate_symbols: words.filter((word) => /[_./]|source|item|api|db/i.test(word)).slice(0, 8),
+    candidate_symbols,
     labels,
-    issue_keywords: words.length > 0 ? words.map(escapeRegex).join("|") : ".",
+    issue_keywords,
   };
 }
 
@@ -284,6 +333,101 @@ function buildPrompt(workflowName, step, context) {
   ].join("\n");
 }
 
+function parseAdapterContent(content, step) {
+  const text = String(content ?? "").trim();
+  if (!text) return { status: "empty_ai_response" };
+
+  const jsonText = text.match(/```json\s*([\s\S]*?)```/i)?.[1]?.trim() ?? text;
+  if (step.output_schema?.type === "object") {
+    try {
+      return JSON.parse(jsonText);
+    } catch {
+      return { status: "unparseable_json", raw: text };
+    }
+  }
+  return { status: "ok", markdown: text };
+}
+
+async function callChatCompletions({ baseUrl, model, apiKey, timeoutMs = 30000, maxTokens = 800 }, messages) {
+  if (!model) throw new Error("AI adapter requires WORKFLOW_AI_MODEL or WORKFLOW_LOW_MODEL");
+  if (typeof fetch !== "function") throw new Error("This Node runtime does not provide fetch()");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  let body;
+  try {
+    response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0,
+        max_tokens: maxTokens,
+        stream: false,
+      }),
+    });
+    body = await response.text();
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(`chat completions timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!response.ok) {
+    throw new Error(`chat completions failed (${response.status}): ${body}`);
+  }
+  const parsed = JSON.parse(body);
+  return parsed.choices?.[0]?.message?.content ?? "";
+}
+
+async function runAiStep(workflowName, step, context, runDir, config) {
+  const prompt = buildPrompt(workflowName, step, context);
+  const promptPath = path.join(runDir, `${step.id}.prompt.md`);
+  await writeFile(promptPath, prompt, "utf8");
+
+  if (config.ai.adapter === "placeholder") {
+    return {
+      status: "prompt-generated",
+      promptPath,
+      output: aiPlaceholder(step, context),
+    };
+  }
+
+  if (!["openai-compatible", "ollama"].includes(config.ai.adapter)) {
+    return {
+      status: "ai-adapter-error",
+      promptPath,
+      output: { status: "unsupported_ai_adapter", adapter: config.ai.adapter },
+    };
+  }
+
+  try {
+    const content = await callChatCompletions(config.ai, [
+      {
+        role: "system",
+        content: "You are an adapter for a portable engineering workflow. Use only the provided context and return the requested structure.",
+      },
+      { role: "user", content: prompt },
+    ]);
+    const output = parseAdapterContent(content, step);
+    return { status: "ai-completed", promptPath, output, rawContent: content };
+  } catch (error) {
+    return {
+      status: "ai-adapter-error",
+      promptPath,
+      output: { status: "ai_adapter_error", message: error.message },
+    };
+  }
+}
+
 async function runShell(command, cwd) {
   return new Promise((resolve) => {
     exec(command, { cwd, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
@@ -297,14 +441,142 @@ async function runShell(command, cwd) {
   });
 }
 
+async function runExecutable(file, args, cwd) {
+  return new Promise((resolve) => {
+    execFile(file, args, { cwd, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
+      resolve({
+        command: [file, ...args].join(" "),
+        exitCode: error?.code ?? 0,
+        stdout,
+        stderr,
+      });
+    });
+  });
+}
+
+async function writeDelegationPacket(runDir, step, packet) {
+  const packetPath = path.join(runDir, `${step.id}.low-model.packet.json`);
+  await writeFile(packetPath, `${JSON.stringify(packet, null, 2)}\n`, "utf8");
+  return packetPath;
+}
+
+async function runLowModelDelegation(packet, packetPath, config, cwd, dryRun = false) {
+  if (!packet.task_class || packet.delegate !== "allowed") {
+    return { status: "not-delegable" };
+  }
+
+  if (config.lowModel.mode === "off") {
+    return { status: "disabled" };
+  }
+
+  if (config.lowModel.mode === "record") {
+    return { status: "packet-recorded", packetPath };
+  }
+
+  if (dryRun && !config.lowModel.delegateInDryRun) {
+    return { status: "packet-recorded-dry-run", packetPath };
+  }
+
+  if (config.lowModel.mode === "command") {
+    if (!config.lowModel.command) {
+      return { status: "low-model-command-missing", packetPath };
+    }
+    const command = config.lowModel.command.includes("{packet}")
+      ? config.lowModel.command.replaceAll("{packet}", `"${packetPath}"`)
+      : `${config.lowModel.command} "${packetPath}"`;
+    const result = await runShell(command, cwd);
+    return { status: result.exitCode === 0 ? "delegated-command-completed" : "delegated-command-failed", packetPath, result };
+  }
+
+  if (config.lowModel.mode === "hermes") {
+    const ollamaProbe = await runShell("ollama --version", cwd);
+    const useSmall = ollamaProbe.exitCode === 0;
+    const provider = useSmall ? config.lowModel.smallProvider : config.lowModel.fallbackProvider;
+    const model = useSmall ? config.lowModel.smallModel : config.lowModel.fallbackModel;
+    const hermes = existsSync(config.lowModel.hermesPath) ? config.lowModel.hermesPath : "hermes";
+    const result = await runExecutable(
+      hermes,
+      ["--provider", provider, "--model", model, "-z", JSON.stringify(packet, null, 2)],
+      cwd,
+    );
+    return {
+      status: result.exitCode === 0 ? "delegated-hermes-completed" : "delegated-hermes-failed",
+      runner: useSmall ? "local-small-worker" : "remote-general-worker",
+      provider,
+      model,
+      packetPath,
+      result,
+    };
+  }
+
+  if (config.lowModel.mode === "ollama-review") {
+    try {
+      const content = await callChatCompletions(
+        {
+          baseUrl: config.lowModel.baseUrl,
+          model: config.lowModel.model,
+          apiKey: config.lowModel.apiKey,
+        },
+        [
+          {
+            role: "system",
+            content: [
+              "You are a low-judgment workflow worker.",
+              "Do not choose architecture, root cause, or new requirements.",
+              "Review the exact task packet and return compact JSON.",
+            ].join(" "),
+          },
+          {
+            role: "user",
+            content: JSON.stringify(packet, null, 2),
+          },
+        ],
+      );
+      return { status: "low-model-reviewed", packetPath, output: parseAdapterContent(content, { output_schema: { type: "object" } }) };
+    } catch (error) {
+      return { status: "low-model-review-error", packetPath, message: error.message };
+    }
+  }
+
+  return { status: "unsupported-low-model-mode", mode: config.lowModel.mode, packetPath };
+}
+
+function buildShellDelegationPacket(workflowName, step, renderedCommands, context) {
+  const inferredTaskClass = inferTaskClass(step);
+  return {
+    workflow: workflowName,
+    step: step.id,
+    type: step.type,
+    task_class: inferredTaskClass,
+    delegate: step.delegate ?? "not-delegable",
+    commands: renderedCommands,
+    constraints: [
+      "Run or review only the exact command(s) supplied.",
+      "Do not infer root cause.",
+      "Do not edit files.",
+      "Do not invent follow-up tasks.",
+    ],
+    context_keys: Object.keys(context).sort(),
+  };
+}
+
+function inferTaskClass(step) {
+  if (step.task_class) return step.task_class;
+  if (step.command_ref && /search|rg|grep/i.test(step.command_ref)) return "search_exact";
+  if (step.command_ref && /status|diff|changed|commit|log/i.test(step.command_ref)) return "diff_summary";
+  if (step.delegate === "allowed") return "shell_exact";
+  return null;
+}
+
 async function runWorkflow(spec, workflowName, options) {
   const workflow = spec.workflows[workflowName];
   if (!workflow) throw new Error(`Unknown workflow: ${workflowName}`);
   validateInputs(workflowName, workflow, options.inputs);
 
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
-  const runDir = path.join(options.cwd, ".workflow-runs", `${workflowName}-${runId}`);
+  const runDir = path.join(__dirname, ".workflow-runs", `${workflowName}-${runId}`);
   await mkdir(runDir, { recursive: true });
+  const config = adapterConfig();
 
   const context = {
     ...options.inputs,
@@ -321,9 +593,15 @@ async function runWorkflow(spec, workflowName, options) {
 
     if (step.type === "shell") {
       const commands = step.commands ?? [commandForStep(workflow, step, context)];
+      const renderedCommands = commands.filter(Boolean).map((command) => interpolate(command, context));
+      let delegation = null;
+      if (step.delegate === "allowed" || step.task_class) {
+        const packet = buildShellDelegationPacket(workflowName, step, renderedCommands, context);
+        const packetPath = await writeDelegationPacket(runDir, step, packet);
+        delegation = await runLowModelDelegation(packet, packetPath, config, options.cwd, options.dryRun);
+      }
       const results = [];
-      for (const command of commands.filter(Boolean)) {
-        const rendered = interpolate(command, context);
+      for (const rendered of renderedCommands) {
         const result = options.dryRun
           ? { command: rendered, exitCode: null, stdout: "", stderr: "", dryRun: true }
           : await runShell(rendered, options.cwd);
@@ -331,18 +609,15 @@ async function runWorkflow(spec, workflowName, options) {
       }
       const value = results.length === 1 ? `${results[0].stdout}${results[0].stderr}` : results;
       context[outputKey(step)] = value;
-      stepResults.push({ id: step.id, type: step.type, status: "completed", results });
+      stepResults.push({ id: step.id, type: step.type, status: "completed", delegation, results });
       continue;
     }
 
     if (step.type === "ai") {
-      const prompt = buildPrompt(workflowName, step, context);
-      const promptPath = path.join(runDir, `${step.id}.prompt.md`);
-      await writeFile(promptPath, prompt, "utf8");
-      const value = aiPlaceholder(step, context);
-      context[outputKey(step)] = value;
-      context[step.id] = value;
-      stepResults.push({ id: step.id, type: step.type, status: "prompt-generated", promptPath, output: value });
+      const result = await runAiStep(workflowName, step, context, runDir, config);
+      context[outputKey(step)] = result.output;
+      context[step.id] = result.output;
+      stepResults.push({ id: step.id, type: step.type, status: result.status, promptPath: result.promptPath, output: result.output });
       continue;
     }
 
@@ -370,7 +645,7 @@ async function runWorkflow(spec, workflowName, options) {
     stepResults.push({ id: step.id, type: step.type, status: "manual-adapter-required" });
   }
 
-  const report = { workflow: workflowName, runDir, dryRun: options.dryRun, stepResults, context };
+  const report = { workflow: workflowName, runDir, dryRun: options.dryRun, adapters: config, stepResults, context };
   const reportPath = path.join(runDir, "run-report.json");
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   return { ...report, reportPath };
@@ -420,6 +695,15 @@ async function printRunners(spec, cwd) {
   }
 }
 
+function printAdapters() {
+  const config = adapterConfig();
+  const redacted = {
+    ai: { ...config.ai, apiKey: config.ai.apiKey ? "<set>" : "" },
+    lowModel: { ...config.lowModel, apiKey: config.lowModel.apiKey ? "<set>" : "" },
+  };
+  console.log(JSON.stringify(redacted, null, 2));
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const spec = await loadSpec(options.spec);
@@ -443,6 +727,11 @@ async function main() {
 
   if (options.command === "runners") {
     await printRunners(spec, options.cwd);
+    return;
+  }
+
+  if (options.command === "adapters") {
+    printAdapters();
     return;
   }
 
