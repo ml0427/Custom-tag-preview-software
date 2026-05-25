@@ -6,7 +6,7 @@
   "scripts": {
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "dev": "vite",
+    "dev": "vite --host 127.0.0.1 --strictPort",
     "prebuild": "node scripts/stamp-build.cjs",
     "build": "vite build",
     "test": "vitest run",

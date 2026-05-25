@@ -5,14 +5,14 @@
   "identifier": "com.comic.manager.software",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://127.0.0.1:5173",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
       {
-        "title": "Custom Tag Preview v0.111 · 2026-05-24 23:30",
+        "title": "Custom Tag Preview v0.112 · 2026-05-25 10:04",
         "width": 800,
         "height": 600,
         "resizable": true,
@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: https://tauri.localhost http://localhost:5173 ws://localhost:5173 http://ipc.localhost http://comic-cache.localhost; img-src 'self' comic-cache: http://comic-cache.localhost data: blob: https://tauri.localhost; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' http://localhost:5173 'unsafe-inline'"
+      "csp": "default-src 'self' tauri: https://tauri.localhost http://localhost:5173 ws://localhost:5173 http://127.0.0.1:5173 ws://127.0.0.1:5173 http://ipc.localhost http://comic-cache.localhost; img-src 'self' comic-cache: http://comic-cache.localhost data: blob: https://tauri.localhost; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' http://localhost:5173 http://127.0.0.1:5173 'unsafe-inline'"
     }
   },
   "bundle": {
