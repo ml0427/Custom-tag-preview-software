@@ -71,7 +71,7 @@ const onContextMenu = (e: MouseEvent) => {
       class="node-row"
       :class="{ active: selectedPath === path, root: isRoot }"
       @click="handleClick"
-      @contextmenu.prevent="onContextMenu"
+      @contextmenu.prevent.stop="onContextMenu"
     >
       <!-- Chevron arrow -->
       <span
