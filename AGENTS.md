@@ -72,3 +72,14 @@ This project is indexed by GitNexus as **Custom-tag-preview-software** (1713 sym
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## AI 工作流
+
+- 專案內有 `.workflow/workflow-runner.js` 工作流引擎，定義三條工作流：`github-issue-fix` / `pr-review` / `bug-scan`
+- 處理 issue/PR/bug 時，執行 `node .workflow/workflow-runner.js run <workflow> -i key=value ...`
+- Runner 自動處理 shell 步驟和低階模型委派（小G/小N），AI 步驟由 Lead agent 接手。不要繞過 runner 手動執行。
+
+## Rust 踩雷
+
+- `fs::write()` 不會自動建父目錄，寫入前必須 `fs::create_dir_all()` 確保目錄存在
+- 在 Tauri command 中寫入 `app_data_dir/thumb_cache/` 等路徑時特別容易踩雷
