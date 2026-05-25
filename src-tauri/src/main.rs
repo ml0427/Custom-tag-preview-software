@@ -123,6 +123,7 @@ fn main() {
             commands::get_tag_counts,
             commands::create_tag,
             commands::delete_tag,
+            commands::delete_empty_tags,
             commands::rename_tag,
             commands::set_tag_color,
             commands::merge_tags,

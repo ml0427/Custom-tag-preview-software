@@ -66,6 +66,11 @@ pub async fn delete_tag(id: i64, pool: State<'_, SqlitePool>) -> Result<(), Stri
 }
 
 #[tauri::command]
+pub async fn delete_empty_tags(pool: State<'_, SqlitePool>) -> Result<u64, String> {
+    db::delete_empty_tags(&pool).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn rename_tag(id: i64, name: String, pool: State<'_, SqlitePool>) -> Result<Tag, String> {
     sqlx::query("UPDATE tags SET name = ? WHERE id = ?")
         .bind(&name)

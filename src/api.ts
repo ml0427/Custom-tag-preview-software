@@ -205,6 +205,10 @@ export const api = {
         await invoke('delete_tag', { id });
     },
 
+    async deleteEmptyTags(): Promise<number> {
+        return await invoke<number>('delete_empty_tags');
+    },
+
     async renameTag(id: number, name: string): Promise<Tag> {
         return await invoke<Tag>('rename_tag', { id, name });
     },

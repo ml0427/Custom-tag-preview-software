@@ -240,6 +240,15 @@ pub async fn create_tag(pool: &SqlitePool, name: &str) -> Result<Tag> {
     Ok(Tag { id, name: name.to_string(), color: None })
 }
 
+pub async fn delete_empty_tags(pool: &SqlitePool) -> Result<u64> {
+    let result = sqlx::query(
+        "DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM item_tags)"
+    )
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 pub async fn get_sources(pool: &SqlitePool) -> Result<Vec<Source>> {
     let sources = sqlx::query_as::<_, Source>(
         "SELECT id, path, last_sync FROM sources ORDER BY id ASC"
