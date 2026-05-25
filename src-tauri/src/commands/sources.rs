@@ -38,7 +38,7 @@ pub async fn add_source(
     let source = db::add_source(&pool, &path)
         .await
         .map_err(|e| e.to_string())?;
-    let imported_count = import_child_folders(&pool, &path).await?;
+    let imported_count = import_source_tree(&pool, &path).await?;
     Ok(AddSourceResult {
         source,
         imported_count,
@@ -69,15 +69,13 @@ pub async fn remove_source(
     Ok(RemoveSourceResult { removed_count })
 }
 
-async fn import_child_folders(pool: &SqlitePool, root_path: &str) -> Result<usize, String> {
+async fn import_source_tree(pool: &SqlitePool, root_path: &str) -> Result<usize, String> {
     let import_at = chrono::Local::now().to_rfc3339();
     let mut imported_count = 0usize;
 
     for entry in WalkDir::new(root_path).min_depth(1).into_iter() {
         let entry = entry.map_err(|e| e.to_string())?;
-        if !entry.file_type().is_dir() {
-            continue;
-        }
+        let is_dir = entry.file_type().is_dir();
         let path = entry.path().to_string_lossy().to_string();
         let name = entry
             .path()
@@ -90,13 +88,19 @@ async fn import_child_folders(pool: &SqlitePool, root_path: &str) -> Result<usiz
             .ok()
             .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
             .map(|duration| duration.as_secs() as i64);
+        let file_size = if is_dir {
+            None
+        } else {
+            Some(metadata.len() as i64)
+        };
+        let item_type = if is_dir { "folder" } else { "file" };
 
         let inserted_id = db::insert_item(
             pool,
             &path,
-            "folder",
+            item_type,
             &name,
-            None,
+            file_size,
             modified_at,
             &import_at,
             None,
@@ -114,4 +118,94 @@ async fn import_child_folders(pool: &SqlitePool, root_path: &str) -> Result<usiz
     }
 
     Ok(imported_count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+    use sqlx::Row;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn import_source_tree_imports_child_folders_and_files() {
+        let db_dir = tempdir().unwrap();
+        let source_dir = tempdir().unwrap();
+        let pool = db::init_db(db_dir.path()).await.unwrap();
+
+        let nested_dir = source_dir.path().join("Series").join("Volume 1");
+        fs::create_dir_all(&nested_dir).unwrap();
+        fs::write(source_dir.path().join("cover.jpg"), b"cover").unwrap();
+        fs::write(nested_dir.join("page01.jpg"), b"page").unwrap();
+
+        let imported = import_source_tree(&pool, source_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+        let rows = sqlx::query("SELECT path, item_type, file_size FROM items ORDER BY path ASC")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        let folder_count = rows
+            .iter()
+            .filter(|row| row.get::<String, _>("item_type") == "folder")
+            .count();
+        let file_count = rows
+            .iter()
+            .filter(|row| row.get::<String, _>("item_type") == "file")
+            .count();
+
+        assert_eq!(imported, 4);
+        assert_eq!(rows.len(), 4);
+        assert_eq!(folder_count, 2);
+        assert_eq!(file_count, 2);
+        assert!(rows
+            .iter()
+            .any(|row| row.get::<String, _>("path").ends_with("cover.jpg")
+                && row.get::<i64, _>("file_size") == 5));
+        assert!(!rows
+            .iter()
+            .any(|row| row.get::<String, _>("path") == source_dir.path().to_string_lossy()));
+    }
+
+    #[tokio::test]
+    async fn import_source_tree_marks_existing_items_seen_without_overwriting_metadata() {
+        let db_dir = tempdir().unwrap();
+        let source_dir = tempdir().unwrap();
+        let pool = db::init_db(db_dir.path()).await.unwrap();
+        let file_path = source_dir.path().join("cover.jpg");
+        fs::write(&file_path, b"cover").unwrap();
+        let file_path = file_path.to_string_lossy().to_string();
+
+        db::insert_item(
+            &pool,
+            &file_path,
+            "file",
+            "Custom Cover",
+            Some(999),
+            Some(123),
+            "2026-05-24T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+
+        let imported = import_source_tree(&pool, source_dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+        let row = sqlx::query(
+            "SELECT name, file_size, exists_on_disk, missing_since, last_seen_at FROM items WHERE path = ?",
+        )
+        .bind(&file_path)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(imported, 0);
+        assert_eq!(row.get::<String, _>("name"), "Custom Cover");
+        assert_eq!(row.get::<i64, _>("file_size"), 999);
+        assert_eq!(row.get::<i64, _>("exists_on_disk"), 1);
+        assert_eq!(row.get::<Option<String>, _>("missing_since"), None);
+        assert!(row.get::<String, _>("last_seen_at").contains('T'));
+    }
 }

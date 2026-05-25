@@ -30,10 +30,10 @@ export function useSources(options: UseSourcesOptions) {
     const path = await openDialog({ directory: true, multiple: false, title: '新增工作目錄' });
     if (typeof path !== 'string') return;
     isSourceBusy.value = true;
-    sourceProgressLabel.value = '正在掃描子目錄並建立追蹤紀錄...';
+    sourceProgressLabel.value = '正在掃描檔案與子目錄並建立追蹤紀錄...';
     try {
       const result = await api.addSource(path);
-      options.showToast(`已新增來源，匯入 ${result.importedCount} 個子目錄`, 'success');
+      options.showToast(`已新增來源，匯入 ${result.importedCount} 個項目`, 'success');
       await loadSources();
     } catch (e) {
       options.showToast('新增來源失敗: ' + String(e), 'error');
