@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { api, type Tag } from '../api';
+import { type Tag } from '../api';
 import { useToast } from '../composables/useToast';
 import { useTags } from '../composables/useTags';
 import TagItem from './TagItem.vue';
@@ -9,15 +9,19 @@ import { normalizeHex } from '../utils/color';
 const props = defineProps<{ selectedTagId: number | null }>();
 const emit = defineEmits<{ (e: 'select', tagId: number | null): void }>();
 
-const { show: showToast, confirm: confirmDialog } = useToast();
+const { confirm: confirmDialog } = useToast();
 const {
-  tags, tagCounts, searchQuery, filteredTags,
+  tags, tagCounts, searchQuery, filteredTags, hideEmptyTags,
   loadTags, createTag, renameTag, deleteTag, setTagColor
 } = useTags();
 
 const colorPickerTagId = ref<number | null>(null);
 const isAddingTag = ref(false);
 const newTagName = ref('');
+const showTagMenu = ref(false);
+
+const toggleTagMenu = () => { showTagMenu.value = !showTagMenu.value; };
+const closeTagMenu = () => { showTagMenu.value = false; };
 
 const toggleColorPicker = (tagId: number) => {
   colorPickerTagId.value = colorPickerTagId.value === tagId ? null : tagId;
@@ -60,6 +64,9 @@ const handleGlobalClick = (e: MouseEvent) => {
   if (!(e.target as HTMLElement).closest('.color-picker') && !(e.target as HTMLElement).closest('.tag-dot')) {
     closeColorPicker();
   }
+  if (!(e.target as HTMLElement).closest('.tag-menu-wrap')) {
+    closeTagMenu();
+  }
 };
 
 onMounted(() => {
@@ -84,6 +91,15 @@ onUnmounted(() => {
         class="search-input"
         placeholder="搜尋標籤..."
       />
+      <div class="tag-menu-wrap">
+        <button class="tag-menu-btn" @click.stop="toggleTagMenu" title="標籤選項">⋮</button>
+        <div v-if="showTagMenu" class="tag-menu-dropdown" @click.stop>
+          <label class="tag-menu-item">
+            <input type="checkbox" v-model="hideEmptyTags" />
+            <span>隱藏沒有資料的標籤</span>
+          </label>
+        </div>
+      </div>
     </div>
 
     <div v-if="selectedTagId != null" class="selected-chips">
@@ -158,8 +174,66 @@ onUnmounted(() => {
 }
 
 .search-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 8px 12px 4px;
   flex-shrink: 0;
+}
+
+.tag-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tag-menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.tag-menu-btn:hover {
+  background: var(--bg-overlay-soft);
+  color: var(--text-primary);
+}
+
+.tag-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-popover);
+  padding: 4px;
+  z-index: 100;
+  min-width: 200px;
+}
+
+.tag-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  border-radius: 4px;
+  transition: background 0.15s;
+  user-select: none;
+}
+.tag-menu-item:hover {
+  background: var(--bg-overlay-soft);
+}
+.tag-menu-item input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .selected-chips {

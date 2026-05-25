@@ -94,7 +94,7 @@ describe('useGalleryData', () => {
 
     const gallery = useGalleryData(
       () => 'C:/Library',
-      () => [7],
+      () => 7,
       () => 'tag',
       () => 'name',
       () => 'asc',
@@ -163,7 +163,7 @@ describe('useGalleryData', () => {
 
     const gallery = useGalleryData(
       () => 'C:/Library',
-      () => [7],
+      () => 7,
       () => '',
       () => 'date',
       () => 'asc',

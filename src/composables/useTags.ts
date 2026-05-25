@@ -1,6 +1,8 @@
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { api, type Tag } from '../api';
 import { useToast } from './useToast';
+
+const STORAGE_KEY = 'ctp_hide_empty_tags';
 
 export function useTags() {
   const { show: showToast } = useToast();
@@ -8,6 +10,13 @@ export function useTags() {
   const tagCounts = ref<Map<number, number>>(new Map());
   const searchQuery = ref('');
   const isLoading = ref(false);
+
+  // 從 localStorage 讀取偏好，預設關閉
+  const hideEmptyTags = ref(localStorage.getItem(STORAGE_KEY) === 'true');
+
+  watch(hideEmptyTags, (val) => {
+    localStorage.setItem(STORAGE_KEY, String(val));
+  });
 
   const loadTags = async () => {
     isLoading.value = true;
@@ -24,8 +33,10 @@ export function useTags() {
 
   const filteredTags = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
-    if (!q) return tags.value;
-    return tags.value.filter(t => t.name.toLowerCase().includes(q));
+    let result = tags.value;
+    if (q) result = result.filter(t => t.name.toLowerCase().includes(q));
+    if (hideEmptyTags.value) result = result.filter(t => (tagCounts.value.get(t.id) ?? 0) > 0);
+    return result;
   });
 
   const createTag = async (name: string) => {
@@ -72,6 +83,7 @@ export function useTags() {
     isLoading,
     filteredTags,
     loadTags,
+    hideEmptyTags,
     createTag,
     renameTag,
     deleteTag,
