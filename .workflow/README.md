@@ -126,7 +126,7 @@ node workflow-runner.js run pr-review --input base_ref=main --input target_ref=H
 node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software
 ```
 
-`pr-review` 與 `bug-scan` 的完成驗證只要求 `npm run build`。`github-issue-fix` 會把 `npm run build` 與 `npm run tauri dev` 都列入 verify step；如果 `tauri dev` 因 Windows 鎖檔或環境限制不能跑，應記錄為環境限制，不要直接當成程式錯誤。
+`pr-review`、`bug-scan` 與 `github-issue-fix` 的完成驗證只要求 `npm run build`。工作流 runner 不會啟動 `npm run tauri dev`。
 
 每次執行會在 `.workflow-runs/` 產生：
 

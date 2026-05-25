@@ -171,6 +171,16 @@ function evaluateWhenPart(part, context) {
     return Array.isArray(haystack) && haystack.includes(needle);
   }
 
+  match = part.match(/^(.+?)\s+is\s+(true|false)$/);
+  if (match) {
+    return Boolean(getPath(context, match[1].trim())) === (match[2] === "true");
+  }
+
+  match = part.match(/^(.+?)\s+is\s+(.+)$/);
+  if (match) {
+    return String(getPath(context, match[1].trim())) === match[2].trim();
+  }
+
   match = part.match(/^(.+?)\s*>=\s*(\d+)$/);
   if (match) {
     return Number(getPath(context, match[1].trim()) ?? 0) >= Number(match[2]);
@@ -221,7 +231,7 @@ function classifyChange(rawDiff = "", changedFiles = "") {
 function explainSymptom(inputs) {
   const symptom = inputs.symptom ?? "";
   const error = inputs.error_message ?? "";
-  const keywords = [...new Set(`${symptom} ${error}`.match(/[A-Za-z0-9_\-./]+/g) ?? [])].slice(0, 8);
+  const keywords = extractKeywordsFromParts([symptom, error], 12, 16);
   return {
     plain_language_meaning: error
       ? `The reported symptom is '${symptom}', with error '${error}'.`
@@ -266,26 +276,34 @@ function summarizeIssue(context) {
   const labels = Array.isArray(issue.labels)
     ? issue.labels.map((label) => label.name).filter(Boolean)
     : [];
-  const body = (issue.body ?? "") + "\n" + (context.focus ?? "");
+  const title = issue.title ?? context.focus ?? "";
+  const body = issue.body ?? "";
+  const focus = context.focus ?? "";
+  const searchableTextParts = [title, body, focus];
 
   // Extract file paths from backtick-quoted patterns (e.g. `src/composables/useContextMenu.ts`)
-  const backtickPaths = [...body.matchAll(/`([^`]+\.[a-z]{2,4})`/gi)]
+  const searchableText = searchableTextParts.filter(Boolean).join("\n");
+  const backtickPaths = [...searchableText.matchAll(/`([^`]+\.[a-z]{2,4})`/gi)]
     .map((m) => m[1].trim())
     .filter((p) => /[/\\]/.test(p));
 
   // Extract symbol names (camelCase / PascalCase)
-  const symbols = [...new Set(body.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b|\b[a-z]+(?:[A-Z][a-z]+)+\b/g) ?? [])]
+  const symbols = [...new Set(searchableText.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b|\b[a-z]+(?:[A-Z][a-z]+)+\b/g) ?? [])]
     .filter((s) => s.length > 3 && !/^(http|https|www)$/i.test(s));
 
   const candidate_symbols = [...new Set([...backtickPaths, ...symbols])].slice(0, 10);
-  const keywordTerms = [
+  const structuralTerms = [
     ...symbols.slice(0, 5),
     ...backtickPaths.map((p) => p.split(/[/\\]/).pop()?.replace(/\.[^.]+$/, "")).filter(Boolean),
   ];
-  const issue_keywords = keywordTerms.length > 0 ? [...new Set(keywordTerms)].map(escapeRegex).join("|") : ".";
+  const keywordTerms = uniqueByNormalized([
+    ...structuralTerms,
+    ...extractKeywordsFromParts(searchableTextParts, 18, 30),
+  ]);
+  const issue_keywords = keywordTerms.length > 0 ? keywordTerms.map(escapeRegex).join("|") : ".";
 
   return {
-    plain_language_goal: issue.title ?? context.focus ?? "Issue goal requires adapter review",
+    plain_language_goal: title || "Issue goal requires adapter review",
     acceptance_checks: [
       "issue-relevant behavior changed",
       "project verification commands passed",
@@ -652,8 +670,57 @@ async function runWorkflow(spec, workflowName, options) {
 }
 
 function keywordRegex(text = "") {
-  const words = [...new Set(String(text).match(/[A-Za-z0-9_\-./]+/g) ?? [])].slice(0, 8);
+  const words = extractKeywords(text, 16);
   return words.length > 0 ? words.map(escapeRegex).join("|") : ".";
+}
+
+function extractKeywordsFromParts(parts = [], perPartLimit = 18, totalLimit = 30) {
+  return uniqueByNormalized(parts.flatMap((part) => extractKeywords(part ?? "", perPartLimit))).slice(0, totalLimit);
+}
+
+function extractKeywords(text = "", limit = 24) {
+  const raw = String(text).normalize("NFKC");
+  const tokens = [];
+
+  for (const match of raw.matchAll(/[A-Za-z0-9_\-./]{2,}/g)) {
+    tokens.push(match[0]);
+  }
+
+  for (const match of raw.matchAll(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu)) {
+    tokens.push(...cjkKeywordCandidates(match[0]).slice(0, 6));
+  }
+
+  return uniqueByNormalized(tokens)
+    .filter((token) => token.length >= 2)
+    .slice(0, limit);
+}
+
+function cjkKeywordCandidates(value) {
+  if (value.length <= 4) return [value];
+
+  const candidates = [];
+  if (value.length <= 12) candidates.push(value);
+
+  const maxGram = Math.min(4, value.length);
+  for (let size = maxGram; size >= 2; size -= 1) {
+    for (let index = 0; index <= value.length - size; index += 1) {
+      candidates.push(value.slice(index, index + size));
+    }
+  }
+  return candidates;
+}
+
+function uniqueByNormalized(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    const token = String(value).trim();
+    const key = token.toLocaleLowerCase();
+    if (!token || seen.has(key)) continue;
+    seen.add(key);
+    result.push(token);
+  }
+  return result;
 }
 
 function escapeRegex(value) {
