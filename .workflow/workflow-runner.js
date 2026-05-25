@@ -660,6 +660,17 @@ async function runWorkflow(spec, workflowName, options) {
       message: `${step.type} requires a host-specific adapter.`,
       action: step.action ?? step.strategy ?? step.constraints ?? null,
     };
+    if (step.type === "code-edit" || step.blocks_downstream === true) {
+      const blocked = {
+        step: step.id,
+        type: step.type,
+        reason: "manual step must be completed before downstream steps run",
+        next_action: "Complete this step in the lead agent, then run verification manually or rerun the workflow after recording its output.",
+      };
+      context.workflow_blocked = blocked;
+      stepResults.push({ id: step.id, type: step.type, status: "manual-blocked", blocked });
+      break;
+    }
     stepResults.push({ id: step.id, type: step.type, status: "manual-adapter-required" });
   }
 

@@ -128,6 +128,14 @@ node workflow-runner.js run github-issue-fix --input issue_number=63 --input rep
 
 `pr-review`、`bug-scan` 與 `github-issue-fix` 的完成驗證只要求 `npm run build`。工作流 runner 不會啟動 `npm run tauri dev`。
 
+`code-edit` 這類 manual step 會阻斷後續步驟。也就是說 `github-issue-fix` 跑到 `fix` 時會停下來，不會在程式碼尚未修改前自動跑 `verify`。完成修正後，由 lead agent 手動執行 `npm run build`，或在記錄 patch output 後再繼續工作流。
+
+Closeout 注意事項：
+
+- `npm run build` 會透過 `scripts/stamp-build.cjs` 更新 `index.html` 與 `src-tauri/tauri.conf.json` 的時間戳；commit 前要把這兩個 stamp 變更一起納入，或明確清乾淨。
+- patch 工具若在 declaration file 上報 TS18028 private identifier，但 `npm run build`、`tsc --noEmit` 或 `vue-tsc --noEmit` 乾淨，視為 patch 工具誤報。
+- 不自動 force push；遇到 branch protection 擋下 amend 後推送時，要交給 lead/user 決定。
+
 每次執行會在 `.workflow-runs/` 產生：
 
 - `*.prompt.md`：交給任意 AI adapter 的步驟提示

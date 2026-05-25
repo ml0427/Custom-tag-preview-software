@@ -164,7 +164,7 @@ workflows:
         - "git status before editing"
         - "architecture or trap memory search"
         - "impact analysis for symbols before editing"
-        - "build/test/dev verification output"
+        - "build verification output"
         - "detect_changes output before commit"
       commands:
         issue_json: "gh issue view {issue_number} --repo {repo} --json number,title,body,labels,comments,state,url"
@@ -244,11 +244,13 @@ workflows:
 
       - id: "fix"
         type: "code-edit"
+        blocks_downstream: true
         constraints:
           - "lead agent owns code edits"
           - "minimal scoped change"
           - "preserve unrelated user changes"
           - "increment version manually when code changes"
+          - "do not allow runner to continue into verify before this manual edit is actually completed"
         output: "patch_summary"
 
       - id: "verify"
@@ -279,16 +281,21 @@ workflows:
           - "version incremented"
           - "AI note written"
           - "vector memory updated when durable"
+          - "npm run build stamp changes in index.html and src-tauri/tauri.conf.json are either included in the closeout commit or intentionally reverted before commit"
+          - "TS18028 from patch tooling against declaration files is treated as a patch-tool false positive only when npm run build, tsc --noEmit, or vue-tsc --noEmit are clean"
           - "commit message matches issue closeout rules"
           - "issue is actually closed after push"
+          - "no force push; branch protection failures require lead/user approval instead of automatic retry"
         output_format: "markdown"
 
     gates:
       fail_if:
         - "impact-before-edit did not run before fix"
+        - "verify ran before manual fix completed"
         - "npm run build exits non-zero"
         - "code changed without version increment"
         - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
+        - "closeout attempts force push"
       warn_if:
         - "low-model runner is unavailable and delegation was skipped"
 
@@ -611,7 +618,11 @@ closeout_policy:
       - "run npm run build"
       - "append factual implementation note to C:\\AI紀錄\\AI筆記.txt"
       - "upsert durable architecture/trap/design note to vector memory when applicable"
+      - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
     forbidden:
       - "write task TODOs to C:\\AI紀錄\\AI筆記.txt"
       - "store transient task state in vector memory"
+      - "force push without explicit lead/user approval"
+  known_tool_limitations:
+    - "Patch tooling can report TS18028 private identifier errors from declaration files even when npm run build, tsc --noEmit, or vue-tsc --noEmit are clean; treat this as a patch-tool false positive only after project verification is clean."
   report_language: "Traditional Chinese"
