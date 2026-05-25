@@ -196,7 +196,7 @@ const themes: { id: ThemeId; label: string; color: string }[] = [
 }
 
 .panel-header {
-  padding: 12px 12px 10px;
+  padding: 20px 32px 12px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
@@ -211,11 +211,12 @@ const themes: { id: ThemeId; label: string; color: string }[] = [
 }
 
 .panel-body {
-  padding: 14px 12px;
+  padding: 24px 32px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
   overflow-y: auto;
+  max-width: 640px;
 }
 
 .section {

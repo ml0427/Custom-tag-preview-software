@@ -140,7 +140,7 @@ onUnmounted(() => {
     <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
-      <div v-if="activePanel && activePanel !== 'file-health'" class="side-panel glass-panel">
+      <div v-if="activePanel && activePanel !== 'file-health' && activePanel !== 'settings'" class="side-panel glass-panel">
         <TagSidebar
           v-if="activePanel === 'tags'"
           :selectedTagId="selectedTagId"
@@ -152,15 +152,15 @@ onUnmounted(() => {
           @select="(path) => { selectedSourcePath = path; }"
           @folderCreated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); loadGlobalTags(); }"
         />
-        <SettingsPanel
-          v-else-if="activePanel === 'settings'"
-          @categorySaved="loadItemTypes()"
-        />
       </div>
     </transition>
 
     <main class="main-content">
       <FileHealthView v-if="activePanel === 'file-health'" :sourcePath="selectedSourcePath" />
+      <SettingsPanel
+        v-else-if="activePanel === 'settings'"
+        @categorySaved="loadItemTypes()"
+      />
       <template v-else>
         <ItemGallery
           v-show="activePanel === 'workspace' || (!activePanel && lastMainView === 'workspace')"
