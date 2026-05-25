@@ -22,6 +22,7 @@ const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
 const selectedCategoryItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
+const tagSidebarRefreshKey = ref(0)
 const workspaceGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const tagGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const lastMainView = ref<'workspace' | 'tags'>('workspace')
@@ -75,6 +76,16 @@ const handleFileItemUpdated = async () => {
 
 const loadGlobalTags = async () => {
   allTags.value = await api.getTags()
+}
+
+const handleTagsChanged = async () => {
+  const tags = await api.getTags()
+  allTags.value = tags
+  if (selectedTagId.value != null && !tags.some(tag => tag.id === selectedTagId.value)) {
+    selectedTagId.value = null
+  }
+  tagSidebarRefreshKey.value += 1
+  tagGalleryRef.value?.refresh()
 }
 
 const { load: loadItemTypes } = useItemTypes()
@@ -143,6 +154,7 @@ onUnmounted(() => {
       <div v-if="activePanel && activePanel !== 'file-health' && activePanel !== 'settings'" class="side-panel glass-panel">
         <TagSidebar
           v-if="activePanel === 'tags'"
+          :key="tagSidebarRefreshKey"
           :selectedTagId="selectedTagId"
           @select="handleTagSelect"
         />
@@ -160,6 +172,7 @@ onUnmounted(() => {
       <SettingsPanel
         v-else-if="activePanel === 'settings'"
         @categorySaved="loadItemTypes()"
+        @tagsChanged="handleTagsChanged"
       />
       <template v-else>
         <ItemGallery

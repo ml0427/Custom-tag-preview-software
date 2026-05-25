@@ -8,6 +8,7 @@
     "tauri:build": "tauri build",
     "dev": "vite --host 127.0.0.1 --strictPort",
     "prebuild": "node scripts/stamp-build.cjs",
+    "stamp-build": "node scripts/stamp-build.cjs --force",
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",

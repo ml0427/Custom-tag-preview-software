@@ -8,7 +8,10 @@ import { useToast } from '../composables/useToast';
 import { useTags } from '../composables/useTags';
 import CategoryManageModal from './CategoryManageModal.vue';
 
-const emit = defineEmits<{ (e: 'categorySaved'): void }>();
+const emit = defineEmits<{
+  (e: 'categorySaved'): void;
+  (e: 'tagsChanged'): void;
+}>();
 
 const { load: loadItemTypes } = useItemTypes();
 const themeStore = useThemeStore();
@@ -26,6 +29,7 @@ const handleDeleteEmptyTags = async () => {
   try {
     const deleted = await api.deleteEmptyTags();
     await loadTags();
+    emit('tagsChanged');
     showToast(`已刪除 ${deleted} 個空標籤`, 'success');
   } catch (e) {
     showToast(`刪除失敗：${e}`, 'error');

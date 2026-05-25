@@ -112,10 +112,6 @@ onUnmounted(() => {
       </span>
     </div>
 
-    <div class="all-item" :class="{ active: selectedTagId == null }" @click="handleSelect(null)">
-      🌟 全部漫畫
-    </div>
-
     <ul class="tag-list" @click.stop>
       <TagItem
         v-for="tag in filteredTags"
@@ -279,26 +275,6 @@ onUnmounted(() => {
 
 .search-input::placeholder { color: var(--text-secondary); }
 .search-input:focus { border-color: var(--accent); }
-
-.all-item {
-  margin: 0 12px 6px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.all-item:hover { background: var(--bg-hover); }
-.all-item.active {
-  background: var(--accent-bg-strong);
-  color: var(--text-primary);
-  border-left: 3px solid var(--accent);
-  padding-left: 7px;
-}
 
 .tag-list {
   list-style: none;
