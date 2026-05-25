@@ -168,6 +168,9 @@ watch(() => props.items, items => {
   Array.from(cardElements.keys()).forEach(path => {
     if (!livePaths.has(path)) cardElements.delete(path);
   });
+  Object.keys(cardRefs.value).forEach(path => {
+    if (!livePaths.has(path)) delete cardRefs.value[path];
+  });
 
   thumbQueue.splice(0, thumbQueue.length);
   queuedThumbs.clear();
