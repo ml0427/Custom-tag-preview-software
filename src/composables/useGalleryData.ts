@@ -13,7 +13,7 @@ const formatLocalMinute = (timestampSeconds: number): string => {
 
 export function useGalleryData(
   sourcePath: () => string | null,
-  selectedTagIds: () => number[] | undefined,
+  selectedTagId: () => number | null | undefined,
   gallerySearch: () => string,
   sortBy: () => 'name' | 'size' | 'date',
   sortDir: () => 'asc' | 'desc'
@@ -29,14 +29,14 @@ export function useGalleryData(
   const EXTERNAL_CHANGE_PAGE_SIZE = 1000;
 
   const itemByPath = computed(() => {
-    const hasTagFilter = (selectedTagIds()?.length ?? 0) > 0;
+    const hasTagFilter = selectedTagId() != null;
     const dbItems = hasTagFilter ? itemsData.value : [...itemsData.value, ...externalChangeItemsData.value];
     return new Map(dbItems.map(i => [pathKey(i.path), i]));
   });
 
   const filteredFileItems = computed(() => {
-    const sTagIds = selectedTagIds();
-    const base: FileItem[] = (sTagIds?.length ?? 0) > 0
+    const sTagId = selectedTagId();
+    const base: FileItem[] = sTagId != null
       ? itemsData.value.map(item => {
         const ext = item.itemType === 'folder' ? '' : item.path.split('.').pop() || '';
         const mtime = item.fileModifiedAt ? formatLocalMinute(item.fileModifiedAt) : '';
@@ -86,8 +86,8 @@ export function useGalleryData(
   const loadItemsBackground = async (page = 0) => {
     try {
       const sPath = sourcePath();
-      const tagIds = selectedTagIds();
-      const sTagIds = tagIds?.length ? tagIds : undefined;
+      const tagId = selectedTagId();
+      const sTagIds = tagId != null ? [tagId] : undefined;
       const pageSize = TAG_PAGE_SIZE;
       
       const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sTagIds ? undefined : (sPath ?? undefined));
@@ -103,8 +103,8 @@ export function useGalleryData(
 
   const loadExternalChangeItems = async () => {
     const sPath = sourcePath();
-    const tagIds = selectedTagIds();
-    if ((tagIds?.length ?? 0) > 0 || !sPath) {
+    const tagId = selectedTagId();
+    if (tagId != null || !sPath) {
       externalChangeItemsData.value = [];
       return;
     }
@@ -122,9 +122,9 @@ export function useGalleryData(
   };
 
   const detectExternalChanges = () => {
-    const sTagIds = selectedTagIds();
+    const sTagId = selectedTagId();
     const path = sourcePath();
-    if ((sTagIds?.length ?? 0) > 0 || !path) {
+    if (sTagId != null || !path) {
       externalChanges.value = [];
       return;
     }

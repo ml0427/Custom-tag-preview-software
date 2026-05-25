@@ -16,7 +16,7 @@ import SettingsPanel from './components/SettingsPanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
 const activePanel = ref<string | null>('workspace')
-const selectedTagIds = ref<number[]>([])
+const selectedTagId = ref<number | null>(null)
 const selectedSourcePath = ref<string | null>(null)
 const selectedFileItem = ref<Item | null>(null)
 const selectedFolderItem = ref<Item | null>(null)
@@ -34,12 +34,12 @@ const handleActivitySelect = (id: string) => {
   }
 }
 
-const handleTagSelect = (tagIds: number[]) => {
-  selectedTagIds.value = tagIds
+const handleTagSelect = (tagId: number | null) => {
+  selectedTagId.value = tagId
 }
 
 const handleJumpToTag = (tagId: number) => {
-  selectedTagIds.value = [tagId]
+  selectedTagId.value = tagId
   activePanel.value = 'tags'
 }
 
@@ -143,7 +143,7 @@ onUnmounted(() => {
       <div v-if="activePanel && activePanel !== 'file-health'" class="side-panel glass-panel">
         <TagSidebar
           v-if="activePanel === 'tags'"
-          :selectedTagIds="selectedTagIds"
+          :selectedTagId="selectedTagId"
           @select="handleTagSelect"
         />
         <SourcePanel
@@ -179,7 +179,7 @@ onUnmounted(() => {
           ref="tagGalleryRef"
           viewStateKey="tags"
           :sourcePath="null"
-          :selectedTagIds="selectedTagIds"
+          :selectedTagId="selectedTagId"
           @showDetail="handleFileItemSelect"
           @showFolderDetail="handleFolderItemSelect"
           @showCategoryEditor="handleCategoryItemSelect"

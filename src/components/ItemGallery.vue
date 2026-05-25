@@ -16,7 +16,7 @@ import { pathKey } from '../utils/pathKey';
 
 const props = defineProps<{
   sourcePath: string | null;
-  selectedTagIds?: number[];
+  selectedTagId?: number | null;
   viewStateKey?: string;
 }>();
 
@@ -49,7 +49,7 @@ const {
   gotoTagPage,
 } = useGalleryData(
   () => props.sourcePath,
-  () => props.selectedTagIds,
+  () => props.selectedTagId,
   () => gallerySearch.value,
   () => sortBy.value,
   () => sortDir.value
@@ -245,18 +245,18 @@ const sortBtnLabel = computed(() =>
 );
 
 const totalCount = computed(() =>
-  (props.selectedTagIds?.length ?? 0) > 0 ? itemsData.value.length : fileItems.value.length
+  props.selectedTagId != null ? itemsData.value.length : fileItems.value.length
 );
 
 const totalSizeBytes = computed(() => {
-  const list = (props.selectedTagIds?.length ?? 0) > 0 ? itemsData.value : fileItems.value;
+  const list = props.selectedTagId != null ? itemsData.value : fileItems.value;
   return list.reduce((s, i) => s + (i.fileSize ?? 0), 0);
 });
 
 const totalSizeLabel = computed(() => formatSize(totalSizeBytes.value) || '—');
 
 const filterLabel = computed(() => {
-  if ((props.selectedTagIds?.length ?? 0) > 0) return '標籤篩選';
+  if (props.selectedTagId != null) return '標籤篩選';
   if (gallerySearch.value.trim()) return `"${gallerySearch.value.trim()}"`;
   return '全部';
 });
@@ -278,7 +278,7 @@ watch(() => props.sourcePath, () => {
   loadAll();
 });
 
-watch(() => props.selectedTagIds, () => {
+watch(() => props.selectedTagId, () => {
   loadAll();
 });
 
@@ -331,7 +331,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         />
 
         <GalleryInfoBar
-          v-if="sourcePath || (selectedTagIds?.length ?? 0) > 0"
+          v-if="sourcePath || selectedTagId != null"
           :count="filteredFileItems.length"
           :totalCount="totalCount"
           :searchQuery="gallerySearch"
@@ -348,7 +348,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       </div>
 
       <div class="table-wrapper">
-        <div v-if="!sourcePath && !(selectedTagIds?.length)" class="no-workspace-state">
+        <div v-if="!sourcePath && selectedTagId == null" class="no-workspace-state">
           <div class="no-workspace-icon">📂</div>
           <p>請從左側選擇工作目錄或標籤</p>
         </div>
@@ -364,7 +364,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
         <FileExplorerTable
           v-else-if="viewMode === 'list'"
-          :key="'list-' + props.sourcePath + '-' + (props.selectedTagIds || []).join(',')"
+          :key="'list-' + props.sourcePath + '-' + String(props.selectedTagId ?? '')"
           :items="filteredFileItems"
           :itemByPath="itemByPath"
           :selectedItemPath="selectedFileItemPath"
@@ -398,7 +398,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         />
       </div>
 
-      <div class="status-bar" v-if="selectedTagIds?.length && tagTotalPages > 1">
+      <div class="status-bar" v-if="selectedTagId != null && tagTotalPages > 1">
         <div class="pagination">
           <button class="page-btn" :disabled="tagPage === 0" @click="gotoTagPage(tagPage - 1)">‹</button>
           <span class="page-info">{{ tagPage + 1 }} / {{ tagTotalPages }}</span>

@@ -6,8 +6,8 @@ import { useTags } from '../composables/useTags';
 import TagItem from './TagItem.vue';
 import { normalizeHex } from '../utils/color';
 
-const props = defineProps<{ selectedTagIds: number[] }>();
-const emit = defineEmits<{ (e: 'select', tagIds: number[]): void }>();
+const props = defineProps<{ selectedTagId: number | null }>();
+const emit = defineEmits<{ (e: 'select', tagId: number | null): void }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
 const {
@@ -33,12 +33,11 @@ const chipStyle = (tagId: number) => {
 };
 
 const handleSelect = (id: number | null) => {
-  if (id === null) { emit('select', []); return; }
-  const current = props.selectedTagIds;
-  if (current.includes(id)) {
-    emit('select', current.filter(t => t !== id));
+  if (id === null) { emit('select', null); return; }
+  if (props.selectedTagId === id) {
+    emit('select', null);
   } else {
-    emit('select', [...current, id]);
+    emit('select', id);
   }
 };
 
@@ -52,8 +51,8 @@ const submitAddTag = async () => {
 const handleDeleteTag = async (tag: Tag) => {
   if (!await confirmDialog(`確定刪除標籤「${tag.name}」？`)) return;
   await deleteTag(tag.id);
-  if (props.selectedTagIds.includes(tag.id)) {
-    emit('select', props.selectedTagIds.filter(id => id !== tag.id));
+  if (props.selectedTagId === tag.id) {
+    emit('select', null);
   }
 };
 
@@ -87,19 +86,17 @@ onUnmounted(() => {
       />
     </div>
 
-    <div v-if="selectedTagIds.length" class="selected-chips">
+    <div v-if="selectedTagId != null" class="selected-chips">
       <span
-        v-for="id in selectedTagIds"
-        :key="id"
         class="chip"
-        :style="chipStyle(id)"
+        :style="chipStyle(selectedTagId!)"
       >
-        {{ tags.find(t => t.id === id)?.name ?? id }}
-        <span class="chip-x" @click="handleSelect(id)">✕</span>
+        {{ tags.find(t => t.id === selectedTagId)?.name ?? selectedTagId }}
+        <span class="chip-x" @click="handleSelect(selectedTagId!)">✕</span>
       </span>
     </div>
 
-    <div class="all-item" :class="{ active: selectedTagIds.length === 0 }" @click="handleSelect(null)">
+    <div class="all-item" :class="{ active: selectedTagId == null }" @click="handleSelect(null)">
       🌟 全部漫畫
     </div>
 
@@ -109,7 +106,7 @@ onUnmounted(() => {
         :key="tag.id"
         :tag="tag"
         :count="tagCounts.get(tag.id)"
-        :isSelected="selectedTagIds.includes(tag.id)"
+        :isSelected="selectedTagId === tag.id"
         :isColorPickerOpen="colorPickerTagId === tag.id"
         @select="handleSelect"
         @rename="renameTag"
