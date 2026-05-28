@@ -144,6 +144,165 @@ delegation_policy:
       - "lead-agent"
 
 workflows:
+  feature-dev:
+    description: "Develop a new feature request through requirement clarification, existing-code discovery, impact analysis, implementation, and closeout gates."
+    inputs:
+      required:
+        - name: "feature_request"
+          example: "Add comic slide reading mode."
+      optional:
+        - name: "feature_keywords"
+          example: "comic|slide|reader|gallery"
+        - name: "acceptance_hint"
+          example: "User can open an item and navigate images with previous/next controls."
+        - name: "base_ref"
+          example: "origin/main"
+
+    evidence:
+      required_artifacts:
+        - "plain-language feature goal and non-goals"
+        - "acceptance checks before editing"
+        - "git status before editing"
+        - "related existing code when keywords are provided"
+        - "architecture or trap memory search"
+        - "impact analysis for symbols before editing"
+        - "build verification output"
+        - "detect_changes output before commit"
+      commands:
+        git_status: "git status --short --branch"
+        search_feature_terms: "rg -n \"{feature_keywords}\" src src-tauri"
+        diff_stat: "git diff --stat"
+        changed_files: "git diff --name-status"
+        recent_commits: "git log --oneline --decorate -n 10"
+
+    steps:
+      - id: "collect-status"
+        type: "shell"
+        command_ref: "git_status"
+        output: "git_status"
+        delegate: "allowed"
+        task_class: "diff_summary"
+
+      - id: "clarify-feature"
+        type: "ai"
+        input:
+          - "feature_request"
+          - "acceptance_hint"
+        output_schema:
+          type: "object"
+          required:
+            - "plain_language_goal"
+            - "non_goals"
+            - "acceptance_checks"
+            - "candidate_areas"
+            - "open_questions"
+
+      - id: "search-existing-code"
+        type: "shell"
+        when: "feature_keywords is provided"
+        command_ref: "search_feature_terms"
+        output: "code_hits"
+        delegate: "allowed"
+        task_class: "search_exact"
+
+      - id: "memory-search"
+        type: "tool-or-shell"
+        strategy:
+          preferred:
+            - "vector memory search for architecture decisions, design rules, and traps"
+          fallback:
+            - "read local project docs and nearby comments"
+        output: "memory_notes"
+
+      - id: "impact-before-edit"
+        type: "tool-or-shell"
+        strategy:
+          preferred:
+            - "GitNexus impact for each candidate area or symbol"
+          fallback:
+            - "rg imports and call sites for likely owner modules"
+        output: "impact_notes"
+
+      - id: "implementation-plan"
+        type: "ai"
+        input:
+          - "feature_request"
+          - "acceptance_hint"
+          - "clarify-feature"
+          - "code_hits"
+          - "memory_notes"
+          - "impact_notes"
+        output_schema:
+          type: "object"
+          required:
+            - "files_to_change"
+            - "minimal_patch_plan"
+            - "tests_to_run"
+            - "low_model_subtasks"
+            - "risks"
+
+      - id: "implement"
+        type: "code-edit"
+        blocks_downstream: true
+        constraints:
+          - "lead agent owns feature design and code edits"
+          - "keep the first version narrow and acceptance-check driven"
+          - "preserve unrelated user changes"
+          - "use existing UI/components/composables before adding new abstractions"
+          - "increment version manually when code changes"
+          - "do not allow runner to continue into verify before this manual edit is actually completed"
+        output: "patch_summary"
+
+      - id: "verify"
+        type: "shell"
+        commands:
+          - "npm run build"
+        continue_on_failure: true
+        output: "verification_output"
+        delegate: "allowed"
+        task_class: "shell_exact"
+
+      - id: "detect-changes"
+        type: "tool-or-shell"
+        strategy:
+          preferred:
+            - "GitNexus detect_changes"
+          fallback:
+            - "git diff --stat and changed file review"
+        output: "change_impact"
+
+      - id: "closeout-checklist"
+        type: "ai"
+        input:
+          - "patch_summary"
+          - "verification_output"
+          - "change_impact"
+        checks:
+          - "acceptance checks are satisfied or explicitly deferred"
+          - "version incremented"
+          - "AI note written"
+          - "vector memory updated when durable"
+          - "npm run build stamp changes in index.html and src-tauri/tauri.conf.json are either included in the closeout commit or intentionally reverted before commit"
+          - "commit message uses normal feature wording unless this feature is tied to a GitHub Issue"
+          - "changes are committed before reporting the feature complete"
+          - "commit is pushed before reporting the feature complete, unless the user explicitly requests local-only work"
+          - "no force push; branch protection failures require lead/user approval instead of automatic retry"
+        output_format: "markdown"
+
+    gates:
+      fail_if:
+        - "impact-before-edit did not run before implement"
+        - "verify ran before manual implementation completed"
+        - "npm run build exits non-zero"
+        - "code changed without version increment"
+        - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
+        - "code changed but no commit was created before final completion"
+        - "commit was created but not pushed before final completion, unless the user explicitly requested local-only work"
+        - "closeout attempts force push"
+      warn_if:
+        - "feature starts without acceptance checks"
+        - "low-model runner is unavailable and delegation was skipped"
+
   github-issue-fix:
     description: "Fix a GitHub Issue using fixed evidence routes, explicit low-model delegation boundaries, and project closeout gates."
     inputs:
@@ -284,6 +443,8 @@ workflows:
           - "npm run build stamp changes in index.html and src-tauri/tauri.conf.json are either included in the closeout commit or intentionally reverted before commit"
           - "TS18028 from patch tooling against declaration files is treated as a patch-tool false positive only when npm run build, tsc --noEmit, or vue-tsc --noEmit are clean"
           - "commit message matches issue closeout rules"
+          - "changes are committed before reporting the issue fix complete"
+          - "commit is pushed before reporting the issue fix complete, unless the user explicitly requests local-only work"
           - "issue is actually closed after push"
           - "no force push; branch protection failures require lead/user approval instead of automatic retry"
         output_format: "markdown"
@@ -295,6 +456,8 @@ workflows:
         - "npm run build exits non-zero"
         - "code changed without version increment"
         - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
+        - "code changed but no commit was created before final completion"
+        - "commit was created but not pushed before final completion, unless the user explicitly requested local-only work"
         - "closeout attempts force push"
       warn_if:
         - "low-model runner is unavailable and delegation was skipped"
@@ -616,11 +779,13 @@ closeout_policy:
     required:
       - "increment version manually"
       - "run npm run build"
-      - "append factual implementation note to C:\\AI紀錄\\AI筆記.txt"
+      - "append factual implementation note to today's dated file C:\\AI紀錄\\AI筆記_YYYY-MM-DD.txt"
       - "upsert durable architecture/trap/design note to vector memory when applicable"
       - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
+      - "create a commit before reporting completion"
+      - "push the commit before reporting completion, unless the user explicitly requests local-only work"
     forbidden:
-      - "write task TODOs to C:\\AI紀錄\\AI筆記.txt"
+      - "write task TODOs to C:\\AI紀錄\\AI筆記_YYYY-MM-DD.txt or C:\\AI紀錄\\AI筆記.txt"
       - "store transient task state in vector memory"
       - "force push without explicit lead/user approval"
   known_tool_limitations:
