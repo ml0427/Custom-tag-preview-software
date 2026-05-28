@@ -218,6 +218,7 @@ const startRenameCtx = () => {
         :key="item.path"
         :ref="el => registerCard(el as Element | null, item)"
         class="thumb-grid-cell"
+        @contextmenu.prevent="showContextMenu($event, item)"
       >
         <ThumbnailCard
           :ref="el => { if (el) cardRefs[item.path] = el }"

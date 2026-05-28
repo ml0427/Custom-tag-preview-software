@@ -25,6 +25,7 @@ export function useContextMenu<T>() {
    */
   const showContextMenu = (e: MouseEvent, item: T) => {
     e.preventDefault();
+    e.stopPropagation();
 
     // 預估選單的寬高（可依實際樣式調整）
     const menuWidth = 180;

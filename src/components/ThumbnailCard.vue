@@ -59,7 +59,7 @@ const tags = props.dbItem?.tags ?? [];
     :class="{ selected: isSelected }"
     @click="emit('click', $event)"
     @dblclick="emit('dblclick')"
-    @contextmenu.prevent="emit('contextmenu', $event)"
+    @contextmenu.prevent.stop="emit('contextmenu', $event)"
   >
     <div class="thumb-cover">
       <img
