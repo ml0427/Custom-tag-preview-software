@@ -111,6 +111,7 @@ fn main() {
             commands::untag_item,
             commands::rename_item,
             commands::get_item_images,
+            commands::get_item_image_base64,
             commands::set_item_cover,
             commands::get_cover_base64,
             // Scan

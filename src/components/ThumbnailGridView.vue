@@ -6,6 +6,7 @@ import { useToast } from '../composables/useToast';
 import { useContextMenu } from '../composables/useContextMenu';
 import { useThumbnailLoader } from '../composables/useThumbnailLoader';
 import { useFolderRuleActions } from '../composables/useFolderRuleActions';
+import { isReadableFileItem } from '../utils/readableItem';
 import ThumbnailCard from './ThumbnailCard.vue';
 
 const props = defineProps<{
@@ -19,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click', item: FileItem, event: MouseEvent): void;
   (e: 'dblclick', item: FileItem): void;
+  (e: 'read', item: FileItem): void;
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
@@ -198,6 +200,7 @@ const { applyRulesForItem } = useFolderRuleActions(
 
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
 const isSelected = (item: FileItem) => selectedSet.value.has(item.path) || item.path === props.selectedItemPath;
+const canRead = (item: FileItem) => isReadableFileItem(item, getDbItem(item, props.itemByPath));
 
 const startRenameCtx = () => {
   const item = contextMenu.value.item;
@@ -227,8 +230,10 @@ const startRenameCtx = () => {
           :typeLabel="getItemType(item, itemByPath)"
           :typeColor="getTypeColor(item, itemByPath)"
           :searchQuery="searchQuery"
+          :showReadAction="canRead(item)"
           @click="emit('click', item, $event)"
           @dblclick="emit('dblclick', item)"
+          @read="emit('read', item)"
           @contextmenu="showContextMenu($event, item)"
           @rename="emit('rename', item, $event)"
           @imgError="handleImgError(item)"

@@ -291,6 +291,27 @@ pub async fn get_item_images(id: i64, pool: State<'_, SqlitePool>) -> Result<Vec
 }
 
 #[tauri::command]
+pub async fn get_item_image_base64(
+    id: i64,
+    image_path: String,
+    pool: State<'_, SqlitePool>,
+) -> Result<String, String> {
+    let path: String = sqlx::query("SELECT path FROM items WHERE id = ?")
+        .bind(id)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .get(0);
+
+    if !is_archive_path(&path) {
+        return Err("Item is not a readable archive".to_string());
+    }
+
+    let image_data = zip_utils::extract_image(&path, &image_path).map_err(|e| e.to_string())?;
+    Ok(image_data_url(&image_data))
+}
+
+#[tauri::command]
 pub async fn set_item_cover(
     id: i64,
     image_path: String,

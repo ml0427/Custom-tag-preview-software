@@ -4,6 +4,7 @@ import { api, type Item, type FileItem } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
 import ThumbnailGridView from './ThumbnailGridView.vue';
+import ComicSlideReader from './ComicSlideReader.vue';
 import GalleryToolbar from './GalleryToolbar.vue';
 import GalleryInfoBar from './GalleryInfoBar.vue';
 import { useToast } from '../composables/useToast';
@@ -13,6 +14,7 @@ import { useGalleryViewState } from '../composables/useGalleryViewState';
 import { useGalleryPreviewResize } from '../composables/useGalleryPreviewResize';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
+import { isComicFolderItem, isReadableArchiveItem, isReadableFileItem } from '../utils/readableItem';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -153,8 +155,34 @@ const batchDelete = async () => {
 
 
 const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'cbz', 'cbr'];
+const readerItem = ref<Item | null>(null);
 
-const handleFileItemDblClick = (item: FileItem) => {
+const getOrImportDbItem = async (fileItem: FileItem): Promise<Item | null> => {
+  const existing = itemByPath.value.get(pathKey(fileItem.path));
+  if (existing) return existing;
+
+  try {
+    return await api.quickImportItem(fileItem.path);
+  } catch (e: any) {
+    showToast('匯入失敗：' + (e?.message ?? e), 'error');
+    return null;
+  }
+};
+
+const openReaderForFileItem = async (fileItem: FileItem): Promise<boolean> => {
+  const existing = itemByPath.value.get(pathKey(fileItem.path));
+  if (fileItem.isDir && !isComicFolderItem(existing)) return false;
+  if (!fileItem.isDir && !isReadableArchiveItem(fileItem)) return false;
+
+  const dbItem = existing ?? await getOrImportDbItem(fileItem);
+  if (!dbItem || !isReadableFileItem(fileItem, dbItem)) return false;
+  readerItem.value = dbItem;
+  return true;
+};
+
+const handleFileItemDblClick = async (item: FileItem) => {
+  if (await openReaderForFileItem(item)) return;
+
   if (item.isDir) {
     emit('navigateDir', item.path);
   } else if (ARCHIVE_EXTS.includes(item.extension?.toLowerCase() ?? '')) {
@@ -209,6 +237,12 @@ const handleContextRename = async (fileItem: FileItem, newName: string) => {
     handleRenamed(updated);
   } catch (e: any) {
     showToast('重新命名失敗：' + (e?.message ?? e), 'error');
+  }
+};
+
+const handleReadFileItem = async (item: FileItem) => {
+  if (!await openReaderForFileItem(item)) {
+    showToast('這個項目目前沒有可閱讀的圖片內容', 'error');
   }
 };
 
@@ -374,6 +408,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :sortDir="sortDir"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
+          @read="handleReadFileItem"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
           @rulesApplied="loadAll"
@@ -479,6 +514,11 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       @tag-click="emit('jumpToTag', $event.id)"
       @renamed="handleRenamed"
       @close="isPreviewOpen = false"
+    />
+
+    <ComicSlideReader
+      :item="readerItem"
+      @close="readerItem = null"
     />
   </div>
 </template>

@@ -12,11 +12,13 @@ const props = defineProps<{
   typeLabel: string;
   typeColor: string | null;
   searchQuery?: string;
+  showReadAction?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'click', event: MouseEvent): void;
   (e: 'dblclick'): void;
+  (e: 'read'): void;
   (e: 'contextmenu', event: MouseEvent): void;
   (e: 'rename', newName: string): void;
   (e: 'imgError'): void;
@@ -70,6 +72,16 @@ const tags = props.dbItem?.tags ?? [];
       <div v-else class="thumb-icon-placeholder">
         <span class="thumb-icon">{{ icon }}</span>
       </div>
+      <button
+        v-if="showReadAction"
+        class="thumb-read-action"
+        type="button"
+        title="播放/閱讀"
+        @click.stop="emit('read')"
+        @dblclick.stop
+      >
+        播放/閱讀
+      </button>
       <div v-if="typeColor" class="thumb-color-bar" :style="{ background: typeColor }"></div>
     </div>
 
@@ -152,6 +164,35 @@ const tags = props.dbItem?.tags ?? [];
   top: 0;
   width: 4px;
   height: 100%;
+}
+
+.thumb-read-action {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 6px;
+  background: rgba(8, 9, 11, 0.72);
+  color: #fffaf0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.16s, transform 0.16s, background 0.16s;
+  backdrop-filter: blur(8px);
+}
+
+.thumb-card:hover .thumb-read-action,
+.thumb-read-action:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.thumb-read-action:hover {
+  background: rgba(8, 9, 11, 0.88);
 }
 
 .thumb-info {

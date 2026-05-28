@@ -175,6 +175,10 @@ export const api = {
         return await invoke<string[]>('get_item_images', { id });
     },
 
+    async getItemImageBase64(id: number, imagePath: string): Promise<string> {
+        return await invoke<string>('get_item_image_base64', { id, imagePath });
+    },
+
     async setItemCover(id: number, imagePath: string): Promise<void> {
         await invoke('set_item_cover', { id, imagePath });
     },
