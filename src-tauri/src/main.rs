@@ -112,6 +112,8 @@ fn main() {
             commands::rename_item,
             commands::get_item_images,
             commands::get_item_image_base64,
+            commands::get_archive_images_by_path,
+            commands::get_archive_image_base64_by_path,
             commands::set_item_cover,
             commands::get_cover_base64,
             // Scan

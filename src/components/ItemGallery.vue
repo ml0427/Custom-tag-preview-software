@@ -157,8 +157,38 @@ const batchDelete = async () => {
 const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'cbz', 'cbr'];
 const readerItem = ref<Item | null>(null);
 
+const findDbItemForFileItem = (fileItem: FileItem): Item | null => {
+  const exact = itemByPath.value.get(pathKey(fileItem.path));
+  if (exact) return exact;
+
+  const expectedType = fileItem.isDir ? 'folder' : 'file';
+  const normalizedName = fileItem.name.toLowerCase();
+  const matches = [...itemByPath.value.values()].filter(item =>
+    item.itemType === expectedType && item.name.toLowerCase() === normalizedName
+  );
+  return matches.length === 1 ? matches[0] : null;
+};
+
+const createReaderItemFromFile = (fileItem: FileItem): Item => ({
+  id: 0,
+  path: fileItem.path,
+  itemType: 'file',
+  name: fileItem.name,
+  fileSize: fileItem.fileSize,
+  fileModifiedAt: null,
+  coverCachePath: null,
+  fingerprint: null,
+  note: null,
+  category: null,
+  existsOnDisk: true,
+  missingSince: null,
+  lastSeenAt: null,
+  importAt: '',
+  tags: [],
+});
+
 const getOrImportDbItem = async (fileItem: FileItem): Promise<Item | null> => {
-  const existing = itemByPath.value.get(pathKey(fileItem.path));
+  const existing = findDbItemForFileItem(fileItem);
   if (existing) return existing;
 
   try {
@@ -170,9 +200,14 @@ const getOrImportDbItem = async (fileItem: FileItem): Promise<Item | null> => {
 };
 
 const openReaderForFileItem = async (fileItem: FileItem): Promise<boolean> => {
-  const existing = itemByPath.value.get(pathKey(fileItem.path));
+  const existing = findDbItemForFileItem(fileItem);
   if (fileItem.isDir && !isComicFolderItem(existing)) return false;
   if (!fileItem.isDir && !isReadableArchiveItem(fileItem)) return false;
+
+  if (!fileItem.isDir) {
+    readerItem.value = createReaderItemFromFile(fileItem);
+    return true;
+  }
 
   const dbItem = existing ?? await getOrImportDbItem(fileItem);
   if (!dbItem || !isReadableFileItem(fileItem, dbItem)) return false;

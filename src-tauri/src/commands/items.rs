@@ -312,6 +312,27 @@ pub async fn get_item_image_base64(
 }
 
 #[tauri::command]
+pub async fn get_archive_images_by_path(path: String) -> Result<Vec<String>, String> {
+    if !is_archive_path(&path) {
+        return Ok(Vec::new());
+    }
+    zip_utils::get_image_entries(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_archive_image_base64_by_path(
+    path: String,
+    image_path: String,
+) -> Result<String, String> {
+    if !is_archive_path(&path) {
+        return Err("Item is not a readable archive".to_string());
+    }
+
+    let image_data = zip_utils::extract_image(&path, &image_path).map_err(|e| e.to_string())?;
+    Ok(image_data_url(&image_data))
+}
+
+#[tauri::command]
 pub async fn set_item_cover(
     id: i64,
     image_path: String,

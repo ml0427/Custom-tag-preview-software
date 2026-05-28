@@ -42,7 +42,7 @@ const loadCurrentPage = async () => {
   isLoading.value = true;
   try {
     const url = page.kind === 'archive'
-      ? await api.getItemImageBase64(item.id, page.entry)
+      ? await api.getArchiveImageBase64ByPath(item.path, page.entry)
       : await api.getImageBase64ByPath(page.path);
     if (loadToken.value === token) imageUrl.value = url;
   } catch (e: any) {
@@ -70,7 +70,7 @@ const loadPages = async () => {
         .filter(isReadableImageFile)
         .map(file => ({ kind: 'file', path: file.path, label: file.name }));
     } else {
-      const entries = await api.getItemImages(item.id);
+      const entries = await api.getArchiveImagesByPath(item.path);
       pages.value = entries.map(entry => ({
         kind: 'archive',
         entry,

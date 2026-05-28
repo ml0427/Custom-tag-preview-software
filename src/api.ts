@@ -179,6 +179,14 @@ export const api = {
         return await invoke<string>('get_item_image_base64', { id, imagePath });
     },
 
+    async getArchiveImagesByPath(path: string): Promise<string[]> {
+        return await invoke<string[]>('get_archive_images_by_path', { path });
+    },
+
+    async getArchiveImageBase64ByPath(path: string, imagePath: string): Promise<string> {
+        return await invoke<string>('get_archive_image_base64_by_path', { path, imagePath });
+    },
+
     async setItemCover(id: number, imagePath: string): Promise<void> {
         await invoke('set_item_cover', { id, imagePath });
     },
