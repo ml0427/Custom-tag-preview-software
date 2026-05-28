@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { exec, execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SPEC = path.join(__dirname, "workflow.yaml");
+const LOCAL_CONFIG = path.join(__dirname, "config.local.json");
 
 function parseArgs(argv) {
   const [command = "help", workflowName, ...rest] = argv;
@@ -43,36 +45,124 @@ function parseArgs(argv) {
   return options;
 }
 
-function adapterConfig(env = process.env) {
-  const aiAdapter = env.WORKFLOW_AI_ADAPTER ?? "placeholder";
-  const lowModelMode = env.WORKFLOW_LOW_MODEL_MODE ?? "record";
-  const ollamaBaseUrl = env.WORKFLOW_OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
-  const hermesPath = env.WORKFLOW_HERMES_PATH ?? "C:\\Users\\ml042\\Projects\\Hermes-Agent\\venv\\Scripts\\hermes.exe";
+function adapterConfig(env = process.env, localConfig = loadLocalConfig()) {
+  const profile = localConfig.profile ?? "unset";
+  const aiAdapter = configValue(env, localConfig, "WORKFLOW_AI_ADAPTER", "placeholder");
+  const lowModelMode = configValue(env, localConfig, "WORKFLOW_LOW_MODEL_MODE", "record");
+  const ollamaBaseUrl = configValue(env, localConfig, "WORKFLOW_OLLAMA_BASE_URL", "http://localhost:11434/v1");
+  const hermesPath = configValue(env, localConfig, "WORKFLOW_HERMES_PATH", "C:\\Users\\ml042\\Projects\\Hermes-Agent\\venv\\Scripts\\hermes.exe");
   return {
+    profile,
+    configPath: existsSync(LOCAL_CONFIG) ? LOCAL_CONFIG : null,
     ai: {
       adapter: aiAdapter,
-      baseUrl: env.WORKFLOW_AI_BASE_URL ?? (aiAdapter === "ollama" ? ollamaBaseUrl : "https://api.openai.com/v1"),
-      model: env.WORKFLOW_AI_MODEL ?? (aiAdapter === "ollama" ? "llama3.1" : ""),
-      apiKey: env.WORKFLOW_AI_API_KEY ?? "",
-      timeoutMs: Number(env.WORKFLOW_AI_TIMEOUT_MS ?? 30000),
-      maxTokens: Number(env.WORKFLOW_AI_MAX_TOKENS ?? 800),
+      baseUrl: configValue(env, localConfig, "WORKFLOW_AI_BASE_URL", aiAdapter === "ollama" ? ollamaBaseUrl : "https://api.openai.com/v1"),
+      model: configValue(env, localConfig, "WORKFLOW_AI_MODEL", aiAdapter === "ollama" ? "llama3.1" : ""),
+      apiKey: configValue(env, localConfig, "WORKFLOW_AI_API_KEY", ""),
+      timeoutMs: Number(configValue(env, localConfig, "WORKFLOW_AI_TIMEOUT_MS", 30000)),
+      maxTokens: Number(configValue(env, localConfig, "WORKFLOW_AI_MAX_TOKENS", 800)),
     },
     lowModel: {
       mode: lowModelMode,
-      baseUrl: env.WORKFLOW_LOW_MODEL_BASE_URL ?? ollamaBaseUrl,
-      model: env.WORKFLOW_LOW_MODEL ?? env.WORKFLOW_OLLAMA_MODEL ?? "llama3.1",
-      apiKey: env.WORKFLOW_LOW_MODEL_API_KEY ?? "",
-      command: env.WORKFLOW_LOW_MODEL_COMMAND ?? "",
+      baseUrl: configValue(env, localConfig, "WORKFLOW_LOW_MODEL_BASE_URL", ollamaBaseUrl),
+      model: configValue(env, localConfig, "WORKFLOW_LOW_MODEL", configValue(env, localConfig, "WORKFLOW_OLLAMA_MODEL", "llama3.1")),
+      apiKey: configValue(env, localConfig, "WORKFLOW_LOW_MODEL_API_KEY", ""),
+      command: configValue(env, localConfig, "WORKFLOW_LOW_MODEL_COMMAND", ""),
+      handoffRequired: configValue(env, localConfig, "WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED", "0") === "1",
       hermesPath,
-      smallProvider: env.WORKFLOW_HERMES_SMALL_PROVIDER ?? "ollama-nemotron-3-super-cloud",
-      smallModel: env.WORKFLOW_HERMES_SMALL_MODEL ?? "nemotron-3-super:cloud",
-      fallbackProvider: env.WORKFLOW_HERMES_FALLBACK_PROVIDER ?? "github-copilot",
-      fallbackModel: env.WORKFLOW_HERMES_FALLBACK_MODEL ?? "gpt-5-mini",
-      delegateInDryRun: env.WORKFLOW_DELEGATE_IN_DRY_RUN === "1",
-      timeoutMs: Number(env.WORKFLOW_LOW_MODEL_TIMEOUT_MS ?? 20000),
-      maxTokens: Number(env.WORKFLOW_LOW_MODEL_MAX_TOKENS ?? 400),
+      smallProvider: configValue(env, localConfig, "WORKFLOW_HERMES_SMALL_PROVIDER", "ollama-nemotron-3-super-cloud"),
+      smallModel: configValue(env, localConfig, "WORKFLOW_HERMES_SMALL_MODEL", "nemotron-3-super:cloud"),
+      fallbackProvider: configValue(env, localConfig, "WORKFLOW_HERMES_FALLBACK_PROVIDER", "github-copilot"),
+      fallbackModel: configValue(env, localConfig, "WORKFLOW_HERMES_FALLBACK_MODEL", "gpt-5-mini"),
+      delegateInDryRun: configValue(env, localConfig, "WORKFLOW_DELEGATE_IN_DRY_RUN", "0") === "1",
+      timeoutMs: Number(configValue(env, localConfig, "WORKFLOW_LOW_MODEL_TIMEOUT_MS", 20000)),
+      maxTokens: Number(configValue(env, localConfig, "WORKFLOW_LOW_MODEL_MAX_TOKENS", 400)),
     },
   };
+}
+
+function loadLocalConfig() {
+  if (!existsSync(LOCAL_CONFIG)) return {};
+  try {
+    return JSON.parse(readFileSync(LOCAL_CONFIG, "utf8"));
+  } catch (error) {
+    return {
+      profile: "invalid",
+      env: {},
+      error: error.message,
+    };
+  }
+}
+
+function configValue(env, localConfig, key, fallback) {
+  if (env[key] !== undefined) return env[key];
+  if (localConfig?.env?.[key] !== undefined) return localConfig.env[key];
+  return fallback;
+}
+
+function firstUseProfiles() {
+  return {
+    "external-free": {
+      label: "外部免費模型 / Hermes 小N優先",
+      description: "用 Hermes 當外部 worker；有 Ollama 就走小N，沒有就 fallback 小G。適合想省主模型 token、把搜尋/測試/log 摘要分出去。",
+      env: {
+        WORKFLOW_AI_ADAPTER: "placeholder",
+        WORKFLOW_LOW_MODEL_MODE: "hermes",
+        WORKFLOW_DELEGATE_IN_DRY_RUN: "0",
+      },
+    },
+    "lead-low-model": {
+      label: "Lead 手動路由低模型 / 不外呼",
+      description: "不呼叫 Hermes；只產生 low-model packet，Lead 必須明確交給可用低模型。若未完成低模型 handoff，不能宣稱已委派。",
+      env: {
+        WORKFLOW_AI_ADAPTER: "placeholder",
+        WORKFLOW_LOW_MODEL_MODE: "record",
+        WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED: "1",
+        WORKFLOW_DELEGATE_IN_DRY_RUN: "0",
+      },
+    },
+  };
+}
+
+async function writeFirstUseConfig(profileName) {
+  const profiles = firstUseProfiles();
+  const profile = profiles[profileName];
+  if (!profile) {
+    throw new Error(`Unknown setup profile: ${profileName}. Use: ${Object.keys(profiles).join(", ")}`);
+  }
+  const config = {
+    setupVersion: 1,
+    profile: profileName,
+    label: profile.label,
+    description: profile.description,
+    env: profile.env,
+    createdAt: new Date().toISOString(),
+  };
+  await writeFile(LOCAL_CONFIG, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  return config;
+}
+
+async function setupFirstUse(profileName) {
+  const profiles = firstUseProfiles();
+  let selected = profileName;
+
+  if (!selected) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      console.log("第一次使用 workflow，請選擇低模型策略：");
+      console.log("1. external-free  - 外部免費模型 / Hermes 小N優先");
+      console.log("2. lead-low-model - Lead 手動路由低模型 / 不外呼");
+      const answer = (await rl.question("請輸入 1 或 2：")).trim();
+      selected = answer === "1" ? "external-free" : answer === "2" ? "lead-low-model" : answer;
+    } finally {
+      rl.close();
+    }
+  }
+
+  const config = await writeFirstUseConfig(selected);
+  console.log(`Setup saved: ${LOCAL_CONFIG}`);
+  console.log(`${config.profile}: ${config.label}`);
+  console.log(config.description);
 }
 
 async function loadSpec(specPath) {
@@ -87,6 +177,7 @@ async function loadSpec(specPath) {
 function usage(specPath = DEFAULT_SPEC) {
   return [
     "Usage:",
+    "  node workflow-runner.js setup [external-free|lead-low-model]",
     "  node workflow-runner.js list [--spec workflow.yaml]",
     "  node workflow-runner.js runners [--spec workflow.yaml]",
     "  node workflow-runner.js adapters [--spec workflow.yaml]",
@@ -95,6 +186,8 @@ function usage(specPath = DEFAULT_SPEC) {
     "  node workflow-runner.js validate [--spec workflow.yaml]",
     "",
     "Examples:",
+    "  node workflow-runner.js setup external-free",
+    "  node workflow-runner.js setup lead-low-model",
     "  node workflow-runner.js list",
     "  node workflow-runner.js runners",
     "  node workflow-runner.js adapters",
@@ -488,6 +581,13 @@ async function runLowModelDelegation(packet, packetPath, config, cwd, dryRun = f
   }
 
   if (config.lowModel.mode === "record") {
+    if (config.lowModel.handoffRequired) {
+      return {
+        status: "low-model-handoff-required",
+        packetPath,
+        message: "Packet recorded. Lead must explicitly hand this packet to a low model before counting delegation as complete.",
+      };
+    }
     return { status: "packet-recorded", packetPath };
   }
 
@@ -788,6 +888,11 @@ async function main() {
 
   if (options.command === "help") {
     console.log(usage(options.spec));
+    return;
+  }
+
+  if (options.command === "setup") {
+    await setupFirstUse(options.workflowName);
     return;
   }
 

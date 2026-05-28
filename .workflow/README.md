@@ -14,6 +14,30 @@ npm install
 npm run list
 ```
 
+## 第一次使用設定
+
+第一次使用可先選擇低模型策略，設定會寫入 `.workflow/config.local.json`，這個檔案只放本機，不進 git。
+
+```powershell
+node workflow-runner.js setup external-free
+```
+
+`external-free` 代表走外部免費模型 / Hermes：有 Ollama 就優先用小N，沒有就 fallback 小G。適合把搜尋、測試、log filter、diff summary 這些低判斷工作分出去。
+
+```powershell
+node workflow-runner.js setup lead-low-model
+```
+
+`lead-low-model` 代表不外呼 Hermes，只產生 `*.low-model.packet.json` 與 prompt artifact，交給 Lead 明確轉交到可用的低模型。這不是「同等模型代打」模式；如果 Lead 沒有完成低模型 handoff，runner 會標成 `low-model-handoff-required`，不能把這一步算成已委派完成。
+
+不帶參數也可以互動選擇：
+
+```powershell
+node workflow-runner.js setup
+```
+
+環境變數仍然優先於 `config.local.json`，所以臨時測試時可以用 `$env:WORKFLOW_LOW_MODEL_MODE=...` 覆蓋。
+
 ## 查看低模型 / 低判斷執行器
 
 ```powershell
@@ -26,7 +50,7 @@ node workflow-runner.js runners
 - 小G / `remote-general-worker`：由 adapter 管理可用性，適合整理、摘要、檢查清單，不負責最後判斷。
 - Lead / `lead-agent`：永遠是目前主 agent，負責 root cause、架構決策、code edit、風險接受與最後整合。
 
-Workflow step 只標 `task_class`，不直接綁小G或小N。低模型不可用時，流程不改路線，只是由 lead agent 自己做或記錄委派略過。
+Workflow step 只標 `task_class`，不直接綁小G或小N。低模型不可用時，流程不改路線，但只能記錄委派略過或等待 Lead 手動 handoff；不能把同等模型處理誤記成低模型委派。
 
 ## 查看 Adapter 設定
 
@@ -38,6 +62,7 @@ node workflow-runner.js adapters
 
 - `WORKFLOW_AI_ADAPTER=placeholder`：AI step 只寫 prompt 檔並使用少量內建 placeholder。
 - `WORKFLOW_LOW_MODEL_MODE=record`：可委派的 shell step 會產生 `*.low-model.packet.json`，但不送出。
+- `WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED=1`：record mode 產生 packet 後會標示需要 Lead 明確轉交低模型；用於 `lead-low-model` profile。
 
 主要低模型呼叫層是 Hermes：
 

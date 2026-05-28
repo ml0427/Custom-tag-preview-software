@@ -1,10 +1,11 @@
 {
   "name": "portable-ai-workflow-runner",
-  "version": "0.3.3",
+  "version": "0.3.5",
   "private": true,
   "type": "module",
   "description": "Portable workflow runner for cross-AI engineering workflows.",
   "scripts": {
+    "setup": "node workflow-runner.js setup",
     "list": "node workflow-runner.js list",
     "runners": "node workflow-runner.js runners",
     "adapters": "node workflow-runner.js adapters",

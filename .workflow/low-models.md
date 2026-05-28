@@ -25,7 +25,7 @@
 
 1. 先看 step 的 `task_class`。
 2. 跑對應 runner 的 `availability_probe`。
-3. 有通過才委派；沒有低模型可用時，由 lead agent 自己做或略過委派。
+3. 有通過才委派；沒有低模型可用時，只能記錄委派略過或等待 Lead 明確 handoff。
 4. 委派失敗不改 workflow 路線，只記錄成環境限制。
 
 ## Execution Modes
@@ -38,6 +38,8 @@ Runner 目前支援四種低模型模式：
 | hermes | `WORKFLOW_LOW_MODEL_MODE=hermes` | 透過 Hermes CLI 呼叫小N；若 `ollama --version` 不通，改呼叫小G。 |
 | ollama-review | `WORKFLOW_LOW_MODEL_MODE=ollama-review` | 把 packet 送到 OpenAI-compatible `/chat/completions`，例如 Ollama，讓低模型做執行前檢查或摘要。 |
 | command | `WORKFLOW_LOW_MODEL_MODE=command` + `WORKFLOW_LOW_MODEL_COMMAND='tool --packet {packet}'` | 把 packet 交給外部 wrapper，外部 wrapper 才能真正執行命令或接 Hermes。 |
+
+`lead-low-model` profile 使用 `record` mode 加上 `WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED=1`。這條路不是讓 Lead 或同等模型直接代打；它只建立低模型 handoff 封包。Lead 必須明確把封包交給可用低模型，否則該步驟只能算「等待低模型 handoff」，不能算已委派。
 
 Hermes 是目前主要呼叫層。`hermes` mode 會先 resolve `hermes.exe`，再依 `ollama --version` 選小N或小G：
 
