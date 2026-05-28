@@ -272,14 +272,38 @@ workflows:
             - "git diff --stat and changed file review"
         output: "change_impact"
 
+      - id: "adjacent-regression-review"
+        type: "ai"
+        input:
+          - "patch_summary"
+          - "verification_output"
+          - "change_impact"
+          - "implementation-plan"
+        checks:
+          - "same-level model review only; do not delegate this to low-judgment workers"
+          - "inspect modified/new files and the nearest callers, sibling interactions, event handlers, UI bindings, state updates, and keyboard/context-menu behavior"
+          - "look for side effects near the changed feature, such as a new thumbnail button breaking card right-click behavior"
+          - "name concrete adjacent scenarios that still need manual or automated checking"
+          - "return blocking findings before closeout"
+        output_schema:
+          type: "object"
+          required:
+            - "status"
+            - "adjacent_features_checked"
+            - "blocking_findings"
+            - "suggested_followup_checks"
+
       - id: "closeout-checklist"
         type: "ai"
         input:
           - "patch_summary"
           - "verification_output"
           - "change_impact"
+          - "adjacent-regression-review"
         checks:
           - "acceptance checks are satisfied or explicitly deferred"
+          - "adjacent regression review completed by same-level model after build/test"
+          - "blocking adjacent findings are fixed or explicitly acknowledged by lead/user"
           - "version incremented"
           - "AI note written"
           - "vector memory updated when durable"
@@ -295,6 +319,8 @@ workflows:
         - "impact-before-edit did not run before implement"
         - "verify ran before manual implementation completed"
         - "npm run build exits non-zero"
+        - "adjacent-regression-review did not run after verification"
+        - "adjacent-regression-review reports blocking findings without lead-agent acknowledgement"
         - "code changed without version increment"
         - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
         - "code changed but no commit was created before final completion"
@@ -431,13 +457,38 @@ workflows:
             - "git diff --stat and changed file review"
         output: "change_impact"
 
+      - id: "adjacent-regression-review"
+        type: "ai"
+        input:
+          - "patch_summary"
+          - "verification_output"
+          - "change_impact"
+          - "implementation-plan"
+          - "summarize-issue"
+        checks:
+          - "same-level model review only; do not delegate this to low-judgment workers"
+          - "inspect modified/new files and the nearest callers, sibling interactions, event handlers, UI bindings, state updates, and keyboard/context-menu behavior"
+          - "look for side effects near the changed fix, such as a new thumbnail button breaking card right-click behavior"
+          - "name concrete adjacent scenarios that still need manual or automated checking"
+          - "return blocking findings before closeout"
+        output_schema:
+          type: "object"
+          required:
+            - "status"
+            - "adjacent_features_checked"
+            - "blocking_findings"
+            - "suggested_followup_checks"
+
       - id: "closeout-checklist"
         type: "ai"
         input:
           - "patch_summary"
           - "verification_output"
           - "change_impact"
+          - "adjacent-regression-review"
         checks:
+          - "adjacent regression review completed by same-level model after build/test"
+          - "blocking adjacent findings are fixed or explicitly acknowledged by lead/user"
           - "version incremented"
           - "AI note written"
           - "vector memory updated when durable"
@@ -455,6 +506,8 @@ workflows:
         - "impact-before-edit did not run before fix"
         - "verify ran before manual fix completed"
         - "npm run build exits non-zero"
+        - "adjacent-regression-review did not run after verification"
+        - "adjacent-regression-review reports blocking findings without lead-agent acknowledgement"
         - "code changed without version increment"
         - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
         - "code changed but no commit was created before final completion"

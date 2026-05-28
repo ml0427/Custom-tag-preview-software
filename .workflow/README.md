@@ -167,6 +167,8 @@ node workflow-runner.js run feature-dev --input feature_request="Add comic slide
 
 `code-edit` 這類 manual step 會阻斷後續步驟。也就是說 `github-issue-fix` 跑到 `fix`、`feature-dev` 跑到 `implement` 時會停下來，不會在程式碼尚未修改前自動跑 `verify`。完成修正或實作後，由 lead agent 手動執行 `npm run build`，或在記錄 patch output 後再繼續工作流。
 
+`feature-dev` 與 `github-issue-fix` 在 build/test 後還有一個 `adjacent-regression-review`。這一步是同等模型/Lead-level 檢查，不交給小N或小G；它要看剛剛新增或修改附近的功能、事件、狀態與 UI 綁定，避免像「縮圖新增按鈕後右鍵選單被事件冒泡弄壞」這類鄰近回歸漏掉。這一步必須同步完成，不能和 Lead 同時各做各的。
+
 Closeout 注意事項：
 
 - `C:\AI紀錄\AI筆記.txt` 只作索引；實作紀錄要寫進當日檔案 `C:\AI紀錄\AI筆記_YYYY-MM-DD.txt`，同一天追加到同一個檔案。
