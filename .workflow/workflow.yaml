@@ -833,13 +833,13 @@ closeout_policy:
     required:
       - "increment version manually"
       - "run npm run build"
-      - "append factual implementation note to today's dated file C:\\AI紀錄\\AI筆記_YYYY-MM-DD.txt"
+      - 'append factual implementation note to this machine''s dated note file D:\AI紀錄\YYYY-MM-DD.txt'
       - "upsert durable architecture/trap/design note to vector memory when applicable"
       - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
       - "create a commit before reporting completion"
       - "push the commit before reporting completion, unless the user explicitly requests local-only work"
     forbidden:
-      - "write task TODOs to C:\\AI紀錄\\AI筆記_YYYY-MM-DD.txt or C:\\AI紀錄\\AI筆記.txt"
+      - 'write task TODOs to D:\AI紀錄\YYYY-MM-DD.txt or any legacy AI筆記.txt file'
       - "store transient task state in vector memory"
       - "force push without explicit lead/user approval"
   known_tool_limitations:
