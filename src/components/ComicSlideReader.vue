@@ -23,9 +23,17 @@ const errorMessage = ref('');
 const loadToken = ref(0);
 
 const currentPage = computed(() => pages.value[pageIndex.value] ?? null);
+const isAtFirstPage = computed(() => pageIndex.value <= 0);
+const isAtLastPage = computed(() => pageIndex.value >= pages.value.length - 1);
 const pageLabel = computed(() =>
   pages.value.length > 0 ? `${pageIndex.value + 1} / ${pages.value.length}` : '0 / 0'
 );
+const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'COMIC FOLDER' : 'ARCHIVE READER');
+const footerHint = computed(() => {
+  if (!currentPage.value) return 'Esc 關閉';
+  if (isAtLastPage.value) return '已到最後一頁 · Esc 關閉';
+  return '點擊畫面或按空白鍵下一頁 · Esc 關閉';
+});
 
 const sortByName = (items: FileItem[]) =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant', { numeric: true }));
@@ -92,13 +100,13 @@ const loadPages = async () => {
 };
 
 const goPrev = () => {
-  if (pageIndex.value <= 0) return;
+  if (isAtFirstPage.value) return;
   pageIndex.value -= 1;
   loadCurrentPage();
 };
 
 const goNext = () => {
-  if (pageIndex.value >= pages.value.length - 1) return;
+  if (isAtLastPage.value) return;
   pageIndex.value += 1;
   loadCurrentPage();
 };
@@ -110,6 +118,16 @@ const onKeydown = (event: KeyboardEvent) => {
   if (event.key === 'ArrowRight' || event.key === ' ') {
     event.preventDefault();
     goNext();
+  }
+  if (event.key === 'Home') {
+    event.preventDefault();
+    pageIndex.value = 0;
+    loadCurrentPage();
+  }
+  if (event.key === 'End' && pages.value.length > 0) {
+    event.preventDefault();
+    pageIndex.value = pages.value.length - 1;
+    loadCurrentPage();
   }
 };
 
@@ -127,16 +145,16 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div v-if="item" class="reader-shell">
-      <div class="reader-topbar">
+      <div class="reader-topbar" @click.stop>
         <div class="reader-title">
-          <span class="reader-kicker">READ</span>
+          <span class="reader-kicker">{{ readerModeLabel }}</span>
           <strong>{{ item.name }}</strong>
         </div>
         <div class="reader-actions">
           <span class="reader-count">{{ pageLabel }}</span>
-          <button class="reader-btn" type="button" :disabled="pageIndex <= 0" @click="goPrev">上一頁</button>
-          <button class="reader-btn" type="button" :disabled="pageIndex >= pages.length - 1" @click="goNext">下一頁</button>
-          <button class="reader-close" type="button" title="關閉" @click="emit('close')">✕</button>
+          <button class="reader-btn" type="button" :disabled="isAtFirstPage" @click.stop="goPrev">上一頁</button>
+          <button class="reader-btn" type="button" :disabled="isAtLastPage" @click.stop="goNext">下一頁</button>
+          <button class="reader-close" type="button" title="關閉" @click.stop="emit('close')">✕</button>
         </div>
       </div>
 
@@ -146,8 +164,9 @@ onUnmounted(() => {
         <img v-else-if="imageUrl" class="reader-image" :src="imageUrl" :alt="currentPage?.label ?? item.name" />
       </main>
 
-      <div class="reader-bottombar">
+      <div class="reader-bottombar" @click.stop>
         <span>{{ currentPage?.label ?? '' }}</span>
+        <span class="reader-hint">{{ footerHint }}</span>
       </div>
     </div>
   </Teleport>
@@ -202,8 +221,16 @@ onUnmounted(() => {
 .reader-count {
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   color: rgba(244, 241, 234, 0.6);
+}
+
+.reader-hint {
+  min-width: 0;
+  color: rgba(244, 241, 234, 0.48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reader-actions {

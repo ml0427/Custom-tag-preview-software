@@ -443,6 +443,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :sortDir="sortDir"
           @click="handleFileItemClick"
           @dblclick="handleFileItemDblClick"
+          @read="handleReadFileItem"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
           @rulesApplied="loadAll"

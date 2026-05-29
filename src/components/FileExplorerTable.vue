@@ -9,6 +9,7 @@ import { useContextMenu } from '../composables/useContextMenu';
 import { useThumbnailLoader } from '../composables/useThumbnailLoader';
 import { useFolderRuleActions } from '../composables/useFolderRuleActions';
 import { useFileExplorerColumns } from '../composables/useFileExplorerColumns';
+import { isReadableFileItem } from '../utils/readableItem';
 
 const props = defineProps<{
   items: FileItem[];
@@ -23,6 +24,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click', item: FileItem, event: MouseEvent): void;
   (e: 'dblclick', item: FileItem): void;
+  (e: 'read', item: FileItem): void;
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
@@ -265,6 +267,7 @@ const getItemTags = (item: FileItem) => {
 
 const selectedSet = computed(() => new Set(props.selectedPaths ?? []));
 const isSelected = (item: FileItem): boolean => selectedSet.value.has(item.path) || item.path === props.selectedItemPath;
+const canRead = (item: FileItem): boolean => isReadableFileItem(item, getDbItem(item, props.itemByPath));
 
 const highlightText = (text: string | null | undefined): string => {
   if (!text) return '';
@@ -388,7 +391,18 @@ const {
           <td v-if="visibleCols.has('date')" class="col-date">{{ item.modifiedTime ?? '' }}</td>
 
           <!-- Settings spacer -->
-          <td class="col-settings"></td>
+          <td class="col-settings row-actions">
+            <button
+              v-if="canRead(item)"
+              class="row-read-btn"
+              type="button"
+              title="開啟閱讀模式"
+              @click.stop="emit('read', item)"
+              @dblclick.stop
+            >
+              閱讀
+            </button>
+          </td>
         </tr>
         <tr v-if="bottomSpacerHeight > 0" class="spacer-row" :style="{ height: bottomSpacerHeight + 'px' }">
           <td :colspan="colCount"></td>
@@ -406,6 +420,7 @@ const {
     >
       <template v-if="contextMenu.item?.isDir">
         <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">進入資料夾</button>
+        <button v-if="contextMenu.item && canRead(contextMenu.item)" class="ctx-item" @click="emit('read', contextMenu.item!); hideContextMenu()">開啟閱讀模式</button>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">{{ hasCategoryAssigned(contextMenu.item!, props.itemByPath) ? '修改類別' : '新增類別' }}</button>
         <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用類別</button>
         <button class="ctx-item" @click="startRename">修改檔名</button>
@@ -413,6 +428,7 @@ const {
         <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
       </template>
       <template v-else>
+        <button v-if="contextMenu.item && canRead(contextMenu.item)" class="ctx-item" @click="emit('read', contextMenu.item!); hideContextMenu()">開啟閱讀模式</button>
         <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
         <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">{{ hasCategoryAssigned(contextMenu.item!, props.itemByPath) ? '修改類別' : '新增類別' }}</button>
         <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">重新套用類別</button>
@@ -477,6 +493,34 @@ const {
 .comic-table th.sortable:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
 
 .sort-icon { opacity: 0.8; }
+
+.row-actions {
+  text-align: right;
+}
+
+.row-read-btn {
+  width: 44px;
+  height: 26px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-overlay-soft);
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+tr:hover .row-read-btn,
+.row-read-btn:focus-visible {
+  opacity: 1;
+}
+
+.row-read-btn:hover {
+  background: var(--accent-bg-subtle);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
 
 .comic-table td {
   padding: 8px 12px;
