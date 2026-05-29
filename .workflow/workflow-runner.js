@@ -10,33 +10,52 @@ import YAML from "yaml";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SPEC = path.join(__dirname, "workflow.yaml");
 const LOCAL_CONFIG = path.join(__dirname, "config.local.json");
+const WIZARD_VERSION = "workflow-v0.3.9";
 
 function parseArgs(argv) {
-  const [command = "help", workflowName, ...rest] = argv;
+  const [command = "help", ...tokens] = argv;
+  const wizardCommand = command === "wizard" ? tokens.shift() : null;
+  const workflowName = command === "wizard" && wizardCommand !== "start" ? null : tokens.shift();
   const options = {
     command,
+    wizardCommand,
     workflowName,
+    run: null,
+    artifacts: {},
+    completeSteps: [],
+    lowModelStatus: null,
     inputs: {},
     spec: DEFAULT_SPEC,
     cwd: path.resolve(__dirname, '..'),
     dryRun: false,
   };
 
-  for (let i = 0; i < rest.length; i += 1) {
-    const token = rest[i];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
     if (token === "--input" || token === "-i") {
-      const pair = rest[++i];
+      const pair = tokens[++i];
       const eq = pair?.indexOf("=") ?? -1;
       if (!pair || eq === -1) throw new Error("--input must use key=value");
       options.inputs[pair.slice(0, eq)] = pair.slice(eq + 1);
     } else if (token === "--spec") {
-      options.spec = path.resolve(rest[++i]);
+      options.spec = path.resolve(tokens[++i]);
     } else if (token === "--cwd") {
-      options.cwd = path.resolve(rest[++i]);
+      options.cwd = path.resolve(tokens[++i]);
     } else if (token === "--dry-run") {
       options.dryRun = true;
     } else if (token === "--attempt-count") {
-      options.inputs.attempt_count = Number(rest[++i]);
+      options.inputs.attempt_count = Number(tokens[++i]);
+    } else if (token === "--run") {
+      options.run = tokens[++i];
+    } else if (token === "--artifact") {
+      const pair = tokens[++i];
+      const eq = pair?.indexOf("=") ?? -1;
+      if (!pair || eq === -1) throw new Error("--artifact must use key=path");
+      options.artifacts[pair.slice(0, eq)] = pair.slice(eq + 1);
+    } else if (token === "--complete-step") {
+      options.completeSteps.push(tokens[++i]);
+    } else if (token === "--resolve-low-model") {
+      options.lowModelStatus = tokens[++i];
     } else {
       throw new Error(`Unknown option: ${token}`);
     }
@@ -183,6 +202,9 @@ function usage(specPath = DEFAULT_SPEC) {
     "  node workflow-runner.js adapters [--spec workflow.yaml]",
     "  node workflow-runner.js plan <workflow> --input key=value ...",
     "  node workflow-runner.js run <workflow> --input key=value ... [--dry-run] [--cwd path]",
+    "  node workflow-runner.js wizard start <workflow> --input key=value ...",
+    "  node workflow-runner.js wizard status --run <run-id-or-path>",
+    "  node workflow-runner.js wizard resume --run <run-id-or-path> [--complete-step step] [--artifact key=path]",
     "  node workflow-runner.js validate [--spec workflow.yaml]",
     "",
     "Examples:",
@@ -193,6 +215,8 @@ function usage(specPath = DEFAULT_SPEC) {
     "  node workflow-runner.js adapters",
     "  node workflow-runner.js plan pr-review -i base_ref=main -i target_ref=HEAD",
     "  node workflow-runner.js run bug-scan -i symptom=\"Import repeats prompt\" --dry-run",
+    "  node workflow-runner.js wizard start github-issue-fix -i issue_number=63 -i repo=ml0427/Custom-tag-preview-software",
+    "  node workflow-runner.js wizard resume --run github-issue-fix-2026-05-29T00-00-00-000Z --artifact issue_json=.workflow-runs/run/collect-issue.json",
     "",
     `Default spec: ${specPath}`,
   ].join("\n");
@@ -780,6 +804,261 @@ async function runWorkflow(spec, workflowName, options) {
   return { ...report, reportPath };
 }
 
+function wizardRunsRoot() {
+  return path.join(__dirname, ".workflow-runs");
+}
+
+function createRunId(workflowName) {
+  return `${workflowName}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+}
+
+function wizardStatePath(runDir) {
+  return path.join(runDir, "wizard-state.json");
+}
+
+function resolveRunDir(runRef) {
+  if (!runRef) throw new Error("wizard command requires --run");
+  if (path.isAbsolute(runRef)) return runRef;
+  if (runRef.includes("/") || runRef.includes("\\")) return path.resolve(process.cwd(), runRef);
+  return path.join(wizardRunsRoot(), runRef);
+}
+
+async function readWizardState(runRef) {
+  const runDir = resolveRunDir(runRef);
+  const statePath = wizardStatePath(runDir);
+  const raw = await readFile(statePath, "utf8");
+  return { state: JSON.parse(raw), runDir, statePath };
+}
+
+async function writeWizardState(state) {
+  state.updated_at = new Date().toISOString();
+  await mkdir(state.runDir, { recursive: true });
+  await writeFile(wizardStatePath(state.runDir), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
+
+function createWizardContext(inputs = {}) {
+  return {
+    ...inputs,
+    symptom_keywords: keywordRegex(inputs.symptom),
+  };
+}
+
+function buildRequiredArtifacts(workflow) {
+  const artifacts = {};
+  for (const step of workflow.steps ?? []) {
+    artifacts[outputKey(step)] = null;
+  }
+  if ((workflow.steps ?? []).some((step) => /closeout/i.test(step.id))) {
+    artifacts.adjacent_regression_review = null;
+  }
+  return artifacts;
+}
+
+function lowModelWizardState(config) {
+  const handoffRequired = process.env.WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED === "1";
+  return {
+    mode: config.lowModel.mode,
+    handoff_required: handoffRequired,
+    pending_packet: null,
+    handoff_status: handoffRequired ? "not-started" : "not-required",
+  };
+}
+
+function findNextWizardStep(workflow, state) {
+  const completed = new Set(state.completed_steps ?? []);
+  const skipped = new Set(state.skipped_steps ?? []);
+  const context = { ...state.context };
+
+  for (const step of workflow.steps ?? []) {
+    if (completed.has(step.id) || skipped.has(step.id)) continue;
+    if (!shouldRun(step, context)) {
+      skipped.add(step.id);
+      const key = outputKey(step);
+      if (state.required_artifacts?.[key] === null) state.required_artifacts[key] = "(skipped)";
+      continue;
+    }
+    state.skipped_steps = [...skipped];
+    return step;
+  }
+
+  state.skipped_steps = [...skipped];
+  return null;
+}
+
+function commandTextForStep(workflow, step, context) {
+  const commands = step.commands ?? [commandForStep(workflow, step, context)];
+  return commands.filter(Boolean).map((command) => interpolate(command, context));
+}
+
+function wizardPromptForStep(workflow, step, state) {
+  if (!step) return "All workflow steps are complete. Review final status before closeout.";
+
+  if (step.type === "shell") {
+    const commands = commandTextForStep(workflow, step, state.context);
+    const commandBlock = commands.length > 0 ? `\n\nCommand:\n${commands.map((command) => `  ${command}`).join("\n")}` : "";
+    return `Run or collect output for '${step.id}', then resume with --artifact ${outputKey(step)}=<path>.${commandBlock}`;
+  }
+
+  if (step.type === "ai") {
+    return `Produce the AI artifact for '${step.id}', then resume with --artifact ${outputKey(step)}=<path>.`;
+  }
+
+  if (step.type === "code-edit" || step.blocks_downstream === true) {
+    return `Complete manual step '${step.id}', then resume with --complete-step ${step.id}.`;
+  }
+
+  return `Complete '${step.id}' using the preferred tool or manual route, then resume with --artifact ${outputKey(step)}=<path> or --complete-step ${step.id}.`;
+}
+
+function updateWizardBlock(workflow, state) {
+  const step = findNextWizardStep(workflow, state);
+  state.current_step = step?.id ?? null;
+
+  if (!step) {
+    state.status = "completed";
+    state.blocked_reason = null;
+    state.next_question = "All workflow steps are complete. Confirm closeout artifacts and final git status.";
+    return state;
+  }
+
+  state.status = "blocked";
+  state.blocked_reason = step.type === "code-edit" || step.blocks_downstream === true
+    ? "manual step must be completed before downstream steps run"
+    : `waiting for artifact or completion marker for ${step.id}`;
+  state.next_question = wizardPromptForStep(workflow, step, state);
+  return state;
+}
+
+function registerWizardArtifact(state, key, value, cwd) {
+  const artifactPath = path.isAbsolute(value) ? value : path.resolve(cwd, value);
+  if (!existsSync(artifactPath)) {
+    throw new Error(`Artifact does not exist: ${artifactPath}`);
+  }
+  state.required_artifacts[key] = artifactPath;
+  state.context[key] = artifactPath;
+  state.history.push({
+    step: state.current_step,
+    status: "artifact-registered",
+    artifact: key,
+    path: artifactPath,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+function markWizardStepComplete(state, stepId) {
+  if (!stepId) throw new Error("--complete-step requires a step id");
+  if (!state.completed_steps.includes(stepId)) state.completed_steps.push(stepId);
+  const step = (state.steps ?? []).find((candidate) => candidate.id === stepId);
+  if (step && state.required_artifacts?.[step.output] === null) {
+    state.required_artifacts[step.output] = "(completed manually)";
+  }
+  state.history.push({
+    step: stepId,
+    status: "completed",
+    timestamp: new Date().toISOString(),
+  });
+}
+
+function applyWizardResumeOptions(state, options) {
+  for (const [key, value] of Object.entries(options.artifacts ?? {})) {
+    registerWizardArtifact(state, key, value, options.cwd);
+    const step = (state.steps ?? []).find((candidate) => candidate.output === key || candidate.id === key);
+    if (step) markWizardStepComplete(state, step.id);
+  }
+
+  for (const stepId of options.completeSteps ?? []) {
+    markWizardStepComplete(state, stepId);
+  }
+
+  if (options.lowModelStatus) {
+    state.low_model.handoff_status = options.lowModelStatus;
+    state.history.push({
+      step: state.current_step,
+      status: "low-model-resolved",
+      resolution: options.lowModelStatus,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+async function wizardStart(spec, workflowName, options) {
+  const workflow = spec.workflows[workflowName];
+  if (!workflow) throw new Error(`Unknown workflow: ${workflowName}`);
+  validateInputs(workflowName, workflow, options.inputs);
+
+  const runId = createRunId(workflowName);
+  const runDir = path.join(wizardRunsRoot(), runId);
+  const config = adapterConfig();
+  const state = {
+    workflow: workflowName,
+    version: WIZARD_VERSION,
+    status: "blocked",
+    run_id: runId,
+    runDir,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    inputs: options.inputs,
+    context: createWizardContext(options.inputs),
+    current_step: null,
+    completed_steps: [],
+    skipped_steps: [],
+    required_artifacts: buildRequiredArtifacts(workflow),
+    low_model: lowModelWizardState(config),
+    blocked_reason: null,
+    next_question: null,
+    steps: (workflow.steps ?? []).map((step) => ({ id: step.id, type: step.type, output: outputKey(step) })),
+    history: [],
+  };
+
+  updateWizardBlock(workflow, state);
+  await writeWizardState(state);
+  return { state, statePath: wizardStatePath(runDir) };
+}
+
+async function wizardStatus(options) {
+  const result = await readWizardState(options.run);
+  return result;
+}
+
+async function wizardResume(spec, options) {
+  const { state, runDir, statePath } = await readWizardState(options.run);
+  const workflow = spec.workflows[state.workflow];
+  if (!workflow) throw new Error(`Unknown workflow in state: ${state.workflow}`);
+
+  state.runDir = runDir;
+  applyWizardResumeOptions(state, options);
+  updateWizardBlock(workflow, state);
+  await writeWizardState(state);
+  return { state, runDir, statePath };
+}
+
+function printWizardState(state, statePath) {
+  console.log(`Workflow: ${state.workflow}`);
+  console.log(`Wizard: ${state.version}`);
+  console.log(`Run id: ${state.run_id}`);
+  console.log(`State: ${statePath}`);
+  console.log(`Status: ${state.status}`);
+  console.log(`Current step: ${state.current_step ?? "(none)"}`);
+  if (state.blocked_reason) console.log(`Blocked: ${state.blocked_reason}`);
+  if (state.next_question) {
+    console.log("");
+    console.log(state.next_question);
+  }
+
+  const missing = Object.entries(state.required_artifacts ?? {})
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  if (missing.length > 0) {
+    console.log("");
+    console.log(`Missing artifacts: ${missing.join(", ")}`);
+  }
+
+  if (state.low_model?.handoff_required) {
+    console.log("");
+    console.log(`Low-model handoff: ${state.low_model.handoff_status}`);
+  }
+}
+
 function keywordRegex(text = "") {
   const words = extractKeywords(text, 16);
   return words.length > 0 ? words.map(escapeRegex).join("|") : ".";
@@ -916,6 +1195,29 @@ async function main() {
   if (options.command === "adapters") {
     printAdapters();
     return;
+  }
+
+  if (options.command === "wizard") {
+    if (options.wizardCommand === "start") {
+      if (!options.workflowName) throw new Error("wizard start requires a workflow name");
+      const result = await wizardStart(spec, options.workflowName, options);
+      printWizardState(result.state, result.statePath);
+      return;
+    }
+
+    if (options.wizardCommand === "status") {
+      const result = await wizardStatus(options);
+      printWizardState(result.state, result.statePath);
+      return;
+    }
+
+    if (options.wizardCommand === "resume") {
+      const result = await wizardResume(spec, options);
+      printWizardState(result.state, result.statePath);
+      return;
+    }
+
+    throw new Error("wizard requires one of: start, status, resume");
   }
 
   if (!options.workflowName) throw new Error(`${options.command} requires a workflow name`);
