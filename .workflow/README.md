@@ -38,6 +38,28 @@ node .workflow/workflow-runner.js wizard resume --run <run-id> --complete-step f
 
 每次 `wizard start`、`wizard status`、`wizard resume` 都會先用白話顯示目前進度，例如「第 2/11 步」、「現在卡在：釐清這次要做的功能範圍」、「下一步：產出一份結果檔」。技術資訊會放在最後，方便 AI 轉貼給使用者時直接看懂目前做到哪。
 
+## 結果檔格式
+
+工作流管家不猜 AI 的自由回答。每一步都會提示 AI 必須建立哪個結果檔、內容格式、必要欄位，以及交回結果的 `wizard resume` 指令。
+
+例如有 `output_schema` 的 AI 步驟會要求 JSON：
+
+```powershell
+請建立這個結果檔：
+  .workflow\.workflow-runs\<run-id>\diagnose.json
+
+內容必須是 JSON object。必要欄位：
+  - root_cause_candidate
+  - confidence
+  - minimal_fix_plan
+  - probe_needed
+
+完成後執行：
+  node .workflow/workflow-runner.js wizard resume --run <run-id> --artifact diagnose=.workflow\.workflow-runs\<run-id>\diagnose.json
+```
+
+`wizard resume` 會驗證 schema-backed JSON artifact。JSON 格式錯誤或缺少必要欄位時，流程不會往下一步走。驗證通過後，JSON 內容會寫回 workflow context，因此後續條件如 `diagnose.confidence is high` 可以讀到真正欄位，而不是只看到檔案路徑。
+
 ## 關鍵規則
 
 - 不再使用舊的自動直跑入口。

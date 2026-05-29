@@ -10,6 +10,8 @@ As of `workflow-v0.3.9`, this is the only supported execution path. The old `run
 
 As of `workflow-v0.3.10`, wizard output must be readable by non-implementers. Every `start`, `status`, and `resume` response should show the plain-language workflow name, progress count, current step label, blocked reason, next action, and technical run id/state path.
 
+As of `workflow-v0.3.11`, wizard prompts must be prescriptive instead of adaptive. The wizard tells the AI the exact artifact path, file format, required fields, and resume command. For schema-backed JSON artifacts, `resume` validates the JSON and stores the parsed object in workflow context so later `when` conditions can read fields such as `diagnose.confidence`.
+
 ## Roles
 
 | Role | Responsibility |
@@ -34,8 +36,8 @@ Wizard mode:
 
 ```text
 CMD asks the next required question
-AI answers or asks the user
-CMD blocks until the answer or artifact exists
+AI creates the requested artifact in the requested format, or asks the user
+CMD blocks until the artifact exists and passes validation
 ```
 
 No step should advance just because the AI says it remembers the rule.
@@ -130,6 +132,7 @@ The wizard must block at these points:
 | First use | User-selected low-model strategy. |
 | `implement` / `fix` | Lead AI completes the code edit and confirms it. |
 | `verify` | Build/test command output exists. |
+| Structured AI output | JSON artifact exists and includes every required field from `output_schema`. |
 | `adjacent-regression-review` | Same-level review artifact exists. |
 | Blocking adjacent finding | Lead or user acknowledges, fixes, or explicitly accepts the risk. |
 | GitNexus analyze | Only before the normal commit, if needed. Do not run after commit just to refresh stats. |

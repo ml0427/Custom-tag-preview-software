@@ -10,7 +10,8 @@ import YAML from "yaml";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SPEC = path.join(__dirname, "workflow.yaml");
 const LOCAL_CONFIG = path.join(__dirname, "config.local.json");
-const WIZARD_VERSION = "workflow-v0.3.10";
+const WIZARD_VERSION = "workflow-v0.3.11";
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 const WIZARD_WORKFLOW_LABELS = {
   "github-issue-fix": "修 GitHub issue",
@@ -847,6 +848,10 @@ function wizardStepById(state, stepId) {
   return (state.steps ?? []).find((step) => step.id === stepId) ?? null;
 }
 
+function workflowStepByArtifact(workflow, artifactKey) {
+  return (workflow.steps ?? []).find((step) => outputKey(step) === artifactKey || step.id === artifactKey) ?? null;
+}
+
 function wizardArtifactLabel(state, artifactKey) {
   const step = (state.steps ?? []).find((candidate) => candidate.output === artifactKey || candidate.id === artifactKey);
   return step ? wizardStepLabel(step.id) : wizardStepLabel(artifactKey);
@@ -879,26 +884,129 @@ function wizardBlockedText(step) {
   return "目前需要完成這個工具/人工關卡，交回結果或標記完成後才會進下一步。";
 }
 
+function wizardArtifactExtension(step) {
+  if (step.output_schema?.type === "object") return "json";
+  if (step.output_format === "markdown" || step.type === "ai" || step.type === "code-edit") return "md";
+  return "txt";
+}
+
+function wizardArtifactFileName(step) {
+  const key = outputKey(step).replace(/[^A-Za-z0-9_-]+/g, "-");
+  return `${key}.${wizardArtifactExtension(step)}`;
+}
+
+function wizardSuggestedArtifactPath(state, step) {
+  return path
+    .relative(PROJECT_ROOT, path.join(state.runDir, wizardArtifactFileName(step)))
+    .replaceAll("/", "\\");
+}
+
+function wizardResumeCommand(state, step) {
+  return `node .workflow/workflow-runner.js wizard resume --run ${state.run_id} --artifact ${outputKey(step)}=${wizardSuggestedArtifactPath(state, step)}`;
+}
+
+function schemaExampleValue(field, schema = {}) {
+  if (schema.allowed_values) return schema.allowed_values.join(" | ");
+  if (field === "confidence") return "low | medium | high";
+  if (field === "status") return "pass | blocked";
+  if (
+    schema.type === "array" ||
+    /(?:^|_)(?:areas|breakpoints|checks|changes|features|files|findings|flow|goals|items|questions|risks|steps|subtasks)(?:_|$)/i.test(field) ||
+    /s$/i.test(field)
+  ) return [];
+  if (schema.type === "boolean" || /^is_|_needed$/i.test(field)) return false;
+  if (schema.type === "number" || schema.type === "integer" || /count|total|index/i.test(field)) return 0;
+  return "TODO";
+}
+
+function wizardSchemaExample(step) {
+  const required = step.output_schema?.required ?? [];
+  const properties = step.output_schema?.properties ?? {};
+  return Object.fromEntries(required.map((field) => [field, schemaExampleValue(field, properties[field])]));
+}
+
+function wizardFormatInstructions(step, state) {
+  const artifactPath = wizardSuggestedArtifactPath(state, step);
+  const resumeCommand = wizardResumeCommand(state, step);
+
+  if (step.output_schema?.type === "object") {
+    const required = step.output_schema.required ?? [];
+    return [
+      "",
+      "請建立這個結果檔：",
+      `  ${artifactPath}`,
+      "",
+      "內容必須是 JSON object。必要欄位：",
+      ...required.map((field) => `  - ${field}`),
+      "",
+      "最小範例：",
+      "```json",
+      JSON.stringify(wizardSchemaExample(step), null, 2),
+      "```",
+      "",
+      "完成後執行：",
+      `  ${resumeCommand}`,
+    ].join("\n");
+  }
+
+  if (step.type === "shell") {
+    return [
+      "",
+      "請把完整命令輸出存到：",
+      `  ${artifactPath}`,
+      "",
+      "完成後執行：",
+      `  ${resumeCommand}`,
+    ].join("\n");
+  }
+
+  if (step.type === "code-edit" || step.blocks_downstream === true) {
+    return [
+      "",
+      "完成實作後請建立這個結果檔：",
+      `  ${artifactPath}`,
+      "",
+      "內容請用 Markdown，至少包含：",
+      "  - 修改了哪些檔案",
+      "  - 為什麼這樣改",
+      "  - 需要跑哪些驗證",
+      "",
+      "完成後執行：",
+      `  ${resumeCommand}`,
+    ].join("\n");
+  }
+
+  return [
+    "",
+    "請把這一步的結果存到：",
+    `  ${artifactPath}`,
+    "",
+    "完成後執行：",
+    `  ${resumeCommand}`,
+  ].join("\n");
+}
+
 function wizardPromptForStep(workflow, step, state) {
   if (!step) return "流程已完成。請確認收尾檢查、最後 Git 狀態與必要紀錄。";
 
   const label = wizardStepLabel(step.id);
+  const formatInstructions = wizardFormatInstructions(step, state);
 
   if (step.type === "shell") {
     const commands = commandTextForStep(workflow, step, state.context);
     const commandBlock = commands.length > 0 ? `\n\n要執行或收集的命令:\n${commands.map((command) => `  ${command}`).join("\n")}` : "";
-    return `現在要做的是「${label}」。完成後，把結果存成檔案並交回工作流管家。${commandBlock}`;
+    return `現在要做的是「${label}」。完成後，把結果存成指定檔案並交回工作流管家。${commandBlock}${formatInstructions}`;
   }
 
   if (step.type === "ai") {
-    return `現在要做的是「${label}」。請產出一份結果檔，內容用白話整理給後續步驟使用。`;
+    return `現在要做的是「${label}」。請依照指定格式產出結果檔，讓工作流管家可以檢查並放行。${formatInstructions}`;
   }
 
   if (step.type === "code-edit" || step.blocks_downstream === true) {
-    return `現在要做的是「${label}」。這一步必須由 Lead AI 實際完成，完成後再回報這一步已完成。`;
+    return `現在要做的是「${label}」。這一步必須由 Lead AI 實際完成，完成後交回指定結果檔。${formatInstructions}`;
   }
 
-  return `現在要做的是「${label}」。請依照這一步需要的工具或人工流程完成，然後交回結果檔或標記完成。`;
+  return `現在要做的是「${label}」。請依照這一步需要的工具或人工流程完成，然後交回指定結果檔或標記完成。${formatInstructions}`;
 }
 
 function updateWizardBlock(workflow, state) {
@@ -920,18 +1028,44 @@ function updateWizardBlock(workflow, state) {
   return state;
 }
 
-function registerWizardArtifact(state, key, value, cwd) {
+function validateStructuredArtifact(step, artifactPath) {
+  if (step?.output_schema?.type !== "object") return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(artifactPath, "utf8"));
+  } catch (error) {
+    throw new Error(`Artifact for ${step.id} must be valid JSON: ${error.message}`);
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`Artifact for ${step.id} must be a JSON object`);
+  }
+
+  const missing = (step.output_schema.required ?? []).filter((field) => !(field in parsed) || parsed[field] === undefined || parsed[field] === null);
+  if (missing.length > 0) {
+    throw new Error(`Artifact for ${step.id} is missing required field(s): ${missing.join(", ")}`);
+  }
+
+  return parsed;
+}
+
+function registerWizardArtifact(state, key, value, cwd, workflow) {
   const artifactPath = path.isAbsolute(value) ? value : path.resolve(cwd, value);
   if (!existsSync(artifactPath)) {
     throw new Error(`Artifact does not exist: ${artifactPath}`);
   }
+  const step = workflowStepByArtifact(workflow, key);
+  const structuredOutput = validateStructuredArtifact(step, artifactPath);
   state.required_artifacts[key] = artifactPath;
-  state.context[key] = artifactPath;
+  state.context[key] = structuredOutput ?? artifactPath;
+  if (structuredOutput) state.context[`${key}_artifact_path`] = artifactPath;
   state.history.push({
     step: state.current_step,
     status: "artifact-registered",
     artifact: key,
     path: artifactPath,
+    schemaValidated: Boolean(structuredOutput),
     timestamp: new Date().toISOString(),
   });
 }
@@ -950,9 +1084,9 @@ function markWizardStepComplete(state, stepId) {
   });
 }
 
-function applyWizardResumeOptions(state, options) {
+function applyWizardResumeOptions(state, options, workflow) {
   for (const [key, value] of Object.entries(options.artifacts ?? {})) {
-    registerWizardArtifact(state, key, value, options.cwd);
+    registerWizardArtifact(state, key, value, options.cwd, workflow);
     const step = (state.steps ?? []).find((candidate) => candidate.output === key || candidate.id === key);
     if (step) markWizardStepComplete(state, step.id);
   }
@@ -1017,7 +1151,7 @@ async function wizardResume(spec, options) {
   if (!workflow) throw new Error(`Unknown workflow in state: ${state.workflow}`);
 
   state.runDir = runDir;
-  applyWizardResumeOptions(state, options);
+  applyWizardResumeOptions(state, options, workflow);
   updateWizardBlock(workflow, state);
   await writeWizardState(state);
   return { state, runDir, statePath };
