@@ -75,8 +75,9 @@ This project is indexed by GitNexus as **Custom-tag-preview-software** (1826 sym
 
 ## AI 工作流
 
-- 專案內有 `.workflow/workflow-runner.js` 工作流引擎，定義三條工作流：`github-issue-fix` / `pr-review` / `bug-scan`
-- 處理 issue/PR/bug 時，執行 `node .workflow/workflow-runner.js run <workflow> -i key=value ...`
+- 專案內有 `.workflow/workflow-runner.js` 工作流引擎，定義四條工作流：`github-issue-fix` / `pr-review` / `bug-scan` / `feature-dev`
+- 處理 issue/PR/bug 時，一律使用新的工作流管家：`node .workflow/workflow-runner.js wizard start <workflow> -i key=value ...`
+- 舊的自動直跑流程已移除，不要再使用舊入口
 - Runner 自動處理 shell 步驟和低階模型委派（小G/小N），AI 步驟由 Lead agent 接手。不要繞過 runner 手動執行。
 
 ## Rust 踩雷

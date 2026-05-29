@@ -6,6 +6,10 @@ Prevent AI agents from treating `.workflow` as optional reference text.
 
 The wizard is an interactive CMD flow. The AI opens the command, but CMD owns the process. CMD asks one question at a time, the AI answers, and the next step does not start until CMD receives the required answer or artifact.
 
+As of `workflow-v0.3.9`, this is the only supported execution path. The old `run` command is removed so AI agents do not mix the automatic runner with the stateful wizard flow.
+
+As of `workflow-v0.3.10`, wizard output must be readable by non-implementers. Every `start`, `status`, and `resume` response should show the plain-language workflow name, progress count, current step label, blocked reason, next action, and technical run id/state path.
+
 ## Roles
 
 | Role | Responsibility |

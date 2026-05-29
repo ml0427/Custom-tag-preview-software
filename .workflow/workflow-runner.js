@@ -10,7 +10,49 @@ import YAML from "yaml";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SPEC = path.join(__dirname, "workflow.yaml");
 const LOCAL_CONFIG = path.join(__dirname, "config.local.json");
-const WIZARD_VERSION = "workflow-v0.3.9";
+const WIZARD_VERSION = "workflow-v0.3.10";
+
+const WIZARD_WORKFLOW_LABELS = {
+  "github-issue-fix": "修 GitHub issue",
+  "pr-review": "審查 PR / 分支差異",
+  "bug-scan": "追查 bug",
+  "feature-dev": "開發功能",
+};
+
+const WIZARD_STEP_LABELS = {
+  "clarify-feature": "釐清這次要做的功能範圍",
+  "collect-issue": "取得 GitHub issue 內容",
+  "collect-status": "檢查目前 Git 狀態",
+  "summarize-issue": "整理 issue 目標",
+  "search-related-code": "搜尋相關程式碼",
+  "search-existing-code": "搜尋既有程式碼",
+  "memory-search": "查專案記憶與踩雷紀錄",
+  "impact-before-edit": "分析修改影響範圍",
+  "implementation-plan": "整理實作計畫",
+  "design-plan": "整理設計與實作計畫",
+  "fix": "修改程式",
+  "implement": "實作功能",
+  "verify": "執行 build / 驗證",
+  "detect-changes": "檢查這次變更影響",
+  "adjacent-regression-review": "檢查相鄰功能有沒有被影響",
+  "closeout-checklist": "收尾檢查",
+  "collect-diff": "收集差異內容",
+  "collect-changed-files": "收集變更檔案",
+  "classify-change": "判斷變更類型",
+  "collect-impact": "收集影響資訊",
+  "check-api-contracts": "檢查 API 契約",
+  "check-ui-regressions": "檢查 UI 回歸風險",
+  "check-tests": "檢查測試風險",
+  "final-review": "整理最終審查",
+  "explain-symptom": "說明 bug 現象",
+  "search-error": "搜尋錯誤訊息",
+  "trace-data-flow": "追蹤資料流程",
+  "read-focused-files": "讀取重點檔案",
+  "diagnose": "判斷可能根因",
+  "probe-before-third-fix": "補證據或探針",
+  "final-bug-report": "整理 bug 結論",
+  adjacent_regression_review: "相鄰回歸檢查結果",
+};
 
 function parseArgs(argv) {
   const [command = "help", ...tokens] = argv;
@@ -198,10 +240,8 @@ function usage(specPath = DEFAULT_SPEC) {
     "Usage:",
     "  node workflow-runner.js setup [external-free|lead-low-model]",
     "  node workflow-runner.js list [--spec workflow.yaml]",
-    "  node workflow-runner.js runners [--spec workflow.yaml]",
     "  node workflow-runner.js adapters [--spec workflow.yaml]",
     "  node workflow-runner.js plan <workflow> --input key=value ...",
-    "  node workflow-runner.js run <workflow> --input key=value ... [--dry-run] [--cwd path]",
     "  node workflow-runner.js wizard start <workflow> --input key=value ...",
     "  node workflow-runner.js wizard status --run <run-id-or-path>",
     "  node workflow-runner.js wizard resume --run <run-id-or-path> [--complete-step step] [--artifact key=path]",
@@ -211,12 +251,10 @@ function usage(specPath = DEFAULT_SPEC) {
     "  node workflow-runner.js setup external-free",
     "  node workflow-runner.js setup lead-low-model",
     "  node workflow-runner.js list",
-    "  node workflow-runner.js runners",
     "  node workflow-runner.js adapters",
     "  node workflow-runner.js plan pr-review -i base_ref=main -i target_ref=HEAD",
-    "  node workflow-runner.js run bug-scan -i symptom=\"Import repeats prompt\" --dry-run",
     "  node workflow-runner.js wizard start github-issue-fix -i issue_number=63 -i repo=ml0427/Custom-tag-preview-software",
-    "  node workflow-runner.js wizard resume --run github-issue-fix-2026-05-29T00-00-00-000Z --artifact issue_json=.workflow-runs/run/collect-issue.json",
+    "  node workflow-runner.js wizard resume --run github-issue-fix-2026-05-29T00-00-00-000Z --artifact issue_json=.workflow-runs/github-issue-fix-2026-05-29T00-00-00-000Z/collect-issue.json",
     "",
     `Default spec: ${specPath}`,
   ].join("\n");
@@ -710,100 +748,6 @@ function inferTaskClass(step) {
   return null;
 }
 
-async function runWorkflow(spec, workflowName, options) {
-  const workflow = spec.workflows[workflowName];
-  if (!workflow) throw new Error(`Unknown workflow: ${workflowName}`);
-  validateInputs(workflowName, workflow, options.inputs);
-
-  const runId = new Date().toISOString().replace(/[:.]/g, "-");
-  const runDir = path.join(__dirname, ".workflow-runs", `${workflowName}-${runId}`);
-  await mkdir(runDir, { recursive: true });
-  const config = adapterConfig();
-
-  const context = {
-    ...options.inputs,
-    symptom_keywords: keywordRegex(options.inputs.symptom),
-  };
-  const stepResults = [];
-
-  for (const step of workflow.steps ?? []) {
-    const status = shouldRun(step, context) ? "running" : "skipped";
-    if (status === "skipped") {
-      stepResults.push({ id: step.id, type: step.type, status });
-      continue;
-    }
-
-    if (step.type === "shell") {
-      const commands = step.commands ?? [commandForStep(workflow, step, context)];
-      const renderedCommands = commands.filter(Boolean).map((command) => interpolate(command, context));
-      let delegation = null;
-      if (step.delegate === "allowed" || step.task_class) {
-        const packet = buildShellDelegationPacket(workflowName, step, renderedCommands, context);
-        const packetPath = await writeDelegationPacket(runDir, step, packet);
-        delegation = await runLowModelDelegation(packet, packetPath, config, options.cwd, options.dryRun);
-      }
-      const results = [];
-      for (const rendered of renderedCommands) {
-        const result = options.dryRun
-          ? { command: rendered, exitCode: null, stdout: "", stderr: "", dryRun: true }
-          : await runShell(rendered, options.cwd);
-        results.push(result);
-      }
-      const value = results.length === 1 ? `${results[0].stdout}${results[0].stderr}` : results;
-      context[outputKey(step)] = value;
-      stepResults.push({ id: step.id, type: step.type, status: "completed", delegation, results });
-      continue;
-    }
-
-    if (step.type === "ai") {
-      const result = await runAiStep(workflowName, step, context, runDir, config);
-      context[outputKey(step)] = result.output;
-      context[step.id] = result.output;
-      stepResults.push({ id: step.id, type: step.type, status: result.status, promptPath: result.promptPath, output: result.output });
-      continue;
-    }
-
-    if (step.type === "file") {
-      const files = normalizeFileList(getPath(context, step.input) ?? step.input);
-      const contents = [];
-      for (const file of files) {
-        try {
-          const fullPath = path.resolve(options.cwd, file);
-          contents.push({ file: fullPath, content: await readFile(fullPath, "utf8") });
-        } catch (error) {
-          contents.push({ file, error: error.message });
-        }
-      }
-      context[outputKey(step)] = contents;
-      stepResults.push({ id: step.id, type: step.type, status: "completed", files: files.length });
-      continue;
-    }
-
-    context[outputKey(step)] = {
-      status: "manual-step",
-      message: `${step.type} requires a host-specific adapter.`,
-      action: step.action ?? step.strategy ?? step.constraints ?? null,
-    };
-    if (step.type === "code-edit" || step.blocks_downstream === true) {
-      const blocked = {
-        step: step.id,
-        type: step.type,
-        reason: "manual step must be completed before downstream steps run",
-        next_action: "Complete this step in the lead agent, then run verification manually or rerun the workflow after recording its output.",
-      };
-      context.workflow_blocked = blocked;
-      stepResults.push({ id: step.id, type: step.type, status: "manual-blocked", blocked });
-      break;
-    }
-    stepResults.push({ id: step.id, type: step.type, status: "manual-adapter-required" });
-  }
-
-  const report = { workflow: workflowName, runDir, dryRun: options.dryRun, adapters: config, stepResults, context };
-  const reportPath = path.join(runDir, "run-report.json");
-  await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  return { ...report, reportPath };
-}
-
 function wizardRunsRoot() {
   return path.join(__dirname, ".workflow-runs");
 }
@@ -848,7 +792,8 @@ function buildRequiredArtifacts(workflow) {
   for (const step of workflow.steps ?? []) {
     artifacts[outputKey(step)] = null;
   }
-  if ((workflow.steps ?? []).some((step) => /closeout/i.test(step.id))) {
+  const hasAdjacentReviewStep = (workflow.steps ?? []).some((step) => step.id === "adjacent-regression-review");
+  if (!hasAdjacentReviewStep && (workflow.steps ?? []).some((step) => /closeout/i.test(step.id))) {
     artifacts.adjacent_regression_review = null;
   }
   return artifacts;
@@ -890,24 +835,70 @@ function commandTextForStep(workflow, step, context) {
   return commands.filter(Boolean).map((command) => interpolate(command, context));
 }
 
+function wizardWorkflowLabel(workflowName) {
+  return WIZARD_WORKFLOW_LABELS[workflowName] ?? workflowName;
+}
+
+function wizardStepLabel(stepId) {
+  return WIZARD_STEP_LABELS[stepId] ?? stepId;
+}
+
+function wizardStepById(state, stepId) {
+  return (state.steps ?? []).find((step) => step.id === stepId) ?? null;
+}
+
+function wizardArtifactLabel(state, artifactKey) {
+  const step = (state.steps ?? []).find((candidate) => candidate.output === artifactKey || candidate.id === artifactKey);
+  return step ? wizardStepLabel(step.id) : wizardStepLabel(artifactKey);
+}
+
+function wizardProgress(state) {
+  const steps = state.steps ?? [];
+  const completed = new Set(state.completed_steps ?? []);
+  const skipped = new Set(state.skipped_steps ?? []);
+  const done = steps.filter((step) => completed.has(step.id) || skipped.has(step.id)).length;
+  const currentIndex = steps.findIndex((step) => step.id === state.current_step);
+  return {
+    done,
+    total: steps.length,
+    currentNumber: currentIndex >= 0 ? currentIndex + 1 : steps.length,
+  };
+}
+
+function wizardBlockedText(step) {
+  if (!step) return "所有步驟都已完成。";
+  if (step.type === "code-edit" || step.blocks_downstream === true) {
+    return "目前停在人工修改關卡，必須真的完成這一步，工作流管家才會往下走。";
+  }
+  if (step.type === "shell") {
+    return "目前需要收集命令輸出或查詢結果，交回結果檔後才會進下一步。";
+  }
+  if (step.type === "ai") {
+    return "目前需要 AI 產出一份分析或計畫，交回結果檔後才會進下一步。";
+  }
+  return "目前需要完成這個工具/人工關卡，交回結果或標記完成後才會進下一步。";
+}
+
 function wizardPromptForStep(workflow, step, state) {
-  if (!step) return "All workflow steps are complete. Review final status before closeout.";
+  if (!step) return "流程已完成。請確認收尾檢查、最後 Git 狀態與必要紀錄。";
+
+  const label = wizardStepLabel(step.id);
 
   if (step.type === "shell") {
     const commands = commandTextForStep(workflow, step, state.context);
-    const commandBlock = commands.length > 0 ? `\n\nCommand:\n${commands.map((command) => `  ${command}`).join("\n")}` : "";
-    return `Run or collect output for '${step.id}', then resume with --artifact ${outputKey(step)}=<path>.${commandBlock}`;
+    const commandBlock = commands.length > 0 ? `\n\n要執行或收集的命令:\n${commands.map((command) => `  ${command}`).join("\n")}` : "";
+    return `現在要做的是「${label}」。完成後，把結果存成檔案並交回工作流管家。${commandBlock}`;
   }
 
   if (step.type === "ai") {
-    return `Produce the AI artifact for '${step.id}', then resume with --artifact ${outputKey(step)}=<path>.`;
+    return `現在要做的是「${label}」。請產出一份結果檔，內容用白話整理給後續步驟使用。`;
   }
 
   if (step.type === "code-edit" || step.blocks_downstream === true) {
-    return `Complete manual step '${step.id}', then resume with --complete-step ${step.id}.`;
+    return `現在要做的是「${label}」。這一步必須由 Lead AI 實際完成，完成後再回報這一步已完成。`;
   }
 
-  return `Complete '${step.id}' using the preferred tool or manual route, then resume with --artifact ${outputKey(step)}=<path> or --complete-step ${step.id}.`;
+  return `現在要做的是「${label}」。請依照這一步需要的工具或人工流程完成，然後交回結果檔或標記完成。`;
 }
 
 function updateWizardBlock(workflow, state) {
@@ -923,8 +914,8 @@ function updateWizardBlock(workflow, state) {
 
   state.status = "blocked";
   state.blocked_reason = step.type === "code-edit" || step.blocks_downstream === true
-    ? "manual step must be completed before downstream steps run"
-    : `waiting for artifact or completion marker for ${step.id}`;
+    ? `等待「${wizardStepLabel(step.id)}」完成`
+    : `等待「${wizardStepLabel(step.id)}」的結果`;
   state.next_question = wizardPromptForStep(workflow, step, state);
   return state;
 }
@@ -1033,30 +1024,42 @@ async function wizardResume(spec, options) {
 }
 
 function printWizardState(state, statePath) {
-  console.log(`Workflow: ${state.workflow}`);
-  console.log(`Wizard: ${state.version}`);
-  console.log(`Run id: ${state.run_id}`);
-  console.log(`State: ${statePath}`);
-  console.log(`Status: ${state.status}`);
-  console.log(`Current step: ${state.current_step ?? "(none)"}`);
-  if (state.blocked_reason) console.log(`Blocked: ${state.blocked_reason}`);
+  const progress = wizardProgress(state);
+  const currentStep = state.current_step ? wizardStepById(state, state.current_step) : null;
+  const currentLabel = state.current_step ? wizardStepLabel(state.current_step) : "沒有下一步";
+
+  console.log(`工作流管家：${wizardWorkflowLabel(state.workflow)}`);
+  console.log(`目前進度：第 ${progress.currentNumber}/${progress.total} 步，已完成 ${progress.done} 步`);
+  console.log(`現在卡在：${currentLabel}`);
+  console.log(`狀態：${state.status === "completed" ? "已完成" : "等待下一個結果"}`);
+  if (state.blocked_reason) console.log(`卡住原因：${state.blocked_reason}`);
+  console.log(`白話說明：${wizardBlockedText(currentStep)}`);
+
   if (state.next_question) {
     console.log("");
+    console.log("下一步：");
     console.log(state.next_question);
   }
 
   const missing = Object.entries(state.required_artifacts ?? {})
     .filter(([, value]) => !value)
-    .map(([key]) => key);
+    .map(([key]) => wizardArtifactLabel(state, key));
   if (missing.length > 0) {
     console.log("");
-    console.log(`Missing artifacts: ${missing.join(", ")}`);
+    console.log(`還缺的結果：${missing.join(", ")}`);
   }
 
   if (state.low_model?.handoff_required) {
     console.log("");
-    console.log(`Low-model handoff: ${state.low_model.handoff_status}`);
+    console.log(`低模型交接狀態：${state.low_model.handoff_status}`);
   }
+
+  console.log("");
+  console.log("技術資訊：");
+  console.log(`- workflow: ${state.workflow}`);
+  console.log(`- run id: ${state.run_id}`);
+  console.log(`- state: ${statePath}`);
+  console.log(`- current step: ${state.current_step ?? "(none)"}`);
 }
 
 function keywordRegex(text = "") {
@@ -1224,17 +1227,6 @@ async function main() {
 
   if (options.command === "plan") {
     printPlan(spec, options.workflowName);
-    return;
-  }
-
-  if (options.command === "run") {
-    const result = await runWorkflow(spec, options.workflowName, options);
-    console.log(`Workflow: ${result.workflow}`);
-    console.log(`Run dir: ${result.runDir}`);
-    console.log(`Report: ${result.reportPath}`);
-    for (const step of result.stepResults) {
-      console.log(`- ${step.id}: ${step.status}`);
-    }
     return;
   }
 

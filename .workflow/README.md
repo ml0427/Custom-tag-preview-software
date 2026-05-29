@@ -1,189 +1,57 @@
-# Portable AI Workflow Runner
+# AI Workflow
 
-這是一個跨 AI 的工作流雛形。`workflow.yaml` 負責定義流程，`workflow-runner.js` 負責執行可機械化的步驟，並把需要 AI 判斷的步驟輸出成 prompt artifact。
+本專案只使用新的「工作流管家」模式。
 
-## 安裝
+舊的自動直跑流程已移除，避免 AI 同時看到兩套入口後混用。所有 issue、PR、bug、feature 工作都從 `wizard start` 開始，再依照終端機提示用 `wizard resume` 推進。
 
-```powershell
-npm install
-```
-
-## 查看工作流
+## 基本指令
 
 ```powershell
-npm run list
+node .workflow/workflow-runner.js wizard start github-issue-fix -i issue_number=63 -i repo=ml0427/Custom-tag-preview-software
+node .workflow/workflow-runner.js wizard start pr-review -i base_ref=main -i target_ref=HEAD
+node .workflow/workflow-runner.js wizard start bug-scan -i symptom="import repeats category prompt"
 ```
 
-## 第一次使用設定
-
-第一次使用可先選擇低模型策略，設定會寫入 `.workflow/config.local.json`，這個檔案只放本機，不進 git。
+查看目前卡在哪一步：
 
 ```powershell
-node workflow-runner.js setup external-free
+node .workflow/workflow-runner.js wizard status --run <run-id>
 ```
 
-`external-free` 代表走外部免費模型 / Hermes：有 Ollama 就優先用小N，沒有就 fallback 小G。適合把搜尋、測試、log filter、diff summary 這些低判斷工作分出去。
+交回某一步產生的結果檔：
 
 ```powershell
-node workflow-runner.js setup lead-low-model
+node .workflow/workflow-runner.js wizard resume --run <run-id> --artifact issue_json=<path>
 ```
 
-`lead-low-model` 代表不外呼 Hermes，只產生 `*.low-model.packet.json` 與 prompt artifact，交給 Lead 明確轉交到可用的低模型。這不是「同等模型代打」模式；如果 Lead 沒有完成低模型 handoff，runner 會標成 `low-model-handoff-required`，不能把這一步算成已委派完成。
-
-不帶參數也可以互動選擇：
+標記人工步驟已完成：
 
 ```powershell
-node workflow-runner.js setup
+node .workflow/workflow-runner.js wizard resume --run <run-id> --complete-step fix
 ```
 
-環境變數仍然優先於 `config.local.json`，所以臨時測試時可以用 `$env:WORKFLOW_LOW_MODEL_MODE=...` 覆蓋。
+## 工作方式
 
-## 查看低模型 / 低判斷執行器
+`wizard start` 會建立 `.workflow/.workflow-runs/<run-id>/wizard-state.json`。這份狀態檔會記住目前步驟、已完成步驟、已跳過步驟、缺少的 artifact、block 原因、下一個問題，以及 low-model handoff 狀態。
+
+工作流管家每次只提示下一步。AI 完成那一步後，必須把結果檔或完成狀態交回給管家，管家才會往下一步走。
+
+每次 `wizard start`、`wizard status`、`wizard resume` 都會先用白話顯示目前進度，例如「第 2/11 步」、「現在卡在：釐清這次要做的功能範圍」、「下一步：產出一份結果檔」。技術資訊會放在最後，方便 AI 轉貼給使用者時直接看懂目前做到哪。
+
+## 關鍵規則
+
+- 不再使用舊的自動直跑入口。
+- `code-edit` 或 `blocks_downstream` 步驟一定會卡住，直到 Lead AI 明確回報完成。
+- `lead-low-model` 只會產生 packet，不會自動算委派完成，必須明確 resolve handoff。
+- closeout 前必須有 build/test、detect changes、adjacent regression review 等必要 artifact。
+- 工作流 runner 不啟動 `npm run tauri dev`，驗證以 `npm run build` 為主。
+
+## 輔助指令
 
 ```powershell
-node workflow-runner.js runners
+node .workflow/workflow-runner.js setup external-free
+node .workflow/workflow-runner.js setup lead-low-model
+node .workflow/workflow-runner.js list
+node .workflow/workflow-runner.js plan github-issue-fix -i issue_number=63 -i repo=ml0427/Custom-tag-preview-software
+node .workflow/workflow-runner.js validate
 ```
-
-這個指令會讀 `workflow.yaml` 的 `delegation_policy.runner_registry`，並執行可用性檢查。現在的規則是：
-
-- 小N / `local-small-worker`：用 `ollama --version` 檢查，通過才拿來跑 exact command、search、file excerpt、log filter、diff summary、指定 closeout。
-- 小G / `remote-general-worker`：由 adapter 管理可用性，適合整理、摘要、檢查清單，不負責最後判斷。
-- Lead / `lead-agent`：永遠是目前主 agent，負責 root cause、架構決策、code edit、風險接受與最後整合。
-
-Workflow step 只標 `task_class`，不直接綁小G或小N。低模型不可用時，流程不改路線，但只能記錄委派略過或等待 Lead 手動 handoff；不能把同等模型處理誤記成低模型委派。
-
-## 查看 Adapter 設定
-
-```powershell
-node workflow-runner.js adapters
-```
-
-預設狀態是：
-
-- `WORKFLOW_AI_ADAPTER=placeholder`：AI step 只寫 prompt 檔並使用少量內建 placeholder。
-- `WORKFLOW_LOW_MODEL_MODE=record`：可委派的 shell step 會產生 `*.low-model.packet.json`，但不送出。
-- `WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED=1`：record mode 產生 packet 後會標示需要 Lead 明確轉交低模型；用於 `lead-low-model` profile。
-
-主要低模型呼叫層是 Hermes：
-
-```powershell
-$env:WORKFLOW_LOW_MODEL_MODE='hermes'
-node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software --dry-run
-```
-
-`--dry-run` 預設只產生 low-model packet，不會真的呼叫 Hermes。若要測 Hermes 接線，可明確打開：
-
-```powershell
-$env:WORKFLOW_DELEGATE_IN_DRY_RUN='1'
-```
-
-Hermes mode 會先 resolve `hermes.exe`，再跑 `ollama --version`。有 Ollama 就呼叫小N：
-
-```powershell
-& $hermes --provider ollama-nemotron-3-super-cloud --model nemotron-3-super:cloud -z "<packet>"
-```
-
-沒有 Ollama 就 fallback 小G：
-
-```powershell
-& $hermes --provider github-copilot --model gpt-5-mini -z "<packet>"
-```
-
-要真的接 AI adapter，可使用 OpenAI-compatible API：
-
-```powershell
-$env:WORKFLOW_AI_ADAPTER='openai-compatible'
-$env:WORKFLOW_AI_BASE_URL='https://api.openai.com/v1'
-$env:WORKFLOW_AI_MODEL='gpt-4.1-mini'
-$env:WORKFLOW_AI_API_KEY='...'
-node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software
-```
-
-不用 Hermes 時，也可以把低判斷 shell step 送到 OpenAI-compatible endpoint 做執行前檢查紀錄：
-
-```powershell
-$env:WORKFLOW_LOW_MODEL_MODE='ollama-review'
-$env:WORKFLOW_LOW_MODEL_BASE_URL='http://localhost:11434/v1'
-$env:WORKFLOW_LOW_MODEL='llama3.1'
-node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software --dry-run
-```
-
-如果有其他真正能執行任務 packet 的外部 wrapper，可用 command mode：
-
-```powershell
-$env:WORKFLOW_LOW_MODEL_MODE='command'
-$env:WORKFLOW_LOW_MODEL_COMMAND='hermes-runner --packet {packet}'
-```
-
-注意：純 Ollama `/v1/chat/completions` 只能做低判斷檢查或摘要，不能自己執行 shell。要讓小N 真正跑命令，需要外部 wrapper 或 Hermes 類 runner 接 `*.low-model.packet.json`。
-
-## 只看執行計畫
-
-```powershell
-node workflow-runner.js plan pr-review --input base_ref=main --input target_ref=HEAD
-```
-
-```powershell
-node workflow-runner.js plan github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software
-```
-
-```powershell
-node workflow-runner.js plan feature-dev --input feature_request="Add comic slide reading mode." --input feature_keywords="comic|slide|reader"
-```
-
-## 乾跑
-
-```powershell
-node workflow-runner.js run pr-review --input base_ref=main --input target_ref=HEAD --dry-run
-```
-
-```powershell
-node workflow-runner.js run bug-scan --input symptom="import repeats category prompt" --dry-run
-```
-
-```powershell
-node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software --dry-run
-```
-
-```powershell
-node workflow-runner.js run feature-dev --input feature_request="Add comic slide reading mode." --input feature_keywords="comic|slide|reader" --dry-run
-```
-
-## 實際跑 shell step
-
-```powershell
-node workflow-runner.js run pr-review --input base_ref=main --input target_ref=HEAD
-```
-
-```powershell
-node workflow-runner.js run github-issue-fix --input issue_number=63 --input repo=ml0427/Custom-tag-preview-software
-```
-
-```powershell
-node workflow-runner.js run feature-dev --input feature_request="Add comic slide reading mode." --input feature_keywords="comic|slide|reader"
-```
-
-`pr-review`、`bug-scan`、`github-issue-fix` 與 `feature-dev` 的完成驗證只要求 `npm run build`。工作流 runner 不會啟動 `npm run tauri dev`。
-
-`code-edit` 這類 manual step 會阻斷後續步驟。也就是說 `github-issue-fix` 跑到 `fix`、`feature-dev` 跑到 `implement` 時會停下來，不會在程式碼尚未修改前自動跑 `verify`。完成修正或實作後，由 lead agent 手動執行 `npm run build`，或在記錄 patch output 後再繼續工作流。
-
-`feature-dev` 與 `github-issue-fix` 在 build/test 後還有一個 `adjacent-regression-review`。這一步是同等模型/Lead-level 檢查，不交給小N或小G；它要看剛剛新增或修改附近的功能、事件、狀態與 UI 綁定，避免像「縮圖新增按鈕後右鍵選單被事件冒泡弄壞」這類鄰近回歸漏掉。這一步必須同步完成，不能和 Lead 同時各做各的。
-
-Closeout 注意事項：
-
-- `C:\AI紀錄\AI筆記.txt` 只作索引；實作紀錄要寫進當日檔案 `C:\AI紀錄\AI筆記_YYYY-MM-DD.txt`，同一天追加到同一個檔案。
-- `npm run build` 會透過 `scripts/stamp-build.cjs` 更新 `index.html` 與 `src-tauri/tauri.conf.json` 的時間戳；commit 前要把這兩個 stamp 變更一起納入，或明確清乾淨。
-- 有程式或 workflow 變更時，完成前必須 commit 並 push；除非使用者明確要求只留在本機，否則不能只做到驗證通過就回報完成。
-- runner 不會自動挑檔案、寫 commit message 或推送。若要把 closeout 交給小N/小G，只能用 `closeout_exact`，且必須由 Lead 明確提供檔案清單、commit message、remote/branch。
-- patch 工具若在 declaration file 上報 TS18028 private identifier，但 `npm run build`、`tsc --noEmit` 或 `vue-tsc --noEmit` 乾淨，視為 patch 工具誤報。
-- 不自動 force push；遇到 branch protection 擋下 amend 後推送時，要交給 lead/user 決定。
-
-每次執行會在 `.workflow-runs/` 產生：
-
-- `*.prompt.md`：交給任意 AI adapter 的步驟提示
-- `*.low-model.packet.json`：可委派 shell step 的低模型任務封包
-- `run-report.json`：執行結果、shell output、AI placeholder output
-
-目前 AI adapter 預設是 placeholder。設定 `WORKFLOW_AI_ADAPTER=openai-compatible` 或 `WORKFLOW_AI_ADAPTER=ollama` 後，AI step 會真的呼叫 `/chat/completions`，並把回傳寫入 `run-report.json`。
-
-低模型任務分類與 runner 清單另外整理在 `low-models.md`。那份文件是人看的；`workflow.yaml` 裡的 registry 是機器讀的。
