@@ -21,22 +21,68 @@ const imageUrl = ref('');
 const isLoading = ref(false);
 const errorMessage = ref('');
 const loadToken = ref(0);
+const isAutoplaying = ref(false);
+const autoplaySeconds = ref(3);
+let autoplayTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 const currentPage = computed(() => pages.value[pageIndex.value] ?? null);
 const isAtFirstPage = computed(() => pageIndex.value <= 0);
 const isAtLastPage = computed(() => pageIndex.value >= pages.value.length - 1);
+const canAutoplay = computed(() => pages.value.length > 1 && !isLoading.value && !errorMessage.value);
 const pageLabel = computed(() =>
   pages.value.length > 0 ? `${pageIndex.value + 1} / ${pages.value.length}` : '0 / 0'
 );
 const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'COMIC FOLDER' : 'ARCHIVE READER');
+const autoplayLabel = computed(() => `${autoplaySeconds.value.toFixed(1)} 秒/頁`);
+const autoplayButtonLabel = computed(() => isAutoplaying.value ? '停止播放' : '自動播放');
 const footerHint = computed(() => {
   if (!currentPage.value) return 'Esc 關閉';
+  if (isAutoplaying.value) return `自動播放中 · ${autoplayLabel.value} · Esc 關閉`;
   if (isAtLastPage.value) return '已到最後一頁 · Esc 關閉';
   return '點擊畫面或按空白鍵下一頁 · Esc 關閉';
 });
 
 const sortByName = (items: FileItem[]) =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant', { numeric: true }));
+
+const clearAutoplayTimer = () => {
+  if (!autoplayTimer) return;
+  window.clearTimeout(autoplayTimer);
+  autoplayTimer = null;
+};
+
+const scheduleAutoplay = () => {
+  clearAutoplayTimer();
+  if (!isAutoplaying.value || !props.item || !canAutoplay.value) return;
+  if (isAtLastPage.value) {
+    isAutoplaying.value = false;
+    return;
+  }
+
+  autoplayTimer = window.setTimeout(() => {
+    autoplayTimer = null;
+    goNext();
+  }, autoplaySeconds.value * 1000);
+};
+
+const stopAutoplay = () => {
+  isAutoplaying.value = false;
+  clearAutoplayTimer();
+};
+
+const toggleAutoplay = () => {
+  if (!canAutoplay.value) return;
+  if (isAutoplaying.value) {
+    stopAutoplay();
+    return;
+  }
+  isAutoplaying.value = true;
+};
+
+const closeReader = () => {
+  stopAutoplay();
+  emit('close');
+};
 
 const loadCurrentPage = async () => {
   const item = props.item;
@@ -54,7 +100,10 @@ const loadCurrentPage = async () => {
       : await api.getImageBase64ByPath(page.path);
     if (loadToken.value === token) imageUrl.value = url;
   } catch (e: any) {
-    if (loadToken.value === token) errorMessage.value = e?.message ?? String(e);
+    if (loadToken.value === token) {
+      errorMessage.value = e?.message ?? String(e);
+      stopAutoplay();
+    }
   } finally {
     if (loadToken.value === token) isLoading.value = false;
   }
@@ -89,11 +138,15 @@ const loadPages = async () => {
     if (loadToken.value !== token) return;
     if (pages.value.length === 0) {
       errorMessage.value = '沒有可閱讀的圖片頁面';
+      stopAutoplay();
       return;
     }
     await loadCurrentPage();
   } catch (e: any) {
-    if (loadToken.value === token) errorMessage.value = e?.message ?? String(e);
+    if (loadToken.value === token) {
+      errorMessage.value = e?.message ?? String(e);
+      stopAutoplay();
+    }
   } finally {
     if (loadToken.value === token) isLoading.value = false;
   }
@@ -113,7 +166,7 @@ const goNext = () => {
 
 const onKeydown = (event: KeyboardEvent) => {
   if (!props.item) return;
-  if (event.key === 'Escape') emit('close');
+  if (event.key === 'Escape') closeReader();
   if (event.key === 'ArrowLeft') goPrev();
   if (event.key === 'ArrowRight' || event.key === ' ') {
     event.preventDefault();
@@ -131,13 +184,16 @@ const onKeydown = (event: KeyboardEvent) => {
   }
 };
 
-watch(() => props.item, loadPages, { immediate: true });
 watch(() => props.item, item => {
+  stopAutoplay();
+  loadPages();
+  window.removeEventListener('keydown', onKeydown);
   if (item) window.addEventListener('keydown', onKeydown);
-  else window.removeEventListener('keydown', onKeydown);
 }, { immediate: true });
+watch([isAutoplaying, autoplaySeconds, pageIndex, canAutoplay], scheduleAutoplay);
 
 onUnmounted(() => {
+  clearAutoplayTimer();
   window.removeEventListener('keydown', onKeydown);
 });
 </script>
@@ -152,9 +208,33 @@ onUnmounted(() => {
         </div>
         <div class="reader-actions">
           <span class="reader-count">{{ pageLabel }}</span>
+          <div class="autoplay-control" @click.stop @dblclick.stop>
+            <button
+              class="reader-btn autoplay-toggle"
+              type="button"
+              :disabled="!canAutoplay"
+              :aria-pressed="isAutoplaying"
+              @click.stop="toggleAutoplay"
+            >
+              {{ autoplayButtonLabel }}
+            </button>
+            <label class="speed-control">
+              <span class="speed-label">{{ autoplayLabel }}</span>
+              <input
+                v-model.number="autoplaySeconds"
+                class="speed-slider"
+                type="range"
+                min="1"
+                max="10"
+                step="0.5"
+                :disabled="!canAutoplay"
+                aria-label="自動播放速度"
+              />
+            </label>
+          </div>
           <button class="reader-btn" type="button" :disabled="isAtFirstPage" @click.stop="goPrev">上一頁</button>
           <button class="reader-btn" type="button" :disabled="isAtLastPage" @click.stop="goNext">下一頁</button>
-          <button class="reader-close" type="button" title="關閉" @click.stop="emit('close')">✕</button>
+          <button class="reader-close" type="button" title="關閉" @click.stop="closeReader">✕</button>
         </div>
       </div>
 
@@ -237,7 +317,87 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex-shrink: 0;
+}
+
+.autoplay-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.autoplay-toggle[aria-pressed="true"] {
+  background: rgba(255, 188, 82, 0.18);
+  border-color: rgba(255, 188, 82, 0.5);
+  color: #ffd89b;
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: rgba(244, 241, 234, 0.64);
+  font-size: 0.75rem;
+}
+
+.speed-label {
+  min-width: 48px;
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.speed-slider {
+  width: 148px;
+  min-width: 0;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.speed-slider:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.speed-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(244, 241, 234, 0.3), rgba(255, 208, 137, 0.9));
+}
+
+.speed-slider::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent 6px, #08090b 6px 8px, transparent 8px 12px, #08090b 12px 14px, transparent 14px),
+    #ffd089;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  appearance: none;
+}
+
+.speed-slider::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(244, 241, 234, 0.3), rgba(255, 208, 137, 0.9));
+}
+
+.speed-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent 6px, #08090b 6px 8px, transparent 8px 12px, #08090b 12px 14px, transparent 14px),
+    #ffd089;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 .reader-btn,
