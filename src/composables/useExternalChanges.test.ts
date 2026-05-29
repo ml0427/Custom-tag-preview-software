@@ -12,6 +12,8 @@ vi.mock('../api', async importOriginal => {
       getItemByPath: vi.fn(),
       quickImportItem: vi.fn(),
       setItemCategory: vi.fn(),
+      getItemTypes: vi.fn(),
+      applyRulesToItem: vi.fn(),
       untrackItem: vi.fn(),
       incrementalScan: vi.fn(),
     },
@@ -63,6 +65,20 @@ const page = <T>(content: T[], totalPages = 1): Page<T> => ({
   number: 0,
   size: content.length,
 });
+
+const comicType = {
+  id: 2,
+  name: 'comic',
+  icon: 'C',
+  displayName: 'Comic',
+  color: null,
+  example: '',
+  isBuiltin: false,
+  extensions: ['zip'],
+  tagRules: [
+    { name: 'zip rule', matchType: 'extension', pattern: 'zip', tagName: 'ZIP' },
+  ],
+};
 
 describe('computeExternalChanges', () => {
   beforeEach(() => {
@@ -133,6 +149,8 @@ describe('computeExternalChanges', () => {
 describe('useExternalChanges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMock.getItemTypes.mockResolvedValue([]);
+    apiMock.applyRulesToItem.mockResolvedValue({ added: 0, updated: 0, removed: 0, tagged: 0 });
   });
 
   it('loads all DB pages before comparing filesystem changes', async () => {
@@ -171,6 +189,8 @@ describe('useExternalChanges', () => {
       name: 'new.zip',
       category: 'default',
     }));
+    apiMock.getItemTypes.mockResolvedValueOnce([comicType]);
+    apiMock.applyRulesToItem.mockResolvedValueOnce({ added: 0, updated: 0, removed: 0, tagged: 1 });
     apiMock.listDirFiles.mockResolvedValueOnce([]);
     apiMock.getItems.mockResolvedValueOnce(page([]));
 
@@ -181,6 +201,8 @@ describe('useExternalChanges', () => {
     expect(apiMock.getItemByPath).toHaveBeenCalledWith('C:/Library');
     expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
     expect(apiMock.setItemCategory).toHaveBeenCalledWith(20, 'comic');
+    expect(apiMock.getItemTypes).toHaveBeenCalled();
+    expect(apiMock.applyRulesToItem).toHaveBeenCalledWith(20, comicType.tagRules);
   });
 
   it('does not apply parent category when the parent has only the default category', async () => {
@@ -206,5 +228,7 @@ describe('useExternalChanges', () => {
 
     expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
     expect(apiMock.setItemCategory).not.toHaveBeenCalled();
+    expect(apiMock.getItemTypes).not.toHaveBeenCalled();
+    expect(apiMock.applyRulesToItem).not.toHaveBeenCalled();
   });
 });

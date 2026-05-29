@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import { api, type FileItem, type Item } from '../api';
+import { api, type FileItem, type Item, type TagRuleInput } from '../api';
 import { pathKey } from '../utils/pathKey';
 import { useToast } from './useToast';
 
@@ -155,15 +155,31 @@ export function useExternalChanges(sourcePath: () => string | null) {
     return decisions.get(key) ? parent.category : null;
   };
 
+  const getCategoryTagRules = async (
+    category: string,
+    cache: Map<string, TagRuleInput[]>,
+  ): Promise<TagRuleInput[]> => {
+    if (cache.has(category)) return cache.get(category) ?? [];
+    const itemTypes = await api.getItemTypes();
+    const rules = itemTypes.find(type => type.name === category)?.tagRules ?? [];
+    cache.set(category, rules);
+    return rules;
+  };
+
   const importWithOptionalParentCategory = async (
     path: string,
     decisions: Map<string, boolean>,
+    categoryRuleCache: Map<string, TagRuleInput[]> = new Map(),
   ): Promise<boolean> => {
     const category = await shouldApplyParentCategory(path, decisions);
     const item = await api.quickImportItem(path);
     if (!category) return false;
 
     await api.setItemCategory(item.id, category);
+    const rules = await getCategoryTagRules(category, categoryRuleCache);
+    if (rules.length > 0) {
+      await api.applyRulesToItem(item.id, rules);
+    }
     return true;
   };
 
@@ -197,6 +213,7 @@ export function useExternalChanges(sourcePath: () => string | null) {
     let added = 0, removed = 0, updated = 0, errors = 0;
     const snapshot = [...changes.value];
     const categoryDecisions = new Map<string, boolean>();
+    const categoryRuleCache = new Map<string, TagRuleInput[]>();
 
     try {
       for (const change of snapshot) {
@@ -208,7 +225,7 @@ export function useExternalChanges(sourcePath: () => string | null) {
       await runInBatches(snapshot, FIX_CONCURRENCY, async change => {
         try {
           if (change.kind === 'untracked') {
-            await importWithOptionalParentCategory(change.path, categoryDecisions);
+            await importWithOptionalParentCategory(change.path, categoryDecisions, categoryRuleCache);
             added++;
           } else if (change.kind === 'missing') {
             await api.untrackItem(change.path, { allowMissing: true });
