@@ -26,17 +26,24 @@ defineProps<{
 .info-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 0 4px 6px;
+  min-width: 0;
 }
 .info-text {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-tertiary);
-  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .info-dot {
   font-size: 11px;
   color: var(--border-default);
+  flex-shrink: 0;
 }
 </style>

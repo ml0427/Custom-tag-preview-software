@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { type Tag } from '../api';
 import { useToast } from '../composables/useToast';
 import { useTags } from '../composables/useTags';
@@ -19,6 +19,37 @@ const colorPickerTagId = ref<number | null>(null);
 const isAddingTag = ref(false);
 const newTagName = ref('');
 const showTagMenu = ref(false);
+
+const searchedTags = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return tags.value;
+  return tags.value.filter(tag => tag.name.toLowerCase().includes(q));
+});
+
+const hasHiddenSearchMatches = computed(() =>
+  !!searchQuery.value.trim() &&
+  hideEmptyTags.value &&
+  searchedTags.value.length > 0 &&
+  filteredTags.value.length === 0
+);
+
+const selectedTagName = computed(() =>
+  tags.value.find(tag => tag.id === props.selectedTagId)?.name ?? props.selectedTagId
+);
+
+const emptyStateTitle = computed(() => {
+  if (hasHiddenSearchMatches.value) return '符合的標籤目前被隱藏';
+  if (searchQuery.value.trim()) return '找不到符合的標籤';
+  if (hideEmptyTags.value && tags.value.length > 0) return '目前沒有可顯示的標籤';
+  return '還沒有建立標籤';
+});
+
+const emptyStateDescription = computed(() => {
+  if (hasHiddenSearchMatches.value) return '關閉「隱藏沒有資料的標籤」後就能看到。';
+  if (searchQuery.value.trim()) return `沒有標籤符合「${searchQuery.value.trim()}」`;
+  if (hideEmptyTags.value && tags.value.length > 0) return '可到標籤選項關閉「隱藏沒有資料的標籤」。';
+  return '下方可以新增第一個標籤。';
+});
 
 const toggleTagMenu = () => { showTagMenu.value = !showTagMenu.value; };
 const closeTagMenu = () => { showTagMenu.value = false; };
@@ -107,12 +138,16 @@ onUnmounted(() => {
         class="chip"
         :style="chipStyle(selectedTagId!)"
       >
-        {{ tags.find(t => t.id === selectedTagId)?.name ?? selectedTagId }}
+        {{ selectedTagName }}
         <span class="chip-x" @click="handleSelect(selectedTagId!)">✕</span>
       </span>
     </div>
 
     <ul class="tag-list" @click.stop>
+      <li v-if="filteredTags.length === 0" class="tag-empty-state">
+        <strong>{{ emptyStateTitle }}</strong>
+        <span>{{ emptyStateDescription }}</span>
+      </li>
       <TagItem
         v-for="tag in filteredTags"
         :key="tag.id"
@@ -261,6 +296,7 @@ onUnmounted(() => {
 
 .search-input {
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   background: var(--bg-input);
   border: 1px solid var(--border-default);
@@ -280,10 +316,33 @@ onUnmounted(() => {
   list-style: none;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
   padding: 0 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.tag-empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 10px;
+  color: var(--text-tertiary);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-overlay-soft);
+}
+
+.tag-empty-state strong {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.tag-empty-state span {
+  font-size: 0.76rem;
+  line-height: 1.5;
 }
 
 .tag-list::-webkit-scrollbar { width: 4px; }

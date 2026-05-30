@@ -40,7 +40,7 @@ const gallerySearch = computed({
     <input
       v-model="gallerySearch"
       class="gallery-search"
-      placeholder="搜尋檔名、標籤、備注..."
+      placeholder="搜尋檔名、標籤、備註..."
     />
     <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
     <div class="header-right">
@@ -66,25 +66,31 @@ const gallerySearch = computed({
 .search-bar-wrap {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 8px 14px;
   background: var(--bg-panel);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   margin-bottom: 6px;
+  min-width: 0;
 }
 
 .header-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 6px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
   margin-left: auto;
+  min-width: 0;
 }
 
 .sort-group {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   background: var(--bg-overlay-soft);
   border: 1px solid var(--border-default);
   border-radius: 6px;
@@ -102,6 +108,7 @@ const gallerySearch = computed({
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
+  min-width: 0;
 }
 .sort-select:hover { color: var(--text-primary); }
 
@@ -172,7 +179,8 @@ const gallerySearch = computed({
 }
 
 .gallery-search {
-  flex: 1;
+  flex: 1 1 12rem;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;

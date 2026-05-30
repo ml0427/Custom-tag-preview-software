@@ -16,7 +16,7 @@ const emit = defineEmits<{
 const { load: loadItemTypes } = useItemTypes();
 const themeStore = useThemeStore();
 const fontSizeStore = useFontSizeStore();
-const { show: showToast } = useToast();
+const { show: showToast, confirm: confirmDialog } = useToast();
 const { loadTags } = useTags();
 
 const showCategoryManage = ref(false);
@@ -24,7 +24,7 @@ const showCategoryManage = ref(false);
 const isDeletingEmptyTags = ref(false);
 
 const handleDeleteEmptyTags = async () => {
-  if (!confirm('確定刪除所有沒有資料的標籤？此操作不會刪除漫畫或資料夾。')) return;
+  if (!await confirmDialog('確定刪除所有沒有資料的標籤？此操作不會刪除漫畫或資料夾。')) return;
   isDeletingEmptyTags.value = true;
   try {
     const deleted = await api.deleteEmptyTags();
@@ -66,7 +66,7 @@ const onOpenDebugLog = async () => {
 };
 
 const onClearDebugLog = async () => {
-  if (!confirm('確定要清空 debug 日誌嗎？')) return;
+  if (!await confirmDialog('確定要清空 debug 日誌嗎？')) return;
   try {
     await api.clearDebugLog();
     showToast('日誌已清空', 'success');
