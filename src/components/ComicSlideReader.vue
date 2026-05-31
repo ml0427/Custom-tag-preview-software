@@ -23,6 +23,8 @@ const errorMessage = ref('');
 const loadToken = ref(0);
 const isAutoplaying = ref(false);
 const autoplaySeconds = ref(3);
+const readerShellRef = ref<HTMLElement | null>(null);
+const isFullscreen = ref(false);
 let autoplayTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 const currentPage = computed(() => pages.value[pageIndex.value] ?? null);
@@ -35,8 +37,14 @@ const pageLabel = computed(() =>
 const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'COMIC FOLDER' : 'ARCHIVE READER');
 const autoplayLabel = computed(() => `${autoplaySeconds.value.toFixed(1)} 秒/頁`);
 const autoplayButtonLabel = computed(() => isAutoplaying.value ? '停止播放' : '自動播放');
+const canFullscreen = computed(() =>
+  Boolean(document.fullscreenEnabled && readerShellRef.value?.requestFullscreen)
+);
+const fullscreenButtonLabel = computed(() => isFullscreen.value ? '退出全螢幕' : '全螢幕');
 const footerHint = computed(() => {
   if (!currentPage.value) return 'Esc 關閉';
+  if (isFullscreen.value && isAutoplaying.value) return `自動播放中 · ${autoplayLabel.value} · Esc 退出全螢幕`;
+  if (isFullscreen.value) return 'Esc 退出全螢幕';
   if (isAutoplaying.value) return `自動播放中 · ${autoplayLabel.value} · Esc 關閉`;
   if (isAtLastPage.value) return '已到最後一頁 · Esc 關閉';
   return '點擊畫面或按空白鍵下一頁 · Esc 關閉';
@@ -79,8 +87,43 @@ const toggleAutoplay = () => {
   isAutoplaying.value = true;
 };
 
-const closeReader = () => {
+const syncFullscreenState = () => {
+  isFullscreen.value = document.fullscreenElement === readerShellRef.value;
+};
+
+const enterFullscreen = async () => {
+  if (!readerShellRef.value || !canFullscreen.value) return;
+  try {
+    await readerShellRef.value.requestFullscreen();
+  } catch {
+    // Fullscreen may be blocked by the host WebView; keep the reader usable.
+  } finally {
+    syncFullscreenState();
+  }
+};
+
+const exitReaderFullscreen = async () => {
+  if (!isFullscreen.value || !document.exitFullscreen) return;
+  try {
+    await document.exitFullscreen();
+  } catch {
+    // If the host already exited fullscreen, just resync local state.
+  } finally {
+    syncFullscreenState();
+  }
+};
+
+const toggleFullscreen = async () => {
+  if (isFullscreen.value) {
+    await exitReaderFullscreen();
+    return;
+  }
+  await enterFullscreen();
+};
+
+const closeReader = async () => {
   stopAutoplay();
+  await exitReaderFullscreen();
   emit('close');
 };
 
@@ -166,7 +209,10 @@ const goNext = () => {
 
 const onKeydown = (event: KeyboardEvent) => {
   if (!props.item) return;
-  if (event.key === 'Escape') closeReader();
+  if (event.key === 'Escape') {
+    if (!isFullscreen.value) void closeReader();
+    return;
+  }
   if (event.key === 'ArrowLeft') goPrev();
   if (event.key === 'ArrowRight' || event.key === ' ') {
     event.preventDefault();
@@ -188,19 +234,24 @@ watch(() => props.item, item => {
   stopAutoplay();
   loadPages();
   window.removeEventListener('keydown', onKeydown);
-  if (item) window.addEventListener('keydown', onKeydown);
+  document.removeEventListener('fullscreenchange', syncFullscreenState);
+  if (item) {
+    window.addEventListener('keydown', onKeydown);
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+  }
 }, { immediate: true });
 watch([isAutoplaying, autoplaySeconds, pageIndex, canAutoplay], scheduleAutoplay);
 
 onUnmounted(() => {
   clearAutoplayTimer();
   window.removeEventListener('keydown', onKeydown);
+  document.removeEventListener('fullscreenchange', syncFullscreenState);
 });
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="item" class="reader-shell">
+    <div v-if="item" ref="readerShellRef" class="reader-shell">
       <div class="reader-topbar" @click.stop>
         <div class="reader-title">
           <span class="reader-kicker">{{ readerModeLabel }}</span>
@@ -234,6 +285,15 @@ onUnmounted(() => {
           </div>
           <button class="reader-btn" type="button" :disabled="isAtFirstPage" @click.stop="goPrev">上一頁</button>
           <button class="reader-btn" type="button" :disabled="isAtLastPage" @click.stop="goNext">下一頁</button>
+          <button
+            class="reader-btn fullscreen-toggle"
+            type="button"
+            :disabled="!canFullscreen"
+            :aria-pressed="isFullscreen"
+            @click.stop="toggleFullscreen"
+          >
+            {{ fullscreenButtonLabel }}
+          </button>
           <button class="reader-close" type="button" title="關閉" @click.stop="closeReader">✕</button>
         </div>
       </div>
@@ -333,6 +393,12 @@ onUnmounted(() => {
   background: rgba(255, 188, 82, 0.18);
   border-color: rgba(255, 188, 82, 0.5);
   color: #ffd89b;
+}
+
+.fullscreen-toggle[aria-pressed="true"] {
+  background: rgba(116, 198, 255, 0.16);
+  border-color: rgba(116, 198, 255, 0.46);
+  color: #b9e4ff;
 }
 
 .speed-control {
