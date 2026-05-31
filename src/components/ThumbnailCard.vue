@@ -172,10 +172,10 @@ const tags = props.dbItem?.tags ?? [];
   left: 8px;
   right: 8px;
   height: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: rgba(8, 9, 11, 0.72);
-  color: #fffaf0;
+  background: var(--bg-scrim);
+  color: var(--text-primary);
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
@@ -185,14 +185,18 @@ const tags = props.dbItem?.tags ?? [];
   backdrop-filter: blur(8px);
 }
 
-.thumb-card:hover .thumb-read-action,
 .thumb-read-action:focus-visible {
   opacity: 1;
   transform: translateY(0);
 }
 
 .thumb-read-action:hover {
-  background: rgba(8, 9, 11, 0.88);
+  background: var(--bg-scrim-heavy);
+}
+
+.thumb-card:hover .thumb-read-action {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .thumb-info {

@@ -511,7 +511,6 @@ const {
   transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
 }
 
-tr:hover .row-read-btn,
 .row-read-btn:focus-visible {
   opacity: 1;
 }
@@ -520,6 +519,10 @@ tr:hover .row-read-btn,
   background: var(--accent-bg-subtle);
   border-color: var(--accent);
   color: var(--text-primary);
+}
+
+tr:hover .row-read-btn {
+  opacity: 1;
 }
 
 .comic-table td {

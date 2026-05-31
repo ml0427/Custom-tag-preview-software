@@ -376,6 +376,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* stylelint-disable scale-unlimited/declaration-strict-value -- Reader uses a fixed dark theatre palette independent of app themes. */
 .reader-shell {
   position: fixed;
   inset: 0;
@@ -400,6 +401,14 @@ onUnmounted(() => {
   padding: 10px 16px;
   background: rgba(8, 9, 11, 0.92);
   border-color: rgba(255, 255, 255, 0.12);
+}
+
+.reader-topbar { border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.reader-bottombar {
+  min-height: 38px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(244, 241, 234, 0.68);
+  font-size: 0.8rem;
 }
 
 .is-fullscreen .reader-topbar,
@@ -454,14 +463,6 @@ onUnmounted(() => {
 
 .reader-chrome-zone-top { top: 0; }
 .reader-chrome-zone-bottom { bottom: 0; }
-
-.reader-topbar { border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
-.reader-bottombar {
-  min-height: 38px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(244, 241, 234, 0.68);
-  font-size: 0.8rem;
-}
 
 .reader-title {
   display: flex;
@@ -607,15 +608,15 @@ onUnmounted(() => {
   line-height: 1;
 }
 
+.reader-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
 .reader-btn:hover:not(:disabled),
 .reader-close:hover {
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.32);
-}
-
-.reader-btn:disabled {
-  opacity: 0.38;
-  cursor: default;
 }
 
 .reader-stage {
@@ -651,4 +652,5 @@ onUnmounted(() => {
 .reader-error {
   color: #ffb4a8;
 }
+/* stylelint-enable scale-unlimited/declaration-strict-value */
 </style>
