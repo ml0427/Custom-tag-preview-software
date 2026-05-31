@@ -305,9 +305,9 @@ workflows:
           - "adjacent regression review completed by same-level model after build/test"
           - "blocking adjacent findings are fixed or explicitly acknowledged by lead/user"
           - "version incremented"
-          - "AI note written"
           - "vector memory updated when durable"
           - "npm run build stamp changes in index.html and src-tauri/tauri.conf.json are either included in the closeout commit or intentionally reverted before commit"
+          - "GitNexus analyze is allowed before the normal commit only when a required GitNexus step reports a stale index; after commit, do not rerun analyze solely because HEAD advanced"
           - "commit message uses normal feature wording unless this feature is tied to a GitHub Issue"
           - "changes are committed before reporting the feature complete"
           - "commit is pushed before reporting the feature complete, unless the user explicitly requests local-only work"
@@ -325,6 +325,7 @@ workflows:
         - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
         - "code changed but no commit was created before final completion"
         - "commit was created but not pushed before final completion, unless the user explicitly requested local-only work"
+        - "closeout reruns npx gitnexus analyze after commit only to refresh GitNexus stats or amend stats-only files"
         - "closeout attempts force push"
       warn_if:
         - "feature starts without acceptance checks"
@@ -490,9 +491,9 @@ workflows:
           - "adjacent regression review completed by same-level model after build/test"
           - "blocking adjacent findings are fixed or explicitly acknowledged by lead/user"
           - "version incremented"
-          - "AI note written"
           - "vector memory updated when durable"
           - "npm run build stamp changes in index.html and src-tauri/tauri.conf.json are either included in the closeout commit or intentionally reverted before commit"
+          - "GitNexus analyze is allowed before the normal commit only when a required GitNexus step reports a stale index; after commit, do not rerun analyze solely because HEAD advanced"
           - "TS18028 from patch tooling against declaration files is treated as a patch-tool false positive only when npm run build, tsc --noEmit, or vue-tsc --noEmit are clean"
           - "commit message matches issue closeout rules"
           - "changes are committed before reporting the issue fix complete"
@@ -512,6 +513,7 @@ workflows:
         - "detect_changes reports unexpected HIGH or CRITICAL risk without lead-agent acknowledgement"
         - "code changed but no commit was created before final completion"
         - "commit was created but not pushed before final completion, unless the user explicitly requested local-only work"
+        - "closeout reruns npx gitnexus analyze after commit only to refresh GitNexus stats or amend stats-only files"
         - "closeout attempts force push"
       warn_if:
         - "low-model runner is unavailable and delegation was skipped"
@@ -833,14 +835,15 @@ closeout_policy:
     required:
       - "increment version manually"
       - "run npm run build"
-      - 'append factual implementation note to this machine''s dated note file D:\AI紀錄\YYYY-MM-DD.txt'
       - "upsert durable architecture/trap/design note to vector memory when applicable"
       - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
+      - "run npx gitnexus analyze before the normal commit only when a required GitNexus impact or detect_changes step reports a stale index"
       - "create a commit before reporting completion"
       - "push the commit before reporting completion, unless the user explicitly requests local-only work"
     forbidden:
-      - 'write task TODOs to D:\AI紀錄\YYYY-MM-DD.txt or any legacy AI筆記.txt file'
       - "store transient task state in vector memory"
+      - "run npx gitnexus analyze after commit solely because HEAD advanced or to refresh AGENTS.md/CLAUDE.md GitNexus stats"
+      - "create or amend a post-commit GitNexus-stats-only change"
       - "force push without explicit lead/user approval"
   known_tool_limitations:
     - "Patch tooling can report TS18028 private identifier errors from declaration files even when npm run build, tsc --noEmit, or vue-tsc --noEmit are clean; treat this as a patch-tool false positive only after project verification is clean."
