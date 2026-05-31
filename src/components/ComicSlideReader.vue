@@ -25,7 +25,9 @@ const isAutoplaying = ref(false);
 const autoplaySeconds = ref(3);
 const readerShellRef = ref<HTMLElement | null>(null);
 const isFullscreen = ref(false);
+const readerChromeVisible = ref(true);
 let autoplayTimer: ReturnType<typeof window.setTimeout> | null = null;
+let chromeHideTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 const currentPage = computed(() => pages.value[pageIndex.value] ?? null);
 const isAtFirstPage = computed(() => pageIndex.value <= 0);
@@ -53,10 +55,53 @@ const footerHint = computed(() => {
 const sortByName = (items: FileItem[]) =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant', { numeric: true }));
 
+const waitForImageReady = async (url: string) => {
+  const image = new Image();
+  image.decoding = 'async';
+  image.src = url;
+  if (image.decode) {
+    await image.decode().catch(() => undefined);
+    return;
+  }
+  if (image.complete) return;
+  await new Promise<void>(resolve => {
+    image.onload = () => resolve();
+    image.onerror = () => resolve();
+  });
+};
+
 const clearAutoplayTimer = () => {
   if (!autoplayTimer) return;
   window.clearTimeout(autoplayTimer);
   autoplayTimer = null;
+};
+
+const clearChromeHideTimer = () => {
+  if (!chromeHideTimer) return;
+  window.clearTimeout(chromeHideTimer);
+  chromeHideTimer = null;
+};
+
+const scheduleChromeHide = () => {
+  clearChromeHideTimer();
+  if (!isFullscreen.value) {
+    readerChromeVisible.value = true;
+    return;
+  }
+  chromeHideTimer = window.setTimeout(() => {
+    readerChromeVisible.value = false;
+    chromeHideTimer = null;
+  }, 1800);
+};
+
+const showReaderChrome = () => {
+  readerChromeVisible.value = true;
+  scheduleChromeHide();
+};
+
+const holdReaderChrome = () => {
+  readerChromeVisible.value = true;
+  clearChromeHideTimer();
 };
 
 const scheduleAutoplay = () => {
@@ -89,6 +134,7 @@ const toggleAutoplay = () => {
 
 const syncFullscreenState = () => {
   isFullscreen.value = document.fullscreenElement === readerShellRef.value;
+  showReaderChrome();
 };
 
 const enterFullscreen = async () => {
@@ -131,7 +177,6 @@ const loadCurrentPage = async () => {
   const item = props.item;
   const page = currentPage.value;
   const token = ++loadToken.value;
-  imageUrl.value = '';
   errorMessage.value = '';
 
   if (!item || !page) return;
@@ -141,6 +186,7 @@ const loadCurrentPage = async () => {
     const url = page.kind === 'archive'
       ? await api.getArchiveImageBase64ByPath(item.path, page.entry)
       : await api.getImageBase64ByPath(page.path);
+    await waitForImageReady(url);
     if (loadToken.value === token) imageUrl.value = url;
   } catch (e: any) {
     if (loadToken.value === token) {
@@ -241,9 +287,18 @@ watch(() => props.item, item => {
   }
 }, { immediate: true });
 watch([isAutoplaying, autoplaySeconds, pageIndex, canAutoplay], scheduleAutoplay);
+watch(isFullscreen, fullscreen => {
+  if (fullscreen) {
+    showReaderChrome();
+    return;
+  }
+  clearChromeHideTimer();
+  readerChromeVisible.value = true;
+});
 
 onUnmounted(() => {
   clearAutoplayTimer();
+  clearChromeHideTimer();
   window.removeEventListener('keydown', onKeydown);
   document.removeEventListener('fullscreenchange', syncFullscreenState);
 });
@@ -251,8 +306,16 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="item" ref="readerShellRef" class="reader-shell">
-      <div class="reader-topbar" @click.stop>
+    <div
+      v-if="item"
+      ref="readerShellRef"
+      class="reader-shell"
+      :class="{ 'is-fullscreen': isFullscreen, 'reader-chrome-visible': readerChromeVisible }"
+      @mousemove="showReaderChrome"
+    >
+      <div class="reader-chrome-zone reader-chrome-zone-top" @mouseenter="showReaderChrome"></div>
+      <div class="reader-chrome-zone reader-chrome-zone-bottom" @mouseenter="showReaderChrome"></div>
+      <div class="reader-topbar" @click.stop @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
         <div class="reader-title">
           <span class="reader-kicker">{{ readerModeLabel }}</span>
           <strong>{{ item.name }}</strong>
@@ -304,7 +367,7 @@ onUnmounted(() => {
         <img v-else-if="imageUrl" class="reader-image" :src="imageUrl" :alt="currentPage?.label ?? item.name" />
       </main>
 
-      <div class="reader-bottombar" @click.stop>
+      <div class="reader-bottombar" @click.stop @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
         <span>{{ currentPage?.label ?? '' }}</span>
         <span class="reader-hint">{{ footerHint }}</span>
       </div>
@@ -323,6 +386,10 @@ onUnmounted(() => {
   color: #f4f1ea;
 }
 
+.reader-shell.is-fullscreen {
+  display: block;
+}
+
 .reader-topbar,
 .reader-bottombar {
   display: flex;
@@ -334,6 +401,59 @@ onUnmounted(() => {
   background: rgba(8, 9, 11, 0.92);
   border-color: rgba(255, 255, 255, 0.12);
 }
+
+.is-fullscreen .reader-topbar,
+.is-fullscreen .reader-bottombar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  background: rgba(8, 9, 11, 0.78);
+  backdrop-filter: blur(14px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    background 0.18s ease;
+}
+
+.is-fullscreen .reader-topbar {
+  top: 0;
+  transform: translateY(-100%);
+}
+
+.is-fullscreen .reader-bottombar {
+  bottom: 0;
+  transform: translateY(100%);
+}
+
+.is-fullscreen:not(.reader-chrome-visible) .reader-topbar,
+.is-fullscreen:not(.reader-chrome-visible) .reader-bottombar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.is-fullscreen.reader-chrome-visible .reader-topbar,
+.is-fullscreen.reader-chrome-visible .reader-bottombar {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.reader-chrome-zone {
+  display: none;
+}
+
+.is-fullscreen .reader-chrome-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: block;
+  height: 72px;
+}
+
+.reader-chrome-zone-top { top: 0; }
+.reader-chrome-zone-bottom { bottom: 0; }
 
 .reader-topbar { border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
 .reader-bottombar {
@@ -507,6 +627,12 @@ onUnmounted(() => {
   padding: 14px;
   overflow: hidden;
   cursor: pointer;
+}
+
+.is-fullscreen .reader-stage {
+  width: 100%;
+  height: 100%;
+  padding: 0;
 }
 
 .reader-image {
