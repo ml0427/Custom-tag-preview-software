@@ -311,7 +311,11 @@ onUnmounted(() => {
       ref="readerShellRef"
       class="reader-shell"
       :class="{ 'is-fullscreen': isFullscreen, 'reader-chrome-visible': readerChromeVisible }"
+      @contextmenu.capture.prevent.stop
+      @dblclick.capture.prevent.stop
       @mousemove="showReaderChrome"
+      @selectstart.capture.prevent.stop
+      @dragstart.capture.prevent.stop
     >
       <div class="reader-chrome-zone reader-chrome-zone-top" @mouseenter="showReaderChrome"></div>
       <div class="reader-chrome-zone reader-chrome-zone-bottom" @mouseenter="showReaderChrome"></div>
@@ -364,7 +368,13 @@ onUnmounted(() => {
       <main class="reader-stage" @click="goNext">
         <div v-if="isLoading && !imageUrl" class="reader-state">載入中...</div>
         <div v-else-if="errorMessage" class="reader-state reader-error">{{ errorMessage }}</div>
-        <img v-else-if="imageUrl" class="reader-image" :src="imageUrl" :alt="currentPage?.label ?? item.name" />
+        <img
+          v-else-if="imageUrl"
+          class="reader-image"
+          :src="imageUrl"
+          :alt="currentPage?.label ?? item.name"
+          draggable="false"
+        />
       </main>
 
       <div class="reader-bottombar" @click.stop @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
@@ -385,6 +395,11 @@ onUnmounted(() => {
   grid-template-rows: auto 1fr auto;
   background: #08090b;
   color: #f4f1ea;
+  user-select: none;
+}
+
+.reader-shell * {
+  user-select: none;
 }
 
 .reader-shell.is-fullscreen {
