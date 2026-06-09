@@ -32,7 +32,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Custom-tag-preview-software** (1813 symbols, 3010 relationships, 104 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Custom-tag-preview-software** (1893 symbols, 3095 relationships, 104 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -76,9 +76,18 @@ This project is indexed by GitNexus as **Custom-tag-preview-software** (1813 sym
 ## AI 工作流
 
 - 專案內有 `.workflow/workflow-runner.js` 工作流引擎，定義四條工作流：`github-issue-fix` / `pr-review` / `bug-scan` / `feature-dev`
-- 處理 issue/PR/bug 時，一律使用新的工作流管家：`node .workflow/workflow-runner.js wizard start <workflow> -i key=value ...`
-- 舊的自動直跑流程已移除，不要再使用舊入口
-- Runner 自動處理 shell 步驟和低階模型委派（小G/小N），AI 步驟由 Lead agent 接手。不要繞過 runner 手動執行。
+- 所有 issue / PR review / bug scan / feature dev 都必須走 wizard：`node .workflow/workflow-runner.js wizard start <workflow> -i key=value ...`
+- 使用 `wizard start/status/resume` 推進流程；不要使用舊的 `run` 自動直跑，也不要繞過 wizard 手動串完整流程
+- 依 CMD wizard 提示交回 artifact 或 `--complete-step`；`code-edit`、fix、implement 必須由 Lead agent 人工完成後再 resume
+- closeout 前必須有 build/test、detect changes、adjacent regression review；Runner 只自動處理 shell 步驟和低階模型委派（小G/小N），AI 判斷由 Lead agent 接手
+
+## AI 筆記與記憶
+
+- 本機識別：`win:MICHAEL:ml042:dev-501cf3b58974274f`
+- 此本機正式 AI 筆記路徑：`D:\AI紀錄\YYYY-MM-DD.txt`
+- 不同電腦不可硬套此路徑；必須先建立該電腦的 machine key，並檢查當機既有 AI 紀錄目錄或由使用者指定
+- AI 筆記只記「做了什麼、怎麼做、驗證結果」；不要把 TODO、臨時任務狀態或 wizard state 寫進 AI 筆記
+- 任務狀態以 GitHub issue、commit、wizard state 為準；耐久架構/踩雷/設計記憶才 upsert 到 Pinecone
 
 ## Rust 踩雷
 

@@ -35,6 +35,20 @@ runtime_contract:
           - "search architecture knowledge"
           - "upsert durable architecture notes"
 
+local_note_policy:
+  machine_key: "win:MICHAEL:ml042:dev-501cf3b58974274f"
+  active_note_file: 'D:\AI紀錄\YYYY-MM-DD.txt'
+  portability_rule: "Do not reuse this path on another computer until that machine has its own machine key and local AI note directory."
+  note_contents:
+    required:
+      - "what changed"
+      - "how it was handled"
+      - "verification result"
+    forbidden:
+      - "task TODOs"
+      - "transient workflow state"
+      - "wizard state"
+
 delegation_policy:
   low_model_task_classes:
     shell_exact:
@@ -835,12 +849,15 @@ closeout_policy:
     required:
       - "increment version manually"
       - "run npm run build"
+      - 'append factual implementation note to machine key win:MICHAEL:ml042:dev-501cf3b58974274f dated note file D:\AI紀錄\YYYY-MM-DD.txt'
       - "upsert durable architecture/trap/design note to vector memory when applicable"
       - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
       - "run npx gitnexus analyze before the normal commit only when a required GitNexus impact or detect_changes step reports a stale index"
       - "create a commit before reporting completion"
       - "push the commit before reporting completion, unless the user explicitly requests local-only work"
     forbidden:
+      - 'write task TODOs to D:\AI紀錄\YYYY-MM-DD.txt or any legacy AI筆記.txt file'
+      - "reuse D:\\AI紀錄 on another computer before resolving that machine's own note path"
       - "store transient task state in vector memory"
       - "run npx gitnexus analyze after commit solely because HEAD advanced or to refresh AGENTS.md/CLAUDE.md GitNexus stats"
       - "create or amend a post-commit GitNexus-stats-only change"
