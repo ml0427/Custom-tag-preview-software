@@ -33,7 +33,7 @@ const emit = defineEmits<{
                 title="刪除"
             >✕</button>
         </div>
-        <button class="add-type-btn" @click="emit('startNew')">＋ 新增類型</button>
+        <button class="add-type-btn" @click="emit('startNew')">＋ 新增規則集</button>
     </div>
 </template>
 

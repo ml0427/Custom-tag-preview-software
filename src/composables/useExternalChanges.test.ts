@@ -66,20 +66,6 @@ const page = <T>(content: T[], totalPages = 1): Page<T> => ({
   size: content.length,
 });
 
-const comicType = {
-  id: 2,
-  name: 'comic',
-  icon: 'C',
-  displayName: 'Comic',
-  color: null,
-  example: '',
-  isBuiltin: false,
-  extensions: ['zip'],
-  tagRules: [
-    { name: 'zip rule', matchType: 'extension', pattern: 'zip', tagName: 'ZIP' },
-  ],
-};
-
 describe('computeExternalChanges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -175,7 +161,7 @@ describe('useExternalChanges', () => {
     expect(externalChanges.changes.value).toEqual([]);
   });
 
-  it('asks to apply parent folder category when importing one untracked item', async () => {
+  it('imports one untracked item without inheriting parent folder category', async () => {
     apiMock.getItemByPath.mockResolvedValueOnce(dbItem({
       id: 10,
       path: 'C:/Library',
@@ -189,8 +175,6 @@ describe('useExternalChanges', () => {
       name: 'new.zip',
       category: 'default',
     }));
-    apiMock.getItemTypes.mockResolvedValueOnce([comicType]);
-    apiMock.applyRulesToItem.mockResolvedValueOnce({ added: 0, updated: 0, removed: 0, tagged: 1 });
     apiMock.listDirFiles.mockResolvedValueOnce([]);
     apiMock.getItems.mockResolvedValueOnce(page([]));
 
@@ -198,11 +182,11 @@ describe('useExternalChanges', () => {
 
     await externalChanges.importOne('C:/Library/new.zip');
 
-    expect(apiMock.getItemByPath).toHaveBeenCalledWith('C:/Library');
     expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
-    expect(apiMock.setItemCategory).toHaveBeenCalledWith(20, 'comic');
-    expect(apiMock.getItemTypes).toHaveBeenCalled();
-    expect(apiMock.applyRulesToItem).toHaveBeenCalledWith(20, comicType.tagRules);
+    expect(apiMock.getItemByPath).not.toHaveBeenCalled();
+    expect(apiMock.setItemCategory).not.toHaveBeenCalled();
+    expect(apiMock.getItemTypes).not.toHaveBeenCalled();
+    expect(apiMock.applyRulesToItem).not.toHaveBeenCalled();
   });
 
   it('does not apply parent category when the parent has only the default category', async () => {

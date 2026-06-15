@@ -39,7 +39,7 @@ watch(() => props.visible, async (v) => {
         <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
             <div class="modal">
                 <div class="modal-header">
-                    <span class="modal-title">管理類別</span>
+                    <span class="modal-title">管理標籤規則集</span>
                     <button class="close-btn" @click="emit('close')">✕</button>
                 </div>
                 <div class="modal-body">

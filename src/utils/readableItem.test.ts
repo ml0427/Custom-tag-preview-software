@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FileItem, Item } from '../api';
-import { isComicFolderItem, isReadableArchiveItem, isReadableFileItem } from './readableItem';
+import { isReadableArchiveItem, isReadableFileItem, isReadableFolderItem } from './readableItem';
 
 const fileItem = (overrides: Partial<FileItem> = {}): FileItem => ({
   name: 'book.zip',
@@ -38,18 +38,19 @@ describe('readableItem', () => {
     expect(isReadableArchiveItem(fileItem({ extension: 'rar' }))).toBe(false);
   });
 
-  it('treats only comic-category folders as readable folders', () => {
-    expect(isComicFolderItem(dbItem({ itemType: 'folder', category: 'comic' }))).toBe(true);
-    expect(isComicFolderItem(dbItem({ itemType: 'folder', category: 'default' }))).toBe(false);
-    expect(isComicFolderItem(dbItem({ itemType: 'file', category: 'comic' }))).toBe(false);
+  it('treats physical folders as readable candidates regardless of category', () => {
+    expect(isReadableFolderItem(dbItem({ itemType: 'folder', category: 'comic' }))).toBe(true);
+    expect(isReadableFolderItem(dbItem({ itemType: 'folder', category: 'default' }))).toBe(true);
+    expect(isReadableFolderItem(dbItem({ itemType: 'folder', category: null }))).toBe(true);
+    expect(isReadableFolderItem(dbItem({ itemType: 'file', category: 'comic' }))).toBe(false);
   });
 
-  it('shows the read action only for archives or comic folders', () => {
+  it('shows the read action for archives or tracked folders', () => {
     expect(isReadableFileItem(fileItem({ extension: 'zip' }))).toBe(true);
     expect(isReadableFileItem(fileItem({ extension: 'txt' }))).toBe(false);
     expect(isReadableFileItem(
       fileItem({ name: 'Series', path: 'C:/Library/Series', isDir: true, extension: null }),
-      dbItem({ itemType: 'folder', category: 'comic' }),
+      dbItem({ itemType: 'folder', category: 'default' }),
     )).toBe(true);
   });
 });

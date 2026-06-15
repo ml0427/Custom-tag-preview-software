@@ -14,7 +14,7 @@ import { useGalleryViewState } from '../composables/useGalleryViewState';
 import { useGalleryPreviewResize } from '../composables/useGalleryPreviewResize';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
-import { isComicFolderItem, isReadableArchiveItem, isReadableFileItem } from '../utils/readableItem';
+import { isReadableArchiveItem, isReadableFileItem } from '../utils/readableItem';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -201,7 +201,6 @@ const getOrImportDbItem = async (fileItem: FileItem): Promise<Item | null> => {
 
 const openReaderForFileItem = async (fileItem: FileItem): Promise<boolean> => {
   const existing = findDbItemForFileItem(fileItem);
-  if (fileItem.isDir && !isComicFolderItem(existing)) return false;
   if (!fileItem.isDir && !isReadableArchiveItem(fileItem)) return false;
 
   if (!fileItem.isDir) {
@@ -216,11 +215,14 @@ const openReaderForFileItem = async (fileItem: FileItem): Promise<boolean> => {
 };
 
 const handleFileItemDblClick = async (item: FileItem) => {
-  if (await openReaderForFileItem(item)) return;
-
   if (item.isDir) {
     emit('navigateDir', item.path);
-  } else if (ARCHIVE_EXTS.includes(item.extension?.toLowerCase() ?? '')) {
+    return;
+  }
+
+  if (await openReaderForFileItem(item)) return;
+
+  if (ARCHIVE_EXTS.includes(item.extension?.toLowerCase() ?? '')) {
     api.openFile(item.path);
   } else {
     const dbItem = itemByPath.value.get(pathKey(item.path));

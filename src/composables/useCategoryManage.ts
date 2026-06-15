@@ -111,7 +111,7 @@ export function useCategoryManage() {
 
     const deleteType = async (t: ItemType) => {
         if (t.isBuiltin) return;
-        if (!await confirmDialog(`確定刪除「${t.displayName}」類型？\n使用此類型的資料夾將重設為「一般資料夾」。`)) return;
+        if (!await confirmDialog(`確定刪除「${t.displayName}」規則集？\n已套用到項目的標籤不會自動移除；使用此規則集作為資料夾預設的綁定會被清除。`)) return;
         try {
             await api.deleteItemType(t.id);
             invalidate();

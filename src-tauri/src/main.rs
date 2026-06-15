@@ -8,9 +8,9 @@ mod models;
 mod scanner;
 mod zip_utils;
 
+use serde_json::json;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
-use serde_json::json;
 
 fn main() {
     tauri::Builder::default()
@@ -138,6 +138,10 @@ fn main() {
             commands::preview_tag_scan,
             commands::apply_tag_scan,
             commands::apply_rules_to_item,
+            commands::get_folder_rule_presets,
+            commands::get_folder_rule_preset,
+            commands::set_folder_rule_preset,
+            commands::clear_folder_rule_preset,
             // Sources
             commands::get_sources,
             commands::add_source,

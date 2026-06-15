@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { api, type Item, type Tag } from '../api';
+import { computed, ref, watch } from 'vue';
+import { api, type Item, type Tag, type FolderRulePreset } from '../api';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
 import { useItemTypes } from '../composables/useItemTypes';
@@ -19,11 +19,20 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
-const { itemTypes, getTypeConfig } = useItemTypes();
+const { itemTypes, load: loadItemTypes } = useItemTypes();
 const editName = ref('');
 const editNote = ref('');
-const editType = ref('default');
 const isSaving = ref(false);
+const isSavingPreset = ref(false);
+const isApplyingPreset = ref(false);
+const rulePreset = ref<FolderRulePreset | null>(null);
+const selectedRulePresetId = ref<number | null>(null);
+const rulePresetOptions = computed(() => itemTypes.value.filter(t => t.tagRules?.length));
+const selectedRulePreset = computed(() => (
+  selectedRulePresetId.value == null
+    ? null
+    : itemTypes.value.find(t => t.id === selectedRulePresetId.value) ?? null
+));
 
 const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: showTagInputSuggestions,
     initTags, onInputChange: onTagInputChange, submitInput: submitTagInput,
@@ -35,14 +44,61 @@ const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: 
     onUpdated: () => emit('updated'),
 });
 
-watch(() => props.item, (item) => {
+watch(() => props.item, async (item) => {
   if (item) {
     initTags(item.tags);
     editName.value = item.name;
     editNote.value = item.note ?? '';
-    editType.value = item.category ?? 'default';
+    await loadItemTypes();
+    rulePreset.value = await api.getFolderRulePreset(item.id);
+    selectedRulePresetId.value = rulePreset.value?.presetTypeId ?? null;
   }
 }, { immediate: true });
+
+const saveRulePreset = async () => {
+  if (!props.item || isSavingPreset.value) return;
+  isSavingPreset.value = true;
+  try {
+    if (selectedRulePresetId.value == null) {
+      await api.clearFolderRulePreset(props.item.id);
+      rulePreset.value = null;
+      showToast('已清除預設標籤規則集', 'success');
+    } else {
+      rulePreset.value = await api.setFolderRulePreset({
+        folderItemId: props.item.id,
+        presetTypeId: selectedRulePresetId.value,
+        applyToSubfolders: false,
+        applyToFiles: false,
+        fileExtensions: [],
+      });
+      showToast('已儲存預設標籤規則集', 'success');
+    }
+    emit('updated');
+  } catch (e) {
+    showToast('儲存預設規則集失敗: ' + String(e), 'error');
+  } finally {
+    isSavingPreset.value = false;
+  }
+};
+
+const applySelectedRulePreset = async () => {
+  if (!props.item || isApplyingPreset.value) return;
+  const preset = selectedRulePreset.value;
+  if (!preset?.tagRules?.length) {
+    showToast('此規則集沒有可套用的標籤規則', 'info');
+    return;
+  }
+  isApplyingPreset.value = true;
+  try {
+    const result = await api.applyRulesToItem(props.item.id, preset.tagRules);
+    showToast(`已套用 ${result.tagged} 個標籤`, 'success');
+    emit('updated');
+  } catch (e) {
+    showToast('套用預設規則集失敗: ' + String(e), 'error');
+  } finally {
+    isApplyingPreset.value = false;
+  }
+};
 
 const saveChanges = async () => {
   if (!props.item || isSaving.value) return;
@@ -51,10 +107,8 @@ const saveChanges = async () => {
     const item = props.item;
     const newName = editName.value.trim();
     const newNote = editNote.value.trim();
-    const newCategory = editType.value;
     await Promise.all([
       newName !== item.name ? api.setItemDisplayName(item.id, newName) : Promise.resolve(),
-      newCategory !== (item.category ?? 'default') ? api.setItemCategory(item.id, newCategory) : Promise.resolve(),
       newNote !== (item.note ?? '') ? api.setItemNote(item.id, newNote) : Promise.resolve(),
     ]);
     emit('updated');
@@ -92,21 +146,12 @@ const openFolder = async () => {
   >
     <template #left>
       <div class="folder-icon-area">
-        <span class="big-icon">{{ getTypeConfig(item.category).icon }}</span>
+        <span class="big-icon">📁</span>
       </div>
 
       <div class="info-block">
         <label>名稱</label>
         <input v-model="editName" class="edit-input" @blur="saveChanges" @keydown.enter="saveChanges" />
-      </div>
-
-      <div class="info-block">
-        <label>類別</label>
-        <select v-model="editType" class="edit-input" @change="saveChanges">
-          <option v-for="t in itemTypes" :key="t.name" :value="t.name">
-            {{ t.icon }} {{ t.displayName }}
-          </option>
-        </select>
       </div>
 
       <div class="info-block">
@@ -128,6 +173,23 @@ const openFolder = async () => {
     </template>
 
     <template #right>
+      <div class="actions">
+        <h3>自動化</h3>
+        <label class="preset-label">預設標籤規則集</label>
+        <select v-model="selectedRulePresetId" class="preset-select" :disabled="isSavingPreset || isApplyingPreset">
+          <option :value="null">未設定</option>
+          <option v-for="t in rulePresetOptions" :key="t.id" :value="t.id">
+            {{ t.icon }} {{ t.displayName }}
+          </option>
+        </select>
+        <button class="btn-open" :disabled="isSavingPreset" @click="saveRulePreset">
+          {{ isSavingPreset ? '儲存中...' : '儲存預設規則集' }}
+        </button>
+        <button class="btn-open" :disabled="!selectedRulePreset || isApplyingPreset" @click="applySelectedRulePreset">
+          {{ isApplyingPreset ? '套用中...' : '立即套用' }}
+        </button>
+      </div>
+
       <div class="actions">
         <h3>操作</h3>
         <button class="btn-open" @click="openFolder">📂 用系統開啟</button>
@@ -170,8 +232,26 @@ const openFolder = async () => {
 .edit-input:focus { border-color: var(--accent); }
 .edit-textarea { resize: vertical; }
 
-.actions { display: flex; flex-direction: column; gap: 10px; }
+.actions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .actions h3 { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-default); }
+
+.preset-label {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.preset-select {
+  min-width: 0;
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  outline: none;
+}
+.preset-select:focus { border-color: var(--accent); }
 
 .btn-open, .btn-delete {
   padding: 10px 16px;

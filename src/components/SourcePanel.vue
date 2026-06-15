@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, provide } from 'vue';
-import { api, type Tag, type Item, type FileItem } from '../api';
+import { api, type Tag, type Item, type FileItem, type FolderRulePreset, type ItemType } from '../api';
 import LocalDirTree from './LocalDirTree.vue';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
@@ -15,14 +15,16 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
-const { itemTypes, load: loadItemTypes, getTypeConfig } = useItemTypes();
+const { itemTypes, load: loadItemTypes } = useItemTypes();
 // 右鍵選單
 const panelRef = ref<HTMLElement | null>(null);
 const ctxMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const showFolderModal = ref(false);
 const modalPhase = ref<'edit' | 'tags'>('edit');
 const folderInDb = ref<{ id: number } | null>(null);
-const editFolder = ref({ path: '', name: '', category: 'default' });
+const editFolder = ref({ path: '', name: '' });
+const selectedRulePresetId = ref<number | null>(null);
+const rememberRulePreset = ref(true);
 const applyToSubfolders = ref(false);
 const applyToSubfiles = ref(false);
 const subfileExtensionInput = ref('');
@@ -31,6 +33,14 @@ const progressDone = ref(0);
 const progressTotal = ref(0);
 const progressLabel = ref('');
 const allTags = ref<Tag[]>([]);
+const folderRulePresets = ref<FolderRulePreset[]>([]);
+
+const rulePresetOptions = computed(() => itemTypes.value.filter(t => t.tagRules?.length));
+const selectedRulePreset = computed(() => (
+  selectedRulePresetId.value == null
+    ? null
+    : itemTypes.value.find(t => t.id === selectedRulePresetId.value) ?? null
+));
 
 const progressPercent = computed(() => {
   if (progressTotal.value <= 0) return 0;
@@ -89,19 +99,24 @@ const openModifyTypeFromCtx = async () => {
   const p = ctxMenu.value.path;
   closeCtxMenu();
   await loadDbFolders();
+  await loadItemTypes();
   allTags.value = await api.getTags();
   const existing = dbFolders.value.find(f => f.path === p);
   if (existing) {
     folderInDb.value = { id: existing.id };
-    editFolder.value = { path: p, name: existing.name, category: existing.category ?? 'default' };
+    editFolder.value = { path: p, name: existing.name };
+    const preset = folderRulePresetByItemId.value.get(existing.id) ?? await api.getFolderRulePreset(existing.id);
+    selectedRulePresetId.value = preset?.presetTypeId ?? null;
+    rememberRulePreset.value = !!preset;
     initTags(existing.tags ?? []);
   } else {
     folderInDb.value = null;
     editFolder.value = {
       path: p,
       name: p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p,
-      category: 'default',
     };
+    selectedRulePresetId.value = null;
+    rememberRulePreset.value = true;
     initTags([]);
   }
   applyToSubfolders.value = false;
@@ -127,37 +142,30 @@ const collectAllSubdirs = async (path: string): Promise<string[]> => {
   return result;
 };
 
-/// 確保某個路徑在 DB 有 row，並設定它的顯示名稱與類別。
+/// 確保某個路徑在 DB 有 row，並設定它的顯示名稱。
 /// 對「主路徑」我們會用使用者填的 name；對自動帶入的子目錄則沿用 file_name。
-const saveFolderCategory = async (
+const saveTrackedItem = async (
   path: string,
   displayName: string,
-  category: string,
 ): Promise<Item> => {
   const item = await api.quickImportItem(path);
   if (item.name !== displayName) {
     await api.setItemDisplayName(item.id, displayName);
   }
-  if ((item.category ?? 'default') !== category) {
-    await api.setItemCategory(item.id, category);
-  }
-  return { ...item, name: displayName, category };
+  return { ...item, name: displayName };
 };
 
 const getFolderDisplayName = (path: string): string => (
   path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
 );
 
-const applySubfolderCategories = async (
-  subdirs: string[],
-  category: string,
-): Promise<Item[]> => {
+const trackSubfolders = async (subdirs: string[]): Promise<Item[]> => {
   if (!applyToSubfolders.value) return [];
 
   const result: Item[] = [];
   for (const subPath of subdirs) {
-    progressLabel.value = `套用子資料夾：${getFolderDisplayName(subPath)}`;
-    result.push(await saveFolderCategory(subPath, getFolderDisplayName(subPath), category));
+    progressLabel.value = `加入子資料夾：${getFolderDisplayName(subPath)}`;
+    result.push(await saveTrackedItem(subPath, getFolderDisplayName(subPath)));
     progressDone.value += 1;
   }
   return result;
@@ -183,16 +191,13 @@ const collectAllSubfiles = async (parentPath: string, subdirs: string[]): Promis
   return result;
 };
 
-const applySubfileCategories = async (
-  subfiles: FileItem[],
-  category: string,
-): Promise<Item[]> => {
+const trackSubfiles = async (subfiles: FileItem[]): Promise<Item[]> => {
   if (!applyToSubfiles.value) return [];
 
   const result: Item[] = [];
   for (const file of subfiles) {
-    progressLabel.value = `套用子檔案：${file.name}`;
-    result.push(await saveFolderCategory(file.path, file.name, category));
+    progressLabel.value = `加入子檔案：${file.name}`;
+    result.push(await saveTrackedItem(file.path, file.name));
     progressDone.value += 1;
   }
   return result;
@@ -203,7 +208,7 @@ const refreshFolderState = async () => {
   emit('folderCreated');
 };
 
-const runRulesForCategory = async (targets: Item[], selectedType: ReturnType<typeof getTypeConfig>) => {
+const runRulesForPreset = async (targets: Item[], selectedType: ItemType) => {
   if (!selectedType.tagRules?.length) return;
 
   try {
@@ -219,12 +224,12 @@ const runRulesForCategory = async (targets: Item[], selectedType: ReturnType<typ
 };
 
 const submitFolderModal = async () => {
-  const { path, name, category } = editFolder.value;
+  const { path, name } = editFolder.value;
   if (!path || !name || isSavingFolder.value) return;
   isSavingFolder.value = true;
   progressDone.value = 0;
   progressTotal.value = 1;
-  progressLabel.value = '準備套用類別...';
+  progressLabel.value = '準備加入知識庫...';
   try {
     const subdirs = applyToSubfolders.value || applyToSubfiles.value
       ? await collectAllSubdirs(path)
@@ -234,23 +239,36 @@ const submitFolderModal = async () => {
       : [];
 
     await loadItemTypes();
-    const selectedType = getTypeConfig(category);
-    const categoryTargetCount = 1 + (applyToSubfolders.value ? subdirs.length : 0) + (applyToSubfiles.value ? subfiles.length : 0);
-    const ruleTargetCount = selectedType.tagRules?.length ? categoryTargetCount : 0;
-    progressTotal.value = categoryTargetCount + ruleTargetCount;
+    const selectedType = selectedRulePreset.value;
+    const trackedTargetCount = 1 + (applyToSubfolders.value ? subdirs.length : 0) + (applyToSubfiles.value ? subfiles.length : 0);
+    const ruleTargetCount = selectedType?.tagRules?.length ? trackedTargetCount : 0;
+    progressTotal.value = trackedTargetCount + ruleTargetCount;
 
-    progressLabel.value = `套用目前資料夾：${name.trim()}`;
-    const saved = await saveFolderCategory(path, name.trim(), category);
+    progressLabel.value = `加入目前資料夾：${name.trim()}`;
+    const saved = await saveTrackedItem(path, name.trim());
     progressDone.value += 1;
     folderInDb.value = { id: saved.id };
 
-    const subfolderItems = await applySubfolderCategories(subdirs, category);
-    const subfileItems = await applySubfileCategories(subfiles, category);
+    const subfolderItems = await trackSubfolders(subdirs);
+    const subfileItems = await trackSubfiles(subfiles);
     const allTargets = [saved, ...subfolderItems, ...subfileItems];
+
+    if (selectedType && rememberRulePreset.value) {
+      progressLabel.value = '儲存資料夾預設規則集...';
+      await api.setFolderRulePreset({
+        folderItemId: saved.id,
+        presetTypeId: selectedType.id,
+        applyToSubfolders: applyToSubfolders.value,
+        applyToFiles: applyToSubfiles.value,
+        fileExtensions: subfileExtensions.value,
+      });
+    } else {
+      await api.clearFolderRulePreset(saved.id);
+    }
 
     progressLabel.value = '更新畫面狀態...';
     await refreshFolderState();
-    await runRulesForCategory(allTargets, selectedType);
+    if (selectedType) await runRulesForPreset(allTargets, selectedType);
     modalPhase.value = 'tags';
   } catch (e) {
     showToast('操作失敗: ' + String(e), 'error');
@@ -269,10 +287,16 @@ onUnmounted(() => {
 
 const dbFolders = ref<Item[]>([]);
 const folderByPath = computed(() => new Map(dbFolders.value.map(f => [f.path, f])));
-const hasFolderCategory = (path: string): boolean => {
-  const f = folderByPath.value.get(path);
-  return !!f?.category && f.category !== 'default';
-};
+const folderRulePresetByItemId = computed(() => new Map(folderRulePresets.value.map(p => [p.folderItemId, p])));
+const folderRulePresetByPath = computed(() => {
+  const entries: Array<[string, FolderRulePreset]> = [];
+  for (const folder of dbFolders.value) {
+    const preset = folderRulePresetByItemId.value.get(folder.id);
+    if (preset) entries.push([folder.path, preset]);
+  }
+  return new Map(entries);
+});
+const hasFolderRulePreset = (path: string): boolean => folderRulePresetByPath.value.has(path);
 provide('folderByPath', folderByPath);
 const { applyRulesForTarget } = useFolderRuleActions(
   undefined,
@@ -283,9 +307,10 @@ const { applyRulesForTarget } = useFolderRuleActions(
 
 const applyRulesFromCtx = async () => {
   const path = ctxMenu.value.path;
+  const preset = folderRulePresetByPath.value.get(path);
   await applyRulesForTarget({
     path,
-    category: folderByPath.value.get(path)?.category,
+    presetTypeId: preset?.presetTypeId,
   });
   emit('folderCreated');
 };
@@ -305,8 +330,12 @@ const openInExplorerFromCtx = async () => {
 };
 
 const loadDbFolders = async () => {
-  const page = await api.getItems(0, 9999, undefined, undefined, undefined, undefined, 'folder');
+  const [page, presets] = await Promise.all([
+    api.getItems(0, 9999, undefined, undefined, undefined, undefined, 'folder'),
+    api.getFolderRulePresets(),
+  ]);
   dbFolders.value = page.content;
+  folderRulePresets.value = presets;
 };
 
 const {
@@ -361,18 +390,18 @@ onMounted(() => {
     >
       <div class="ctx-item" @click="enterFolderFromCtx">進入資料夾</div>
       <div class="ctx-divider"></div>
-      <div class="ctx-item" @click="openModifyTypeFromCtx">{{ hasFolderCategory(ctxMenu.path) ? '修改類別' : '新增類別' }}</div>
-      <div v-if="hasFolderCategory(ctxMenu.path)" class="ctx-item" @click="applyRulesFromCtx">重新套用類別</div>
+      <div class="ctx-item" @click="openModifyTypeFromCtx">{{ folderByPath.has(ctxMenu.path) ? '編輯標籤' : '加入知識庫' }}</div>
+      <div v-if="hasFolderRulePreset(ctxMenu.path)" class="ctx-item" @click="applyRulesFromCtx">套用既有標籤規則</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item" @click="openInExplorerFromCtx">在檔案總管中顯示</div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">移除追蹤記錄</div>
     </div>
 
-    <!-- 修改類型 / 加入知識庫 Modal -->
+    <!-- 加入知識庫 / 設定標籤 Modal -->
     <div v-if="showFolderModal" class="folder-modal-backdrop" @click.self="!isSavingFolder && (showFolderModal = false)">
       <div class="folder-modal glass-panel">
         <template v-if="modalPhase === 'edit'">
-          <h3>{{ folderInDb ? '修改類別' : '加入知識庫' }}</h3>
+          <h3>{{ folderInDb ? '編輯資料夾標籤' : '加入知識庫' }}</h3>
           <div class="folder-field">
             <label>路徑</label>
             <span class="path-text">{{ editFolder.path }}</span>
@@ -382,20 +411,26 @@ onMounted(() => {
             <input v-model="editFolder.name" class="folder-input" placeholder="顯示名稱" :disabled="isSavingFolder" />
           </div>
           <div class="folder-field">
-            <label>類別</label>
-            <select v-model="editFolder.category" class="folder-input" :disabled="isSavingFolder">
-              <option v-for="t in itemTypes" :key="t.name" :value="t.name">
+            <label>標籤規則集（選填）</label>
+            <select v-model="selectedRulePresetId" class="folder-input" :disabled="isSavingFolder">
+              <option :value="null">不使用規則集</option>
+              <option v-for="t in rulePresetOptions" :key="t.id" :value="t.id">
                 {{ t.icon }} {{ t.displayName }}
               </option>
             </select>
+            <p class="field-hint">只用來套用標籤規則，不會改變資料夾本身；資料夾仍是單純資料夾。</p>
           </div>
           <label class="apply-sub-check">
+            <input type="checkbox" v-model="rememberRulePreset" :disabled="isSavingFolder || selectedRulePresetId == null" />
+            記住為這個資料夾的預設標籤規則集
+          </label>
+          <label class="apply-sub-check">
             <input type="checkbox" v-model="applyToSubfolders" :disabled="isSavingFolder" />
-            套用至所有子資料夾
+            同時加入所有子資料夾
           </label>
           <label class="apply-sub-check">
             <input type="checkbox" v-model="applyToSubfiles" :disabled="isSavingFolder" />
-            套用至所有子檔案
+            同時加入所有子檔案
           </label>
           <div v-if="applyToSubfiles" class="folder-field subfile-extension-field">
             <label>子檔案副檔名</label>
@@ -612,6 +647,13 @@ onMounted(() => {
   font-family: inherit;
 }
 .folder-input:focus { border-color: var(--accent); }
+
+.field-hint {
+  margin: -6px 0 2px;
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
 
 .apply-sub-check {
   display: flex;

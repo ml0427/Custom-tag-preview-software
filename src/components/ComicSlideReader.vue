@@ -36,7 +36,7 @@ const canAutoplay = computed(() => pages.value.length > 1 && !isLoading.value &&
 const pageLabel = computed(() =>
   pages.value.length > 0 ? `${pageIndex.value + 1} / ${pages.value.length}` : '0 / 0'
 );
-const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'COMIC FOLDER' : 'ARCHIVE READER');
+const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'FOLDER READER' : 'ARCHIVE READER');
 const autoplayLabel = computed(() => `${autoplaySeconds.value.toFixed(1)} 秒/頁`);
 const autoplayButtonLabel = computed(() => isAutoplaying.value ? '停止播放' : '自動播放');
 const canFullscreen = computed(() =>

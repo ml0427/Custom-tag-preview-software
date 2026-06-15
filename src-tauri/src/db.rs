@@ -162,6 +162,18 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ).execute(&pool).await?;
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS folder_rule_presets (
+            folder_item_id      INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+            preset_type_id      INTEGER NOT NULL REFERENCES item_types(id) ON DELETE CASCADE,
+            apply_to_subfolders INTEGER NOT NULL DEFAULT 0,
+            apply_to_files      INTEGER NOT NULL DEFAULT 0,
+            file_extensions     TEXT NOT NULL DEFAULT '',
+            created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+        );"
+    ).execute(&pool).await?;
+
+    sqlx::query(
         "INSERT OR IGNORE INTO item_types (name, icon, display_name, is_builtin)
          VALUES ('default','📁','一般資料夾',1), ('comic','📚','漫畫',1)"
     ).execute(&pool).await?;
@@ -639,6 +651,26 @@ mod tests {
         assert!(dir.path().join("comic.db").exists());
         assert!(item_type_count >= 2);
         assert_eq!(zip_extension_count, 1);
+    }
+
+    #[tokio::test]
+    async fn init_db_creates_folder_rule_preset_bindings_table() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+
+        let table_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'folder_rule_presets'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let column_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pragma_table_info('folder_rule_presets') WHERE name IN ('folder_item_id', 'preset_type_id', 'apply_to_subfolders', 'apply_to_files', 'file_extensions')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(table_count, 1);
+        assert_eq!(column_count, 5);
     }
 
     #[tokio::test]

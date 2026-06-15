@@ -215,6 +215,12 @@ pub async fn delete_item_type(id: i64, pool: State<'_, SqlitePool>) -> Result<()
 
     let type_name: String = row.get("name");
 
+    sqlx::query("DELETE FROM folder_rule_presets WHERE preset_type_id = ?")
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     db::reset_items_category_to_default(&*pool, &type_name)
         .await
         .map_err(|e| e.to_string())?;

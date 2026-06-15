@@ -1,6 +1,7 @@
 mod debug;
 mod duplicates;
 mod filesystem;
+mod folder_rule_presets;
 mod helpers;
 mod item_lifecycle;
 mod item_types;
@@ -13,6 +14,7 @@ mod tags;
 pub use debug::*;
 pub use duplicates::*;
 pub use filesystem::*;
+pub use folder_rule_presets::*;
 pub use item_lifecycle::*;
 pub use item_types::*;
 pub use items::*;

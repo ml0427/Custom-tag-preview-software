@@ -35,7 +35,7 @@ const localExtInput = computed({
 
 <template>
     <div class="type-form">
-        <h3 class="form-title">{{ isNew ? '新增類型' : '編輯類型' }}</h3>
+        <h3 class="form-title">{{ isNew ? '新增規則集' : '編輯規則集' }}</h3>
 
         <label class="field-label">識別名稱（英數字+底線）</label>
         <input
@@ -45,7 +45,7 @@ const localExtInput = computed({
             placeholder="例：novel"
         />
 
-        <label class="field-label">顯示名稱</label>
+        <label class="field-label">規則集名稱</label>
         <input
             v-model="form.displayName"
             class="field-input"
@@ -95,7 +95,7 @@ const localExtInput = computed({
         <p class="field-hint">不含點號，例：zip、epub、cbz</p>
 
         <label class="field-label field-label--spaced">自動標記規則</label>
-        <p class="field-hint">指定此類別後，自動對資料夾內的檔案套用以下規則打標籤</p>
+        <p class="field-hint">選擇此規則集時，依下列規則替項目加標籤；資料夾本身仍只是資料夾。</p>
         <div class="rule-list">
             <div v-for="(rule, i) in form.tagRules" :key="i" class="rule-row">
                 <select v-model="rule.matchType" class="rule-select">

@@ -5,6 +5,7 @@ type ToastType = 'success' | 'error' | 'info';
 type RuleTarget = {
   path: string;
   category?: string | null;
+  presetTypeId?: number | null;
 };
 
 export function useFolderRuleActions(
@@ -27,15 +28,28 @@ export function useFolderRuleActions(
       }
     }
 
-    const category = target.category ?? dbItem.category ?? 'default';
-    const type = itemTypes().find(t => t.name === category);
+    const types = itemTypes();
+    let type = target.presetTypeId != null
+      ? types.find(t => t.id === target.presetTypeId)
+      : undefined;
+
+    if (!type && dbItem.itemType === 'folder') {
+      const preset = await api.getFolderRulePreset(dbItem.id);
+      if (preset) type = types.find(t => t.id === preset.presetTypeId);
+    }
+
+    if (!type && dbItem.itemType !== 'folder') {
+      const presetName = target.category ?? dbItem.category ?? 'default';
+      type = types.find(t => t.name === presetName);
+    }
+
     if (!type?.tagRules?.length) {
-      showToast('此類別沒有設定掃描規則', 'info');
+      showToast(dbItem.itemType === 'folder' ? '此資料夾尚未設定預設標籤規則集' : '此項目沒有可套用的標籤規則集', 'info');
       return;
     }
 
     try {
-      // 「重新套用類別」語意：只對該 item 自己跑目前類別規則，不遞迴、不碰子層、不掃 FS。
+      // 「套用標籤規則集」語意：只對該 item 自己跑目前規則，不遞迴、不碰子層、不掃 FS。
       // 想對整個目錄樹批次掃描請走「掃描精靈」（applyTagScan）。
       const result = await api.applyRulesToItem(dbItem.id, type.tagRules);
       showToast(`已套用 ${result.tagged} 個標籤`, 'success');

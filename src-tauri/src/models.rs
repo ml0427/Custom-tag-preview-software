@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 pub struct Item {
     pub id: i64,
     pub path: String,
-    pub item_type: String,           // 'file' | 'folder'
+    pub item_type: String, // 'file' | 'folder'
     pub name: String,
     pub file_size: Option<i64>,
-    pub file_modified_at: Option<i64>,   // Unix timestamp (seconds)
+    pub file_modified_at: Option<i64>, // Unix timestamp (seconds)
     pub cover_cache_path: Option<String>,
     pub fingerprint: Option<String>,
     pub note: Option<String>,
@@ -63,7 +63,7 @@ pub struct Page<T> {
 pub struct TagRule {
     pub id: i64,
     pub name: String,
-    pub match_type: String,  // 'prefix' | 'suffix' | 'contains' | 'regex'
+    pub match_type: String, // 'prefix' | 'suffix' | 'contains' | 'regex'
     pub pattern: String,
     pub tag_name: String,
 }
@@ -101,6 +101,29 @@ pub struct ItemTypeInput {
     pub example: String,
     pub extensions: Vec<String>,
     pub tag_rules: Vec<TagRuleInput>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderRulePreset {
+    pub folder_item_id: i64,
+    pub preset_type_id: i64,
+    pub preset_name: String,
+    pub preset_display_name: String,
+    pub preset_icon: String,
+    pub apply_to_subfolders: bool,
+    pub apply_to_files: bool,
+    pub file_extensions: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderRulePresetInput {
+    pub folder_item_id: i64,
+    pub preset_type_id: i64,
+    pub apply_to_subfolders: bool,
+    pub apply_to_files: bool,
+    pub file_extensions: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]

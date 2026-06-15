@@ -136,6 +136,25 @@ export interface ItemTypeInput {
     tagRules: TagRuleInput[];
 }
 
+export interface FolderRulePreset {
+    folderItemId: number;
+    presetTypeId: number;
+    presetName: string;
+    presetDisplayName: string;
+    presetIcon: string;
+    applyToSubfolders: boolean;
+    applyToFiles: boolean;
+    fileExtensions: string[];
+}
+
+export interface FolderRulePresetInput {
+    folderItemId: number;
+    presetTypeId: number;
+    applyToSubfolders: boolean;
+    applyToFiles: boolean;
+    fileExtensions: string[];
+}
+
 export const api = {
     // ── Items (primary API) ───────────────────────────────────────────────────
     async getItems(
@@ -337,7 +356,24 @@ export const api = {
         return await invoke('apply_rules_to_item', { itemId, rules });
     },
 
-    // ── Duplicate detection ───────────────────────────────────────────────────
+    // ── Folder default rule presets ───────────────────────────────────────────
+    async getFolderRulePresets(): Promise<FolderRulePreset[]> {
+        return await invoke<FolderRulePreset[]>('get_folder_rule_presets');
+    },
+
+    async getFolderRulePreset(folderItemId: number): Promise<FolderRulePreset | null> {
+        return await invoke<FolderRulePreset | null>('get_folder_rule_preset', { folderItemId });
+    },
+
+    async setFolderRulePreset(input: FolderRulePresetInput): Promise<FolderRulePreset> {
+        return await invoke<FolderRulePreset>('set_folder_rule_preset', { input });
+    },
+
+    async clearFolderRulePreset(folderItemId: number): Promise<void> {
+        await invoke('clear_folder_rule_preset', { folderItemId });
+    },
+
+    // ── Duplicate detection
     async getDuplicateGroups(): Promise<DuplicateGroup[]> {
         return await invoke('get_duplicate_groups');
     },

@@ -128,7 +128,7 @@ export function useThumbnailLoader() {
   const getIcon = (item: FileItem, itemByPath: Map<string, Item>): string => {
     const dbItem = getDbItem(item, itemByPath);
     if (item.isDir) {
-      return getTypeConfig(dbItem?.category).icon;
+      return '📁';
     }
     if (hasUserCategory(dbItem)) {
       return getTypeConfig(dbItem!.category).icon;
@@ -148,8 +148,7 @@ export function useThumbnailLoader() {
   const getItemType = (item: FileItem, itemByPath: Map<string, Item>): string => {
     const dbItem = getDbItem(item, itemByPath);
     if (item.isDir) {
-      if (dbItem) return getTypeConfig(dbItem.category).displayName;
-      return '目錄';
+      return dbItem ? '已追蹤資料夾' : '資料夾';
     }
     if (hasUserCategory(dbItem)) {
       return getTypeConfig(dbItem!.category).displayName;
@@ -160,7 +159,7 @@ export function useThumbnailLoader() {
   const getTypeColor = (item: FileItem, itemByPath: Map<string, Item>): string | null => {
     const dbItem = getDbItem(item, itemByPath);
     if (item.isDir) {
-      return getTypeConfig(dbItem?.category).color ?? null;
+      return null;
     }
     if (hasUserCategory(dbItem)) {
       return getTypeConfig(dbItem!.category).color ?? null;
