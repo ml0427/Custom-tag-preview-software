@@ -30,24 +30,34 @@ runtime_contract:
         required_capabilities:
           - "fetch issue or pull request metadata"
           - "read changed files"
-      vector_memory:
+      local_memory:
         required_capabilities:
-          - "search architecture knowledge"
-          - "upsert durable architecture notes"
+          - "search bounded local memory and workflow artifacts"
+          - "record durable architecture, trap, or design facts only when reusable"
+          - "keep transient task state in workflow run artifacts"
 
-local_note_policy:
-  machine_key: "win:MICHAEL:ml042:dev-501cf3b58974274f"
-  active_note_file: 'D:\AI紀錄\YYYY-MM-DD.txt'
-  portability_rule: "Do not reuse this path on another computer until that machine has its own machine key and local AI note directory."
-  note_contents:
-    required:
+local_memory_policy:
+  preferred_sources:
+    - ".mc-memory/MEMORY.md"
+    - ".mc-memory/PROJECTS.md"
+    - ".mc-memory/USER.md when the project actually needs user-specific durable context"
+    - ".workflow/.workflow-runs/"
+    - "session history"
+    - "project docs and nearby comments"
+  closeout_artifact:
+    location: ".workflow/.workflow-runs/<run-id>/closeout.md"
+    required_contents:
       - "what changed"
       - "how it was handled"
       - "verification result"
-    forbidden:
-      - "task TODOs"
-      - "transient workflow state"
-      - "wizard state"
+      - "whether bounded local memory needs an update"
+  durable_update_allowed_for:
+    - "architecture decisions"
+    - "reusable traps"
+    - "durable design facts"
+  forbidden:
+    - "require Pinecone or any external vector-memory upsert as a completion gate"
+    - "write transient task state, TODOs, raw logs, or wizard state to long-term memory"
 
 delegation_policy:
   low_model_task_classes:
@@ -224,9 +234,12 @@ workflows:
         type: "tool-or-shell"
         strategy:
           preferred:
-            - "vector memory search for architecture decisions, design rules, and traps"
+            - "read .mc-memory/MEMORY.md for durable project memory"
+            - "read .mc-memory/PROJECTS.md and .mc-memory/USER.md only when present and relevant"
+            - "review prior .workflow/.workflow-runs/ artifacts and session history"
+            - "read project docs and nearby comments"
           fallback:
-            - "read local project docs and nearby comments"
+            - "use focused rg/code search when local memory files are absent"
         output: "memory_notes"
 
       - id: "impact-before-edit"
@@ -319,7 +332,8 @@ workflows:
           - "adjacent regression review completed by same-level model after build/test"
           - "blocking adjacent findings are fixed or explicitly acknowledged by lead/user"
           - "version incremented"
-          - "vector memory updated when durable"
+          - "workflow run closeout artifact records what changed, how it was handled, verification result, and whether bounded local memory needs an update"
+          - "bounded local memory is updated only for durable architecture, trap, or design facts"
           - "npm run build stamp changes in index.html and src-tauri/tauri.conf.json are either included in the closeout commit or intentionally reverted before commit"
           - "GitNexus analyze is allowed before the normal commit only when a required GitNexus query, impact, or detect_changes step reports a stale index and the next decision depends on GitNexus"
           - "Codex PostToolUse stale warnings after commit, merge, push, or fast-forward are advisory; do not rerun analyze solely because HEAD advanced"
@@ -416,9 +430,12 @@ workflows:
         type: "tool-or-shell"
         strategy:
           preferred:
-            - "vector memory search for architecture decisions and traps"
+            - "read .mc-memory/MEMORY.md for durable project memory"
+            - "read .mc-memory/PROJECTS.md and .mc-memory/USER.md only when present and relevant"
+            - "review prior .workflow/.workflow-runs/ artifacts and session history"
+            - "read project docs and comments"
           fallback:
-            - "read local project docs and comments"
+            - "use focused rg/code search when local memory files are absent"
         output: "memory_notes"
 
       - id: "impact-before-edit"
@@ -507,7 +524,8 @@ workflows:
           - "adjacent regression review completed by same-level model after build/test"
           - "blocking adjacent findings are fixed or explicitly acknowledged by lead/user"
           - "version incremented"
-          - "vector memory updated when durable"
+          - "workflow run closeout artifact records what changed, how it was handled, verification result, and whether bounded local memory needs an update"
+          - "bounded local memory is updated only for durable architecture, trap, or design facts"
           - "npm run build stamp changes in index.html and src-tauri/tauri.conf.json are either included in the closeout commit or intentionally reverted before commit"
           - "GitNexus analyze is allowed before the normal commit only when a required GitNexus query, impact, or detect_changes step reports a stale index and the next decision depends on GitNexus"
           - "Codex PostToolUse stale warnings after commit, merge, push, or fast-forward are advisory; do not rerun analyze solely because HEAD advanced"
@@ -853,16 +871,17 @@ closeout_policy:
     required:
       - "increment version manually"
       - "run npm run build"
-      - 'append factual implementation note to machine key win:MICHAEL:ml042:dev-501cf3b58974274f dated note file D:\AI紀錄\YYYY-MM-DD.txt'
-      - "upsert durable architecture/trap/design note to vector memory when applicable"
+      - "write factual closeout artifact under .workflow/.workflow-runs/<run-id>/closeout.md"
+      - "record whether bounded local memory needs an update"
+      - "update .mc-memory only for durable architecture, trap, or design facts when applicable"
       - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
       - "run npx gitnexus analyze before the normal commit only when a required GitNexus query, impact, or detect_changes step reports a stale index and the next decision depends on GitNexus"
       - "create a commit before reporting completion"
       - "push the commit before reporting completion, unless the user explicitly requests local-only work"
     forbidden:
-      - 'write task TODOs to D:\AI紀錄\YYYY-MM-DD.txt or any legacy AI筆記.txt file'
-      - "reuse D:\\AI紀錄 on another computer before resolving that machine's own note path"
-      - "store transient task state in vector memory"
+      - "require Pinecone or any external vector-memory upsert as a completion gate"
+      - "store transient task state, TODOs, raw logs, or wizard state in long-term memory"
+      - "write workflow state outside workflow run artifacts"
       - "run npx gitnexus analyze after commit, merge, push, or fast-forward solely because HEAD advanced, a PostToolUse hook reports stale index, or AGENTS.md/CLAUDE.md GitNexus stats could be refreshed"
       - "create or amend a post-commit GitNexus-stats-only change"
       - "force push without explicit lead/user approval"

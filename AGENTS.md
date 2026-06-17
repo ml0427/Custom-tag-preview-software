@@ -87,7 +87,7 @@ This project is indexed by GitNexus as **Custom-tag-preview-software** (1893 sym
 - 此本機正式 AI 筆記路徑：`D:\AI紀錄\YYYY-MM-DD.txt`
 - 不同電腦不可硬套此路徑；必須先建立該電腦的 machine key，並檢查當機既有 AI 紀錄目錄或由使用者指定
 - AI 筆記只記「做了什麼、怎麼做、驗證結果」；不要把 TODO、臨時任務狀態或 wizard state 寫進 AI 筆記
-- 任務狀態以 GitHub issue、commit、wizard state 為準；耐久架構/踩雷/設計記憶才 upsert 到 Pinecone
+- 任務狀態以 GitHub issue、commit、wizard state 為準；耐久架構/踩雷/設計記憶只寫入本地 bounded memory 或 workflow closeout artifact，不再 upsert 到 Pinecone
 
 ## Rust 踩雷
 
