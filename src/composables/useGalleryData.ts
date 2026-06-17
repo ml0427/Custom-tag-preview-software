@@ -23,6 +23,7 @@ export function useGalleryData(
   const fileItems = ref<FileItem[]>([]);
   const isLoading = ref(false);
   const externalChanges = ref<ExternalChange[]>([]);
+  const externalChangesReady = ref(false);
   const tagPage = ref(0);
   const tagTotalPages = ref(1);
   const TAG_PAGE_SIZE = 200;
@@ -126,13 +127,17 @@ export function useGalleryData(
     const path = sourcePath();
     if (sTagId != null || !path) {
       externalChanges.value = [];
+      externalChangesReady.value = true;
       return;
     }
     externalChanges.value = computeExternalChanges(path, fileItems.value, externalChangeItemsData.value);
+    externalChangesReady.value = true;
   };
 
   const loadAll = async () => {
     isLoading.value = true;
+    externalChangesReady.value = false;
+    externalChanges.value = [];
     // 不在開始時清空資料，避免 computed selectedItem 瞬間變 null 造成預覽閃爍
     // 直接用新資料覆蓋舊資料
     try {
@@ -160,6 +165,7 @@ export function useGalleryData(
     fileItems,
     isLoading,
     externalChanges,
+    externalChangesReady,
     tagPage,
     tagTotalPages,
     itemByPath,

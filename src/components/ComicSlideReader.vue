@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { api, type FileItem, type Item } from '../api';
 import { isReadableImageFile } from '../utils/readableItem';
 
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 
 const pages = ref<ReaderPage[]>([]);
 const pageIndex = ref(0);
+const pageJumpInput = ref('1');
 const imageUrl = ref('');
 const isLoading = ref(false);
 const errorMessage = ref('');
@@ -35,6 +36,13 @@ const isAtLastPage = computed(() => pageIndex.value >= pages.value.length - 1);
 const canAutoplay = computed(() => pages.value.length > 1 && !isLoading.value && !errorMessage.value);
 const pageLabel = computed(() =>
   pages.value.length > 0 ? `${pageIndex.value + 1} / ${pages.value.length}` : '0 / 0'
+);
+const pageJumpNumber = computed(() => Number.parseInt(pageJumpInput.value, 10));
+const canJumpToPage = computed(() =>
+  Number.isFinite(pageJumpNumber.value)
+  && pageJumpNumber.value >= 1
+  && pageJumpNumber.value <= pages.value.length
+  && pageJumpNumber.value !== pageIndex.value + 1
 );
 const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'FOLDER READER' : 'ARCHIVE READER');
 const autoplayLabel = computed(() => `${autoplaySeconds.value.toFixed(1)} 秒/頁`);
@@ -167,6 +175,11 @@ const toggleFullscreen = async () => {
   await enterFullscreen();
 };
 
+const requestInitialFullscreen = async () => {
+  await nextTick();
+  await enterFullscreen();
+};
+
 const closeReader = async () => {
   stopAutoplay();
   await exitReaderFullscreen();
@@ -241,6 +254,28 @@ const loadPages = async () => {
   }
 };
 
+const syncPageJumpInput = () => {
+  pageJumpInput.value = String(pageIndex.value + 1);
+};
+
+const jumpToPage = (targetPage: number) => {
+  if (!pages.value.length || !Number.isFinite(targetPage)) {
+    syncPageJumpInput();
+    return;
+  }
+  const nextIndex = Math.min(Math.max(Math.trunc(targetPage), 1), pages.value.length) - 1;
+  if (nextIndex === pageIndex.value) {
+    syncPageJumpInput();
+    return;
+  }
+  pageIndex.value = nextIndex;
+  loadCurrentPage();
+};
+
+const jumpToInputPage = () => {
+  jumpToPage(pageJumpNumber.value);
+};
+
 const goPrev = () => {
   if (isAtFirstPage.value) return;
   pageIndex.value -= 1;
@@ -266,13 +301,11 @@ const onKeydown = (event: KeyboardEvent) => {
   }
   if (event.key === 'Home') {
     event.preventDefault();
-    pageIndex.value = 0;
-    loadCurrentPage();
+    jumpToPage(1);
   }
   if (event.key === 'End' && pages.value.length > 0) {
     event.preventDefault();
-    pageIndex.value = pages.value.length - 1;
-    loadCurrentPage();
+    jumpToPage(pages.value.length);
   }
 };
 
@@ -284,9 +317,11 @@ watch(() => props.item, item => {
   if (item) {
     window.addEventListener('keydown', onKeydown);
     document.addEventListener('fullscreenchange', syncFullscreenState);
+    void requestInitialFullscreen();
   }
 }, { immediate: true });
 watch([isAutoplaying, autoplaySeconds, pageIndex, canAutoplay], scheduleAutoplay);
+watch([pageIndex, () => pages.value.length], syncPageJumpInput);
 watch(isFullscreen, fullscreen => {
   if (fullscreen) {
     showReaderChrome();
@@ -352,6 +387,20 @@ onUnmounted(() => {
           </div>
           <button class="reader-btn" type="button" :disabled="isAtFirstPage" @click.stop="goPrev">上一頁</button>
           <button class="reader-btn" type="button" :disabled="isAtLastPage" @click.stop="goNext">下一頁</button>
+          <form class="page-jump" @submit.prevent.stop="jumpToInputPage" @click.stop @dblclick.stop>
+            <input
+              v-model="pageJumpInput"
+              class="page-jump-input"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              :max="pages.length || 1"
+              :disabled="!pages.length"
+              aria-label="跳到頁碼"
+              @blur="syncPageJumpInput"
+            />
+            <button class="reader-btn page-jump-button" type="submit" :disabled="!canJumpToPage">跳頁</button>
+          </form>
           <button
             class="reader-btn fullscreen-toggle"
             type="button"
@@ -516,6 +565,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
   justify-content: flex-end;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .autoplay-control {
@@ -600,6 +650,33 @@ onUnmounted(() => {
     linear-gradient(90deg, transparent 6px, #08090b 6px 8px, transparent 8px 12px, #08090b 12px 14px, transparent 14px),
     #ffd089;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.page-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-jump-input {
+  width: 64px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f1ea;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.page-jump-input:disabled {
+  opacity: 0.38;
+}
+
+.page-jump-button {
+  white-space: nowrap;
 }
 
 .reader-btn,

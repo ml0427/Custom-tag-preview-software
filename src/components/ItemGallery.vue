@@ -43,6 +43,7 @@ const {
   fileItems,
   isLoading,
   externalChanges,
+  externalChangesReady,
   tagPage,
   tagTotalPages,
   itemByPath,
@@ -410,7 +411,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :sizeLabel="totalSizeLabel"
         />
 
-        <div v-if="externalChanges.length" class="external-change-banner">
+        <div v-if="externalChangesReady && externalChanges.length" class="external-change-banner">
           <span class="external-change-text">
             偵測到 <strong>{{ externalChanges.length }}</strong> 筆外部更動
           </span>
