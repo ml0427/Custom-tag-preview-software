@@ -8,6 +8,19 @@ type RuleTarget = {
   presetTypeId?: number | null;
 };
 
+const findNearestParentFolder = (targetPath: string, items: Map<string, Item>): Item | null => {
+  let current = pathKey(targetPath);
+
+  while (true) {
+    const separatorIndex = current.lastIndexOf('\\');
+    if (separatorIndex <= 0) return null;
+
+    current = current.slice(0, separatorIndex);
+    const parent = items.get(current);
+    if (parent?.itemType === 'folder') return parent;
+  }
+};
+
 export function useFolderRuleActions(
   itemByPath: (() => Map<string, Item>) | undefined,
   itemTypes: () => ItemType[],
@@ -17,7 +30,8 @@ export function useFolderRuleActions(
 ) {
   const applyRulesForTarget = async (target: RuleTarget) => {
     hideContextMenu();
-    let dbItem = itemByPath?.().get(pathKey(target.path));
+    const items = itemByPath?.() ?? new Map<string, Item>();
+    let dbItem = items.get(pathKey(target.path));
 
     if (!dbItem) {
       try {
@@ -41,6 +55,14 @@ export function useFolderRuleActions(
     if (!type && dbItem.itemType !== 'folder') {
       const presetName = target.category ?? dbItem.category ?? 'default';
       type = types.find(t => t.name === presetName);
+    }
+
+    if (!type?.tagRules?.length && dbItem.itemType !== 'folder') {
+      const parentFolder = findNearestParentFolder(dbItem.path, items);
+      if (parentFolder) {
+        const preset = await api.getFolderRulePreset(parentFolder.id);
+        if (preset) type = types.find(t => t.id === preset.presetTypeId);
+      }
     }
 
     if (!type?.tagRules?.length) {
