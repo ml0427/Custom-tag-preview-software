@@ -24,6 +24,16 @@ const page = <T>(content: T[]): Page<T> => ({
   size: content.length,
 });
 
+const deferred = <T>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+};
+
 const file = (name: string, fileSize: number, modifiedTime: string): FileItem => ({
   name,
   path: `C:/Library/${name}`,
@@ -200,5 +210,51 @@ describe('useGalleryData', () => {
     expect(apiMock.getItems).toHaveBeenNthCalledWith(3, 1, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
     expect(apiMock.getItems).toHaveBeenNthCalledWith(4, 2, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
     expect(gallery.itemByPath.value.get('c:\\library\\three.zip')?.id).toBe(3);
+  });
+
+  it('does not publish stale external changes from an older overlapping load', async () => {
+    const firstFiles = deferred<FileItem[]>();
+    const firstExternalItems = deferred<Page<Item>>();
+    const secondFiles = deferred<FileItem[]>();
+    const secondExternalItems = deferred<Page<Item>>();
+
+    apiMock.listDirFiles
+      .mockReturnValueOnce(firstFiles.promise)
+      .mockReturnValueOnce(secondFiles.promise);
+    apiMock.getItems
+      .mockResolvedValueOnce(page([]))
+      .mockReturnValueOnce(firstExternalItems.promise)
+      .mockResolvedValueOnce(page([]))
+      .mockReturnValueOnce(secondExternalItems.promise);
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => '',
+      () => 'name',
+      () => 'asc',
+    );
+
+    const firstLoad = gallery.loadAll();
+    const secondLoad = gallery.loadAll();
+
+    firstFiles.resolve([file('ghost.zip', 20, '2026-05-21 09:00')]);
+    firstExternalItems.resolve(page([]));
+    await firstLoad;
+    await nextTick();
+
+    expect(gallery.externalChangesReady.value).toBe(false);
+    expect(gallery.externalChanges.value).toEqual([]);
+
+    secondFiles.resolve([file('book.zip', 100, '2026-05-21 23:00')]);
+    secondExternalItems.resolve(page([
+      item({ path: 'C:/Library/book.zip', name: 'book', fileSize: 100 }),
+    ]));
+    await secondLoad;
+    await nextTick();
+
+    expect(gallery.externalChangesReady.value).toBe(true);
+    expect(gallery.externalChanges.value).toEqual([]);
+    expect(gallery.filteredFileItems.value.map(item => item.name)).toEqual(['book.zip']);
   });
 });

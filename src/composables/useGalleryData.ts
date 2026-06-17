@@ -28,6 +28,13 @@ export function useGalleryData(
   const tagTotalPages = ref(1);
   const TAG_PAGE_SIZE = 200;
   const EXTERNAL_CHANGE_PAGE_SIZE = 1000;
+  let loadAllToken = 0;
+
+  interface ItemPageResult {
+    content: Item[];
+    page: number;
+    totalPages: number;
+  }
 
   const itemByPath = computed(() => {
     const hasTagFilter = selectedTagId() != null;
@@ -74,58 +81,72 @@ export function useGalleryData(
     return items;
   });
 
-  const loadFileItems = async () => {
-    const path = sourcePath();
-    if (!path) { fileItems.value = []; return; }
+  const fetchFileItems = async (path: string | null): Promise<FileItem[]> => {
+    if (!path) return [];
     try {
-      fileItems.value = await api.listDirFiles(path);
+      return await api.listDirFiles(path);
     } catch {
-      fileItems.value = [];
+      return [];
     }
+  };
+
+  const fetchItemsPage = async (
+    page = 0,
+    path: string | null = sourcePath(),
+    tagId: number | null | undefined = selectedTagId(),
+  ): Promise<ItemPageResult> => {
+    try {
+      const sTagIds = tagId != null ? [tagId] : undefined;
+      const pageSize = TAG_PAGE_SIZE;
+      const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sTagIds ? undefined : (path ?? undefined));
+      return {
+        content: res.content,
+        page,
+        totalPages: Math.max(1, res.totalPages),
+      };
+    } catch (e) {
+      console.error('❌ [useGalleryData] API getItems error:', e);
+      return {
+        content: [],
+        page,
+        totalPages: 1,
+      };
+    }
+  };
+
+  const publishItemsPage = (result: ItemPageResult) => {
+    itemsData.value = result.content;
+    tagPage.value = result.page;
+    tagTotalPages.value = result.totalPages;
   };
 
   const loadItemsBackground = async (page = 0) => {
-    try {
-      const sPath = sourcePath();
-      const tagId = selectedTagId();
-      const sTagIds = tagId != null ? [tagId] : undefined;
-      const pageSize = TAG_PAGE_SIZE;
-      
-      const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sTagIds ? undefined : (sPath ?? undefined));
-      itemsData.value = res.content;
-
-      tagPage.value = page;
-      tagTotalPages.value = Math.max(1, res.totalPages);
-    } catch (e) {
-      console.error('❌ [useGalleryData] API getItems error:', e);
-      itemsData.value = [];
-    }
+    publishItemsPage(await fetchItemsPage(page));
   };
 
-  const loadExternalChangeItems = async () => {
-    const sPath = sourcePath();
-    const tagId = selectedTagId();
-    if (tagId != null || !sPath) {
-      externalChangeItemsData.value = [];
-      return;
-    }
+  const fetchExternalChangeItems = async (
+    path: string | null,
+    tagId: number | null | undefined,
+  ): Promise<Item[]> => {
+    if (tagId != null || !path) return [];
 
-    const firstPage = await api.getItems(0, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath, undefined, true);
+    const firstPage = await api.getItems(0, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', path, undefined, true);
     const allItems = [...firstPage.content];
     if (firstPage.totalPages > 1) {
       const pages = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 1);
       const nextPages = await Promise.all(
-        pages.map(page => api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', sPath, undefined, true))
+        pages.map(page => api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', path, undefined, true))
       );
       allItems.push(...nextPages.flatMap(page => page.content));
     }
-    externalChangeItemsData.value = allItems;
+    return allItems;
   };
 
-  const detectExternalChanges = () => {
-    const sTagId = selectedTagId();
-    const path = sourcePath();
-    if (sTagId != null || !path) {
+  const detectExternalChanges = (
+    path: string | null = sourcePath(),
+    tagId: number | null | undefined = selectedTagId(),
+  ) => {
+    if (tagId != null || !path) {
       externalChanges.value = [];
       externalChangesReady.value = true;
       return;
@@ -135,18 +156,29 @@ export function useGalleryData(
   };
 
   const loadAll = async () => {
+    const token = ++loadAllToken;
+    const path = sourcePath();
+    const tagId = selectedTagId();
     isLoading.value = true;
     externalChangesReady.value = false;
     externalChanges.value = [];
     // 不在開始時清空資料，避免 computed selectedItem 瞬間變 null 造成預覽閃爍
     // 直接用新資料覆蓋舊資料
     try {
-      await Promise.all([loadFileItems(), loadItemsBackground(), loadExternalChangeItems()]);
-      detectExternalChanges();
+      const [nextFileItems, nextItemsPage, nextExternalItems] = await Promise.all([
+        fetchFileItems(path),
+        fetchItemsPage(0, path, tagId),
+        fetchExternalChangeItems(path, tagId),
+      ]);
+      if (token !== loadAllToken) return;
+      fileItems.value = nextFileItems;
+      publishItemsPage(nextItemsPage);
+      externalChangeItemsData.value = nextExternalItems;
+      detectExternalChanges(path, tagId);
     } catch (e) {
-      console.error('Gallery load error:', e);
+      if (token === loadAllToken) console.error('Gallery load error:', e);
     } finally {
-      isLoading.value = false;
+      if (token === loadAllToken) isLoading.value = false;
     }
   };
 
