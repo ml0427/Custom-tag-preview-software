@@ -135,7 +135,7 @@ The wizard must block at these points:
 | Structured AI output | JSON artifact exists and includes every required field from `output_schema`. |
 | `adjacent-regression-review` | Same-level review artifact exists. |
 | Blocking adjacent finding | Lead or user acknowledges, fixes, or explicitly accepts the risk. |
-| GitNexus analyze | Only before the normal commit, if needed. Do not run after commit just to refresh stats. |
+| GitNexus analyze | Only before the normal commit, when a required GitNexus decision needs a fresh index. PostToolUse stale warnings after commit/merge/push are advisory. |
 | Closeout | Commit and push are complete unless the user explicitly requested local-only work. |
 
 ## Low-Model Paths
@@ -198,7 +198,9 @@ If `status` is `blocked`, closeout is blocked until the Lead fixes it or the use
 
 ## GitNexus Stats Rule
 
-Run `npx gitnexus analyze` only when analysis is needed and before the normal commit.
+Run `npx gitnexus analyze` only when a required GitNexus query, impact analysis, or detect_changes result is needed for the next decision and reports a stale index.
+
+A stale warning emitted by a Codex PostToolUse hook after `git commit`, `git merge`, `git push`, or a fast-forward update is advisory. It means the graph may be stale for the next GitNexus query; it is not a closeout gate by itself.
 
 If analyze changes only `AGENTS.md` or `CLAUDE.md` stats:
 
@@ -207,7 +209,7 @@ before commit: include the stats in the same normal commit
 after commit: do not create a stats-only commit
 ```
 
-After commit, use `git status --short` for cleanliness. Do not rerun analyze just to refresh stats.
+After commit, merge, push, or fast-forward, use `git status --short` for cleanliness. Do not rerun analyze just to refresh stats or because HEAD advanced.
 
 ## Example Full Run
 
