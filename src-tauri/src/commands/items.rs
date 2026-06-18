@@ -1,7 +1,7 @@
 use super::helpers::{fetch_item_tags, read_item_from_row};
 use crate::debug_log::DebugState;
 use crate::models::{Item, Page};
-use crate::{db, zip_utils};
+use crate::{db, thumbnail_cache, zip_utils};
 use base64::{engine::general_purpose, Engine as _};
 use serde_json::json;
 use sqlx::{Row, SqlitePool};
@@ -356,8 +356,7 @@ pub async fn set_item_cover(
         .get(0);
 
     if let Ok(data) = zip_utils::extract_image(&file_path, &image_path) {
-        let cache_file = cache_dir.join(format!("{}.jpg", id));
-        let _ = fs::write(cache_file, data);
+        let _ = thumbnail_cache::write_thumbnail_cache(&cache_dir, id, &data);
     }
     Ok(())
 }
@@ -421,13 +420,13 @@ pub async fn ensure_thumb_cache(
         .app_data_dir()
         .expect("failed to get app data dir")
         .join("thumb_cache");
-    let cache_file = cache_dir.join(format!("{}.jpg", id));
+    let cache_file = thumbnail_cache::cache_path(&cache_dir, id);
 
     // 快取已存在且非空 → 直接回傳
     // 若檔案大小為 0（寫入中斷、磁碟滿等），視為無效快取，刪掉重建
     if cache_file.exists() {
         let meta = fs::metadata(&cache_file).map_err(|e| e.to_string())?;
-        if meta.len() > 0 {
+        if meta.len() > 0 && thumbnail_cache::is_valid_cache_file(&cache_file) {
             let data = fs::read(&cache_file).map_err(|e| e.to_string())?;
             debug_state.log_info(
                 "thumbnail.ensure_cache.hit",
@@ -443,10 +442,11 @@ pub async fn ensure_thumb_cache(
         }
         // 快取檔為空 → 刪除並重建
         debug_state.log_warn(
-            "thumbnail.ensure_cache.empty",
+            "thumbnail.ensure_cache.invalid",
             json!({
                 "id": id,
                 "cache_file": cache_file.to_string_lossy(),
+                "bytes": meta.len(),
             }),
         );
         fs::remove_file(&cache_file).map_err(|e| e.to_string())?;
@@ -494,15 +494,16 @@ pub async fn ensure_thumb_cache(
         return Err("No thumbnail available".to_string());
     };
 
-    fs::write(&cache_file, &image_data).map_err(|e| e.to_string())?;
+    let written = thumbnail_cache::write_thumbnail_cache(&cache_dir, id, &image_data)
+        .map_err(|e| e.to_string())?;
     debug_state.log_info(
         "thumbnail.ensure_cache.written",
         json!({
             "id": id,
-            "cache_file": cache_file.to_string_lossy(),
-            "bytes": image_data.len(),
-            "content_type": zip_utils::image_content_type(&image_data),
-            "head": zip_utils::debug_hex_prefix(&image_data, 16),
+            "cache_file": written.path.to_string_lossy(),
+            "source_bytes": image_data.len(),
+            "bytes": written.bytes,
+            "content_type": "image/jpeg",
         }),
     );
     Ok(())

@@ -1,4 +1,5 @@
 use crate::db;
+use crate::thumbnail_cache;
 use anyhow::Result;
 use chrono::Local;
 use regex::Regex;
@@ -167,8 +168,7 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
     if let Ok(images) = crate::zip_utils::get_image_entries(&file_path) {
         if !images.is_empty() {
             if let Ok(data) = crate::zip_utils::extract_image(&file_path, &images[0]) {
-                let cache_file = cache_dir.join(format!("{}.jpg", id));
-                let _ = fs::write(cache_file, data);
+                let _ = thumbnail_cache::write_thumbnail_cache(cache_dir, id, &data);
             }
         }
     }

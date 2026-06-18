@@ -6,6 +6,7 @@ mod db;
 mod debug_log;
 mod models;
 mod scanner;
+mod thumbnail_cache;
 mod zip_utils;
 
 use serde_json::json;
