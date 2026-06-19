@@ -35,6 +35,10 @@ const selectedCandidateId = ref('');
 const selectedTags = ref<string[]>([]);
 
 const archiveExtensionPattern = /\.(zip|cbz|rar|cbr|7z|cb7)$/i;
+const urlPattern = /^https?:\/\//i;
+const numericIdPattern = /^\d{4,}$/;
+
+type MetadataQueryKind = 'empty' | 'url' | 'id' | 'search';
 
 const candidateKey = (candidate: MetadataCandidate) =>
   `${candidate.providerId}:${candidate.id}:${candidate.sourceUrl}`;
@@ -59,12 +63,52 @@ const defaultQueryFor = (item: Item) => {
   return fileName.replace(archiveExtensionPattern, '').trim();
 };
 
+const metadataQueryKind = computed<MetadataQueryKind>(() => {
+  const value = query.value.trim();
+  if (!value) return 'empty';
+  if (urlPattern.test(value)) return 'url';
+  if (numericIdPattern.test(value)) return 'id';
+  return 'search';
+});
+
+const providerSupportsQueryKind = (provider: MetadataProviderInfo, kind: MetadataQueryKind) => {
+  if (kind === 'empty') return false;
+  if (kind === 'url') return provider.supportsLookupByUrl;
+  if (kind === 'id') return provider.supportsLookupById;
+  return provider.supportsSearch;
+};
+
+const providerSupportsCurrentQuery = (provider: MetadataProviderInfo) =>
+  providerSupportsQueryKind(provider, metadataQueryKind.value);
+
+const providerUnsupportedReason = (provider: MetadataProviderInfo) => {
+  if (providerSupportsCurrentQuery(provider)) return provider.displayName;
+  if (metadataQueryKind.value === 'search') return `${provider.displayName} 不支援文字搜尋`;
+  if (metadataQueryKind.value === 'url') return `${provider.displayName} 不支援網址查詢`;
+  if (metadataQueryKind.value === 'id') return `${provider.displayName} 不支援 ID 查詢`;
+  return '請先輸入查詢字串或作品網址';
+};
+
 const selectedProviders = computed(() =>
   providers.value.filter(provider => selectedProviderIds.value.includes(provider.id))
 );
 
+const lookupProviderIds = computed(() =>
+  selectedProviders.value
+    .filter(providerSupportsCurrentQuery)
+    .map(provider => provider.id)
+);
+
+const selectedLookupProviders = computed(() =>
+  providers.value.filter(provider => lookupProviderIds.value.includes(provider.id))
+);
+
+const unsupportedSelectedProviders = computed(() =>
+  selectedProviders.value.filter(provider => !providerSupportsCurrentQuery(provider))
+);
+
 const selectedAdultProviders = computed(() =>
-  selectedProviders.value.filter(provider => provider.adult)
+  selectedLookupProviders.value.filter(provider => provider.adult)
 );
 
 const existingTagNames = computed(() =>
@@ -84,13 +128,20 @@ const tagOptions = computed(() => {
 });
 
 const selectedProviderLabel = computed(() => {
-  if (!selectedProviders.value.length) return '尚未選擇來源';
-  return selectedProviders.value.map(provider => provider.displayName).join(', ');
+  if (!selectedProviderIds.value.length) return '尚未選擇來源';
+  if (!selectedLookupProviders.value.length) return '目前查詢格式沒有可用來源';
+
+  const label = selectedLookupProviders.value.map(provider => provider.displayName).join(', ');
+  if (!unsupportedSelectedProviders.value.length) return label;
+
+  const skipped = unsupportedSelectedProviders.value.map(provider => provider.displayName).join(', ');
+  return `${label}（略過 ${skipped}）`;
 });
 
 const lookupBlockReason = computed(() => {
   if (!selectedProviderIds.value.length) return '請先選擇查詢來源';
   if (!query.value.trim()) return '請輸入查詢字串或作品網址';
+  if (!lookupProviderIds.value.length) return '目前選擇的來源不支援這個查詢格式';
   if (selectedAdultProviders.value.length && !allowAdult.value) return '請先允許成人站台查詢';
   return '';
 });
@@ -152,7 +203,7 @@ const lookupMetadata = async () => {
       name: props.item.name,
       path: props.item.path,
       existingTags: props.item.tags.map(tag => tag.name),
-      providerIds: selectedProviderIds.value,
+      providerIds: lookupProviderIds.value,
       query: query.value.trim(),
       allowAdult: allowAdult.value,
       limit: 5,
@@ -261,8 +312,12 @@ const applySelectedTags = async () => {
                 :key="provider.id"
                 type="button"
                 class="provider-chip"
-                :class="{ active: selectedProviderIds.includes(provider.id) }"
+                :class="{
+                  active: selectedProviderIds.includes(provider.id),
+                  unsupported: !providerSupportsCurrentQuery(provider),
+                }"
                 :disabled="isLookingUp || isLoadingProviders"
+                :title="providerUnsupportedReason(provider)"
                 @click="toggleProvider(provider.id)"
               >
                 {{ provider.displayName }}
@@ -539,6 +594,15 @@ h3 {
 .provider-chip.active {
   border-color: var(--accent);
   background: var(--bg-overlay-strong);
+}
+
+.provider-chip.unsupported {
+  opacity: 0.58;
+}
+
+.provider-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .adult-badge {

@@ -1,3 +1,4 @@
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, REFERER};
 use regex::Regex;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
@@ -131,7 +132,7 @@ pub async fn lookup_metadata(input: MetadataLookupInput) -> Result<MetadataLooku
                     }
                     candidates.append(&mut next);
                 }
-                Err(error) => messages.push(message(&provider.id, "error", &error)),
+                Err(error) => messages.push(message(&provider.id, wnacg_error_level(&error), &error)),
             },
             "hitomi" => match lookup_hitomi(&client, &input, &provider).await {
                 Ok(mut next) => {
@@ -203,10 +204,29 @@ fn message(provider_id: &str, level: &str, text: &str) -> MetadataProviderMessag
     }
 }
 
+fn wnacg_error_level(error: &str) -> &'static str {
+    if error.contains("403 Forbidden") {
+        "warning"
+    } else {
+        "error"
+    }
+}
+
 fn http_client() -> Result<reqwest::Client, String> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        ACCEPT,
+        HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    );
+    headers.insert(
+        ACCEPT_LANGUAGE,
+        HeaderValue::from_static("zh-TW,zh;q=0.9,en;q=0.8,ja;q=0.7"),
+    );
+
     reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::limited(4))
+        .default_headers(headers)
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) CustomTagPreview/metadata-lookup")
         .build()
         .map_err(|e| e.to_string())
@@ -215,6 +235,7 @@ fn http_client() -> Result<reqwest::Client, String> {
 async fn fetch_html(client: &reqwest::Client, url: &str) -> Result<String, String> {
     client
         .get(url)
+        .header(REFERER, HeaderValue::from_static(WNACG_BASE_URL))
         .send()
         .await
         .map_err(|e| format!("Request failed: {e}"))?
@@ -258,11 +279,19 @@ async fn lookup_wnacg(
         ],
     )
     .map_err(|e| format!("WNACG search URL failed: {e}"))?;
-    let html = client
+    let response = client
         .get(request_url)
+        .header(REFERER, HeaderValue::from_static(WNACG_BASE_URL))
         .send()
         .await
-        .map_err(|e| format!("WNACG search request failed: {e}"))?
+        .map_err(|e| format!("WNACG search request failed: {e}"))?;
+    if response.status() == reqwest::StatusCode::FORBIDDEN {
+        return Err(
+            "WNACG search was blocked with 403 Forbidden. Try pasting a WNACG album URL or aid, or search with a shorter title."
+                .to_string(),
+        );
+    }
+    let html = response
         .error_for_status()
         .map_err(|e| format!("WNACG search returned error status: {e}"))?
         .text()
