@@ -32,9 +32,9 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Custom-tag-preview-software** (1893 symbols, 3095 relationships, 104 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Custom-tag-preview-software** (2055 symbols, 3343 relationships, 116 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If a required GitNexus query/impact/detect_changes step warns the index is stale, run `npx gitnexus analyze` before relying on that GitNexus result. If a Codex PostToolUse hook warns after `git commit`, `git merge`, or `git push` only because HEAD advanced, treat it as advisory; do not rerun analyze unless the next step genuinely needs GitNexus analysis.
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
 ## Always Do
 

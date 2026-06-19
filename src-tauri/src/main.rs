@@ -132,6 +132,9 @@ fn main() {
             commands::set_tag_color,
             commands::merge_tags,
             commands::search_tags,
+            // Metadata lookup
+            commands::get_metadata_providers,
+            commands::lookup_metadata,
             // Tag rules & scan wizard
             commands::get_tag_rules,
             commands::save_tag_rules,

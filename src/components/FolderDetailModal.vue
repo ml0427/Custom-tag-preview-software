@@ -5,6 +5,7 @@ import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
 import { useItemTypes } from '../composables/useItemTypes';
 import DetailFormLayout from './DetailFormLayout.vue';
+import MetadataLookupModal from './MetadataLookupModal.vue';
 import TagEditorField from './TagEditorField.vue';
 
 const props = defineProps<{
@@ -27,6 +28,7 @@ const isSavingPreset = ref(false);
 const isApplyingPreset = ref(false);
 const rulePreset = ref<FolderRulePreset | null>(null);
 const selectedRulePresetId = ref<number | null>(null);
+const showMetadataLookup = ref(false);
 const rulePresetOptions = computed(() => itemTypes.value.filter(t => t.tagRules?.length));
 const selectedRulePreset = computed(() => (
   selectedRulePresetId.value == null
@@ -131,6 +133,11 @@ const handleDelete = async () => {
   }
 };
 
+const handleMetadataApplied = () => {
+  showMetadataLookup.value = false;
+  emit('updated');
+};
+
 const openFolder = async () => {
   if (!props.item) return;
   await api.openFile(props.item.path);
@@ -174,6 +181,9 @@ const openFolder = async () => {
 
     <template #right>
       <div class="actions">
+        <button class="btn-open" type="button" @click="showMetadataLookup = true">
+          Metadata 查詢 / tags
+        </button>
         <h3>自動化</h3>
         <label class="preset-label">預設標籤規則集</label>
         <select v-model="selectedRulePresetId" class="preset-select" :disabled="isSavingPreset || isApplyingPreset">
@@ -197,6 +207,13 @@ const openFolder = async () => {
       </div>
     </template>
   </DetailFormLayout>
+
+  <MetadataLookupModal
+    :visible="showMetadataLookup"
+    :item="item"
+    @close="showMetadataLookup = false"
+    @applied="handleMetadataApplied"
+  />
 </template>
 
 <style scoped>

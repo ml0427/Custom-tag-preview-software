@@ -4,6 +4,7 @@ import { api, type Item, type Tag } from '../api';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
 import DetailFormLayout from './DetailFormLayout.vue';
+import MetadataLookupModal from './MetadataLookupModal.vue';
 import TagEditorField from './TagEditorField.vue';
 
 const props = defineProps<{
@@ -22,6 +23,7 @@ const zipImages = ref<string[]>([]);
 const isSettingCover = ref(false);
 const coverUrl = ref('');
 const zoomedCover = ref(false);
+const showMetadataLookup = ref(false);
 
 const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: showTagInputSuggestions,
     initTags, onInputChange: onTagInputChange, submitInput: submitTagInput,
@@ -80,6 +82,11 @@ const handleSetCover = async (imagePath: string) => {
     }
 };
 
+const handleMetadataApplied = () => {
+    showMetadataLookup.value = false;
+    emit('updated');
+};
+
 watch(() => props.item, (item) => {
     initTags(item?.tags ?? []);
     zipImages.value = [];
@@ -113,6 +120,12 @@ watch(() => props.item, (item) => {
     </template>
 
     <template #right>
+      <div class="metadata-action-row">
+        <button class="metadata-btn" type="button" @click="showMetadataLookup = true">
+          Metadata 查詢 / tags
+        </button>
+      </div>
+
       <div class="image-preview-section">
         <h3>內容預覽 & 自訂封面 <span class="loading" v-if="isLoadingImages">載入中...</span></h3>
         <div class="image-list">
@@ -138,6 +151,13 @@ watch(() => props.item, (item) => {
       <button class="cover-zoom-close" @click="zoomedCover = false">✖</button>
     </div>
   </transition>
+
+  <MetadataLookupModal
+    :visible="showMetadataLookup"
+    :item="item"
+    @close="showMetadataLookup = false"
+    @applied="handleMetadataApplied"
+  />
 </template>
 
 <style scoped>
@@ -213,6 +233,27 @@ watch(() => props.item, (item) => {
 
 .loading { font-size: 0.85rem; color: var(--accent); animation: pulse 1.5s infinite; }
 @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+.metadata-action-row {
+  margin-bottom: 14px;
+}
+
+.metadata-btn {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg-subtle);
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.metadata-btn:hover {
+  background: var(--accent-bg-strong);
+  border-color: var(--accent);
+}
 
 .image-list {
   flex-grow: 1;

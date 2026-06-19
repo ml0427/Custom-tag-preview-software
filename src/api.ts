@@ -155,6 +155,61 @@ export interface FolderRulePresetInput {
     fileExtensions: string[];
 }
 
+export interface MetadataProviderInfo {
+    id: string;
+    displayName: string;
+    adult: boolean;
+    supportsSearch: boolean;
+    supportsLookupByUrl: boolean;
+    supportsLookupById: boolean;
+    parserVersion: string;
+}
+
+export interface MetadataLookupInput {
+    name: string;
+    path: string;
+    existingTags: string[];
+    providerIds: string[];
+    query?: string;
+    allowAdult: boolean;
+    limit?: number;
+}
+
+export interface MetadataProviderMessage {
+    providerId: string;
+    level: 'info' | 'warning' | 'error' | string;
+    message: string;
+}
+
+export interface MetadataTagGroup {
+    key: string;
+    label: string;
+    tags: string[];
+}
+
+export interface MetadataCandidate {
+    providerId: string;
+    providerName: string;
+    providerParserVersion: string;
+    id: string;
+    title: string;
+    sourceUrl: string;
+    thumbnailUrl: string | null;
+    imageCount: number | null;
+    createdAt: string | null;
+    rawTags: string[];
+    tagGroups: MetadataTagGroup[];
+    suggestedTags: string[];
+    warnings: string[];
+    confidence: number;
+    matchedBy: string;
+}
+
+export interface MetadataLookupResponse {
+    candidates: MetadataCandidate[];
+    messages: MetadataProviderMessage[];
+}
+
 export const api = {
     // ── Items (primary API) ───────────────────────────────────────────────────
     async getItems(
@@ -257,6 +312,14 @@ export const api = {
 
     async getTagCounts(): Promise<TagCount[]> {
         return await invoke<TagCount[]>('get_tag_counts');
+    },
+
+    async getMetadataProviders(): Promise<MetadataProviderInfo[]> {
+        return await invoke<MetadataProviderInfo[]>('get_metadata_providers');
+    },
+
+    async lookupMetadata(input: MetadataLookupInput): Promise<MetadataLookupResponse> {
+        return await invoke<MetadataLookupResponse>('lookup_metadata', { input });
     },
 
     // ── Scan ──────────────────────────────────────────────────────────────────

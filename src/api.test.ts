@@ -123,4 +123,44 @@ describe('api', () => {
       allowMissing: true,
     });
   });
+
+  it('loads metadata provider definitions', async () => {
+    invokeMock.mockResolvedValueOnce([
+      {
+        id: 'wnacg',
+        displayName: 'WNACG',
+        adult: true,
+        supportsSearch: true,
+        supportsLookupByUrl: true,
+        supportsLookupById: true,
+        parserVersion: 'test',
+      },
+    ]);
+
+    const providers = await api.getMetadataProviders();
+
+    expect(invokeMock).toHaveBeenCalledWith('get_metadata_providers');
+    expect(providers[0].id).toBe('wnacg');
+  });
+
+  it('passes metadata lookup input to the backend', async () => {
+    invokeMock.mockResolvedValueOnce({
+      candidates: [],
+      messages: [],
+    });
+
+    const input = {
+      name: 'book.zip',
+      path: 'C:/Library/book.zip',
+      existingTags: ['artist-a'],
+      providerIds: ['wnacg', 'hitomi'],
+      query: 'book',
+      allowAdult: true,
+      limit: 5,
+    };
+
+    await api.lookupMetadata(input);
+
+    expect(invokeMock).toHaveBeenCalledWith('lookup_metadata', { input });
+  });
 });
