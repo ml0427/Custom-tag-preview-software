@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
-import { api, type Item, type FileItem } from '../api';
+import { api, type Item, type FileItem, type Tag } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
 import ThumbnailGridView from './ThumbnailGridView.vue';
 import ComicSlideReader from './ComicSlideReader.vue';
 import GalleryToolbar from './GalleryToolbar.vue';
 import GalleryInfoBar from './GalleryInfoBar.vue';
+import MetadataLookupModal from './MetadataLookupModal.vue';
 import { useToast } from '../composables/useToast';
 import { useGalleryData } from '../composables/useGalleryData';
 import { useGallerySelection } from '../composables/useGallerySelection';
@@ -20,15 +21,16 @@ const props = defineProps<{
   sourcePath: string | null;
   selectedTagId?: number | null;
   viewStateKey?: string;
+  allTags: Tag[];
 }>();
 
 const emit = defineEmits<{
-  (e: 'showDetail', item: Item): void;
-  (e: 'showFolderDetail', item: Item): void;
-  (e: 'showCategoryEditor', item: Item): void;
   (e: 'navigateDir', path: string): void;
   (e: 'jumpToTag', tagId: number): void;
   (e: 'openFileHealth'): void;
+  (e: 'itemUpdated'): void;
+  (e: 'itemDeleted'): void;
+  (e: 'tagsChanged'): void;
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
@@ -227,37 +229,17 @@ const handleFileItemDblClick = async (item: FileItem) => {
     api.openFile(item.path);
   } else {
     const dbItem = itemByPath.value.get(pathKey(item.path));
-    if (dbItem) emit('showDetail', dbItem);
+    if (dbItem) openPreviewEdit(dbItem);
     else api.openFile(item.path);
   }
 };
 
 const handleContextDetail = async (fileItem: FileItem) => {
-  let dbItem = itemByPath.value.get(pathKey(fileItem.path));
-  if (!dbItem) {
-    try {
-      dbItem = await api.quickImportItem(fileItem.path);
-    } catch (e: any) {
-      showToast('匯入失敗：' + (e?.message ?? e), 'error');
-      return;
-    }
-  }
-  if (fileItem.isDir) emit('showFolderDetail', dbItem);
-  else emit('showDetail', dbItem);
+  await openPreviewEditForFileItem(fileItem);
 };
 
 const handleAddCategory = async (fileItem: FileItem) => {
-  let dbItem = itemByPath.value.get(pathKey(fileItem.path));
-  if (!dbItem) {
-    try {
-      dbItem = await api.quickImportItem(fileItem.path);
-    } catch (e: any) {
-      showToast('匯入失敗：' + (e?.message ?? e), 'error');
-      return;
-    }
-  }
-  if (fileItem.isDir) emit('showFolderDetail', dbItem);
-  else emit('showCategoryEditor', dbItem);
+  await openPreviewEditForFileItem(fileItem);
 };
 
 const handleContextRename = async (fileItem: FileItem, newName: string) => {
@@ -299,6 +281,60 @@ const handleDelete = async (fileItem: FileItem) => {
 const handleRenamed = async (updated: Item) => {
   selectPath(updated.path);
   await loadAll();
+  emit('itemUpdated');
+};
+
+const previewTab = ref<'info' | 'edit'>('info');
+const metadataLookupItem = ref<Item | null>(null);
+
+const handleGalleryItemClick = (item: FileItem, event: MouseEvent) => {
+  previewTab.value = 'info';
+  handleFileItemClick(item, event);
+};
+
+const openPreviewEdit = (item: Item) => {
+  selectPath(item.path);
+  previewTab.value = 'edit';
+  isPreviewOpen.value = true;
+};
+
+const openPreviewEditForFileItem = async (fileItem: FileItem) => {
+  const dbItem = await getOrImportDbItem(fileItem);
+  if (!dbItem) return;
+
+  if (!itemByPath.value.has(pathKey(dbItem.path))) {
+    await loadAll();
+  }
+  openPreviewEdit(dbItem);
+};
+
+const handleMetadataLookup = async (fileItem: FileItem) => {
+  const dbItem = await getOrImportDbItem(fileItem);
+  if (!dbItem) return;
+  metadataLookupItem.value = dbItem;
+};
+
+const handleMetadataApplied = async () => {
+  if (metadataLookupItem.value) {
+    try {
+      metadataLookupItem.value = await api.getItem(metadataLookupItem.value.id);
+    } catch (e) {
+      console.error('handleMetadataApplied: failed to reload item', e);
+    }
+  }
+  await loadAll();
+  emit('tagsChanged');
+  emit('itemUpdated');
+  metadataLookupItem.value = null;
+};
+
+const handlePreviewUpdated = async () => {
+  await loadAll();
+  emit('itemUpdated');
+};
+
+const handlePreviewTagsChanged = async () => {
+  emit('tagsChanged');
 };
 
 
@@ -444,11 +480,12 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :searchQuery="gallerySearch"
           :sortBy="sortBy"
           :sortDir="sortDir"
-          @click="handleFileItemClick"
+          @click="handleGalleryItemClick"
           @dblclick="handleFileItemDblClick"
           @read="handleReadFileItem"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
+          @metadataLookup="handleMetadataLookup"
           @rulesApplied="loadAll"
           @rename="handleContextRename"
           @delete="handleDelete"
@@ -461,11 +498,12 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :selectedItemPath="selectedFileItemPath"
           :selectedPaths="selectedPaths"
           :searchQuery="gallerySearch"
-          @click="handleFileItemClick"
+          @click="handleGalleryItemClick"
           @dblclick="handleFileItemDblClick"
           @read="handleReadFileItem"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
+          @metadataLookup="handleMetadataLookup"
           @rulesApplied="loadAll"
           @rename="handleContextRename"
           @delete="handleDelete"
@@ -547,17 +585,26 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
     <PreviewPane
       v-if="isPreviewOpen"
       :item="selectedItem"
+      :allTags="allTags"
+      :initialTab="previewTab"
       :style="{ width: previewWidth + 'px', minWidth: previewWidth + 'px' }"
-      @show-detail="emit('showDetail', $event)"
-      @show-folder-detail="emit('showFolderDetail', $event)"
       @tag-click="emit('jumpToTag', $event.id)"
-      @renamed="handleRenamed"
+      @updated="handlePreviewUpdated"
+      @tagsChanged="handlePreviewTagsChanged"
+      @deleted="emit('itemDeleted')"
       @close="isPreviewOpen = false"
     />
 
     <ComicSlideReader
       :item="readerItem"
       @close="readerItem = null"
+    />
+
+    <MetadataLookupModal
+      :visible="metadataLookupItem !== null"
+      :item="metadataLookupItem"
+      @close="metadataLookupItem = null"
+      @applied="handleMetadataApplied"
     />
   </div>
 </template>

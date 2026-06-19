@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { api, type Item, type Tag } from './api'
+import { api, type Tag } from './api'
 import { useToast } from './composables/useToast'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useItemTypes } from './composables/useItemTypes'
@@ -8,9 +8,6 @@ import ActivityBar from './components/ActivityBar.vue'
 import TagSidebar from './components/TagSidebar.vue'
 import SourcePanel from './components/SourcePanel.vue'
 import ItemGallery from './components/ItemGallery.vue'
-import ItemDetailModal from './components/ItemDetailModal.vue'
-import FolderDetailModal from './components/FolderDetailModal.vue'
-import ItemCategoryModal from './components/ItemCategoryModal.vue'
 import FileHealthView from './components/FileHealthView.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
@@ -18,9 +15,6 @@ import ToastContainer from './components/ToastContainer.vue'
 const activePanel = ref<string | null>('workspace')
 const selectedTagId = ref<number | null>(null)
 const selectedSourcePath = ref<string | null>(null)
-const selectedFileItem = ref<Item | null>(null)
-const selectedFolderItem = ref<Item | null>(null)
-const selectedCategoryItem = ref<Item | null>(null)
 const allTags = ref<Tag[]>([])
 const tagSidebarRefreshKey = ref(0)
 const workspaceGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
@@ -44,34 +38,9 @@ const handleJumpToTag = (tagId: number) => {
   activePanel.value = 'tags'
 }
 
-const handleFileItemSelect = (item: Item) => {
-  selectedFileItem.value = item
-}
-
-const handleFolderItemSelect = (item: Item) => {
-  selectedFolderItem.value = item
-}
-
-const handleCategoryItemSelect = (item: Item) => {
-  selectedCategoryItem.value = item
-}
-
-const handleModalClose = () => {
-  selectedFileItem.value = null
-}
-
-const handleFileItemUpdated = async () => {
-  if (selectedFileItem.value) {
-    try {
-      selectedFileItem.value = await api.getItem(selectedFileItem.value.id)
-    } catch (e) {
-      console.error('handleFileItemUpdated: failed to reload item', e)
-      showToast('無法重新載入檔案資訊', 'error')
-    }
-  }
+const handleGalleryItemUpdated = async () => {
   workspaceGalleryRef.value?.refresh()
   tagGalleryRef.value?.refresh()
-  loadGlobalTags()
 }
 
 const loadGlobalTags = async () => {
@@ -180,9 +149,10 @@ onUnmounted(() => {
           ref="workspaceGalleryRef"
           viewStateKey="workspace"
           :sourcePath="selectedSourcePath"
-          @showDetail="handleFileItemSelect"
-          @showFolderDetail="handleFolderItemSelect"
-          @showCategoryEditor="handleCategoryItemSelect"
+          :allTags="allTags"
+          @itemUpdated="handleGalleryItemUpdated"
+          @itemDeleted="handleGalleryItemUpdated"
+          @tagsChanged="handleTagsChanged"
           @navigateDir="(path) => { selectedSourcePath = path; }"
           @jumpToTag="handleJumpToTag"
           @openFileHealth="activePanel = 'file-health'"
@@ -193,36 +163,16 @@ onUnmounted(() => {
           viewStateKey="tags"
           :sourcePath="null"
           :selectedTagId="selectedTagId"
-          @showDetail="handleFileItemSelect"
-          @showFolderDetail="handleFolderItemSelect"
-          @showCategoryEditor="handleCategoryItemSelect"
+          :allTags="allTags"
+          @itemUpdated="handleGalleryItemUpdated"
+          @itemDeleted="handleGalleryItemUpdated"
+          @tagsChanged="handleTagsChanged"
           @navigateDir="(path) => { selectedSourcePath = path; activePanel = 'workspace'; }"
           @jumpToTag="handleJumpToTag"
           @openFileHealth="activePanel = 'file-health'"
         />
       </template>
     </main>
-
-    <ItemDetailModal
-      :item="selectedFileItem"
-      :allTags="allTags"
-      @close="handleModalClose"
-      @updated="handleFileItemUpdated"
-    />
-
-    <FolderDetailModal
-      :item="selectedFolderItem"
-      :allTags="allTags"
-      @close="selectedFolderItem = null"
-      @updated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
-      @deleted="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
-    />
-
-    <ItemCategoryModal
-      :item="selectedCategoryItem"
-      @close="selectedCategoryItem = null"
-      @updated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); }"
-    />
 
     <ToastContainer />
 

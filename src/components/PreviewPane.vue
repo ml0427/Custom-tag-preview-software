@@ -3,19 +3,24 @@ import { ref, watch } from 'vue';
 import { api, type Item, type Tag } from '../api';
 import MediaViewer from './MediaViewer.vue';
 import MetadataPanel from './MetadataPanel.vue';
+import PreviewEditPanel from './PreviewEditPanel.vue';
 
 const props = defineProps<{
     item: Item | null;
+    allTags: Tag[];
+    initialTab?: 'info' | 'edit';
 }>();
 
 const emit = defineEmits<{
-    (e: 'showDetail', item: Item): void
-    (e: 'showFolderDetail', item: Item): void
     (e: 'tagClick', tag: Tag): void
+    (e: 'updated'): void
+    (e: 'tagsChanged'): void
+    (e: 'deleted'): void
     (e: 'close'): void
 }>();
 
 const coverUrl = ref('');
+const activeTab = ref<'info' | 'edit'>(props.initialTab ?? 'info');
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 const ZIP_EXTS = ['zip', 'cbz', 'cbr', 'rar', '7z'];
 
@@ -49,8 +54,13 @@ const loadCover = async () => {
 };
 
 watch(() => props.item, () => {
+    activeTab.value = props.initialTab ?? 'info';
     loadCover();
 }, { immediate: true });
+
+watch(() => props.initialTab, (tab) => {
+    activeTab.value = tab ?? 'info';
+});
 
 const formatSize = (bytes: number | null) => {
     if (!bytes) return '-';
@@ -78,22 +88,57 @@ const formatDate = (unix: number | null) => {
         </div>
 
         <div v-if="item" class="content">
-            <MediaViewer
+            <div class="pane-tabs" role="tablist" aria-label="預覽模式">
+                <button
+                  class="pane-tab"
+                  :class="{ active: activeTab === 'info' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'info'"
+                  @click="activeTab = 'info'"
+                >
+                  資訊
+                </button>
+                <button
+                  class="pane-tab"
+                  :class="{ active: activeTab === 'edit' }"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeTab === 'edit'"
+                  @click="activeTab = 'edit'"
+                >
+                  編輯
+                </button>
+            </div>
+
+            <template v-if="activeTab === 'info'">
+                <MediaViewer
+                  :item="item"
+                  :coverUrl="coverUrl"
+                  @click="activeTab = 'edit'"
+                />
+                <MetadataPanel
+                  :title="item.name"
+                  :size="item.itemType === 'file' ? formatSize(item.fileSize) : undefined"
+                  :date="item.itemType === 'file' ? formatDate(item.fileModifiedAt) : undefined"
+                  :tags="item.tags"
+                  :note="item.note"
+                  @tagClick="emit('tagClick', $event)"
+                />
+            </template>
+
+            <PreviewEditPanel
+              v-else
               :item="item"
-              :coverUrl="coverUrl"
-              @click="item.itemType === 'file' ? emit('showDetail', item) : emit('showFolderDetail', item)"
+              :allTags="allTags"
+              @updated="emit('updated')"
+              @tagsChanged="emit('tagsChanged')"
+              @deleted="emit('deleted')"
             />
-            <MetadataPanel
-              :title="item.name"
-              :size="item.itemType === 'file' ? formatSize(item.fileSize) : undefined"
-              :date="item.itemType === 'file' ? formatDate(item.fileModifiedAt) : undefined"
-              :tags="item.tags"
-              :note="item.note"
-              @tagClick="emit('tagClick', $event)"
-            />
+
             <div class="pane-footer">
-                <button class="footer-btn btn-edit" @click="item.itemType === 'file' ? emit('showDetail', item) : emit('showFolderDetail', item)">
-                  ✏️ 編輯
+                <button class="footer-btn btn-edit" @click="activeTab = activeTab === 'edit' ? 'info' : 'edit'">
+                  {{ activeTab === 'edit' ? '資訊' : '編輯' }}
                 </button>
                 <button v-if="item.itemType === 'file'" class="footer-btn btn-open" @click="api.openFile(item.path)">▶ 開啟</button>
             </div>
@@ -164,6 +209,37 @@ const formatDate = (unix: number | null) => {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.pane-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 10px 16px 0;
+    flex-shrink: 0;
+}
+
+.pane-tab {
+    min-width: 0;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 7px 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.pane-tab:hover {
+    background: var(--bg-overlay-soft);
+    color: var(--text-primary);
+}
+
+.pane-tab.active {
+    border-color: var(--accent);
+    background: var(--accent-bg-subtle);
+    color: var(--accent);
 }
 
 .pane-footer {
