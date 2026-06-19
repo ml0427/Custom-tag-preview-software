@@ -1,0 +1,42 @@
+closeout_policy:
+  summary: "Closeout rules are loaded only when a workflow reaches final review or closeout steps."
+  rules:
+    - "Run project-defined validation before normal commit/push."
+    - "Treat GitNexus detect_changes as a pre-commit gate when the project workflow uses it."
+    - "Run adjacent-regression-review after detect_changes and before closeout checklist."
+    - "Do not create a second stats-only follow-up commit by default."
+    - "Preserve project-specific version, commit, push, and issue closeout rules."
+    - "After completion, optionally write workflow-feedback.md when Lead noticed MC workflow friction; this is not a completion gate."
+  when_code_was_changed:
+    required:
+      - "increment version manually"
+      - "run npm run build"
+      - "write factual closeout artifact under .workflow/.workflow-runs/<run-id>/closeout.md"
+      - "record whether bounded local memory needs an update"
+      - "update .mc-memory only for durable architecture, trap, or design facts when applicable"
+      - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
+      - "run npx gitnexus analyze before the normal commit only when a required GitNexus query, impact, or detect_changes step reports a stale index and the next decision depends on GitNexus"
+      - "create a commit before reporting completion"
+      - "push the commit before reporting completion, unless the user explicitly requests local-only work"
+    forbidden:
+      - "store transient task state, TODOs, raw logs, or wizard state in long-term memory"
+      - "require Pinecone or any external vector-memory upsert as a completion gate"
+      - "write workflow state outside workflow run artifacts"
+      - "run npx gitnexus analyze after commit, merge, push, or fast-forward solely because HEAD advanced, a PostToolUse hook reports stale index, or GitNexus stats could be refreshed"
+      - "create or amend a post-commit GitNexus-stats-only change"
+      - "force push without explicit Lead/user approval"
+  known_tool_limitations:
+    - "Patch tooling can report TS18028 private identifier errors from declaration files even when npm run build, tsc --noEmit, or vue-tsc --noEmit are clean; treat this as a patch-tool false positive only after project verification is clean."
+  optional_feedback_artifact:
+    path: ".workflow/.workflow-runs/<run-id>/workflow-feedback.md"
+    create_when:
+      - "workflow route felt ambiguous"
+      - "a gate was missing, too weak, or too strict"
+      - "subagent dispatch timing was unclear"
+      - "artifact schema lacked fields needed for later decisions"
+      - "validation or closeout evidence was hard to collect"
+    constraints:
+      - "do not change the active workflow during the same run"
+      - "keep feedback factual and evidence-based"
+      - "leave MC/project workflow edits for a later explicit task"
+  report_language: "Traditional Chinese"

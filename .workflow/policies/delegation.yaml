@@ -1,0 +1,109 @@
+low_judgment_workers:
+  summary: "Low-judgment workers run exact bounded work; Lead owns judgment, patch design, risk, and integration."
+  task_classes:
+    shell_exact:
+      description: "Run exact commands supplied by the Lead agent."
+      examples:
+        - "git status --short"
+        - "npm test -- api"
+        - "cargo test"
+      required_capabilities:
+        - "run shell command in workspace"
+        - "return stdout, stderr, and exit code"
+    search_exact:
+      description: "Search exact strings or regex patterns supplied by the Lead agent."
+      examples:
+        - "rg -n \"add_source|remove_source\" src src-tauri"
+      required_capabilities:
+        - "run ripgrep or equivalent"
+        - "return concise hit list"
+    file_excerpt:
+      description: "Read fixed files or fixed line ranges supplied by the Lead agent."
+      examples:
+        - "read src-tauri/src/commands/sources.rs"
+      required_capabilities:
+        - "read workspace files"
+        - "preserve path and line references"
+    log_filter:
+      description: "Filter known logs with exact keywords supplied by the Lead agent."
+      examples:
+        - "filter logs for app.exe lock"
+      required_capabilities:
+        - "read log files"
+        - "return matching lines and timestamps"
+    diff_summary:
+      description: "Collect git status, changed file lists, and diff stats."
+      examples:
+        - "git diff --stat"
+        - "git diff --name-status"
+      required_capabilities:
+        - "run git read-only commands"
+        - "return file list and stats"
+    closeout_exact:
+      description: "Stage, commit, push, or close an issue only when every file path and message is supplied."
+      examples:
+        - "git add <explicit files>"
+        - "git commit -m \"fix #123\""
+      required_capabilities:
+        - "run exact git or gh command"
+        - "stop on non-zero exit"
+      constraints:
+        - "no choosing files"
+        - "no inventing commit messages"
+        - "no force push"
+  forbidden:
+    - "choose the root cause"
+    - "decide whether a PR is safe"
+    - "edit code without a fully specified patch scope"
+    - "rewrite architecture"
+    - "invent new requirements"
+  runner_registry:
+    local-small-worker:
+      display_name: "小N"
+      availability_probe: "ollama --version"
+      status_if_probe_passes: "available"
+      intended_task_classes:
+        - "shell_exact"
+        - "search_exact"
+        - "file_excerpt"
+        - "log_filter"
+        - "diff_summary"
+        - "closeout_exact"
+      notes:
+        - "Prefer this for fast deterministic execution when Ollama exists."
+        - "Do not ask it to reason about architecture or root cause."
+    remote-general-worker:
+      display_name: "小G"
+      availability_probe: "adapter-managed"
+      status_if_probe_passes: "available"
+      intended_task_classes:
+        - "file_excerpt"
+        - "diff_summary"
+        - "checklist_review"
+        - "summary_draft"
+      notes:
+        - "Use when local-small-worker is unavailable or the task needs light summarization."
+        - "Lead agent still owns final decisions."
+    lead-agent:
+      display_name: "Lead"
+      availability_probe: "current session"
+      intended_task_classes:
+        - "root_cause"
+        - "architecture_decision"
+        - "code_edit"
+        - "risk_acceptance"
+        - "final_integration"
+      notes:
+        - "Owns judgment, patch design, and final verification decision."
+  runner_selection:
+    rule: "Match the step's task_class to a runner with a passing availability_probe. If no low-model runner is available, record skipped delegation or wait for explicit Lead-managed low-model handoff without changing the workflow route."
+    execution_modes:
+      record: "Write a low-model packet but do not call a model or external runner."
+      hermes: "Resolve Hermes CLI, probe ollama --version, then send the packet to 小N when available or 小G fallback when Ollama is unavailable."
+      ollama-review: "Send the packet to an OpenAI-compatible chat completions endpoint for low-judgment review only."
+      command: "Pass the packet path to an external wrapper via WORKFLOW_LOW_MODEL_COMMAND. Use this when a non-Hermes external runner should execute delegated work."
+    lead_low_model_profile: "Uses record mode with WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED=1. The runner only creates the packet; Lead must explicitly hand it to a low model before counting delegation as complete."
+    prefer_order:
+      - "local-small-worker"
+      - "remote-general-worker"
+      - "lead-agent"

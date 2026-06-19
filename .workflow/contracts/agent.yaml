@@ -1,0 +1,50 @@
+summary: "Core agent contract loaded for every workflow step."
+workflow_route:
+  principles:
+    - "Workflow fixes the route, not the answer."
+    - "Judgment stays in AI steps; evidence collection and verification stay in tool steps."
+    - "Provider-specific features must be hidden behind adapters."
+    - "Project workflow rules override generic memory or agent habits."
+  adapters:
+    ai:
+      required_capabilities:
+        - "read provided context"
+        - "return structured JSON or Markdown"
+        - "explain uncertainty"
+    shell:
+      required_capabilities:
+        - "run commands in workspace"
+        - "capture stdout, stderr, and exit code"
+    file:
+      required_capabilities:
+        - "read files"
+        - "write generated reports"
+    optional:
+      github:
+        required_capabilities:
+          - "fetch issue or pull request metadata"
+          - "read changed files"
+      local_memory:
+        required_capabilities:
+          - "search bounded local memory and workflow artifacts"
+          - "record durable architecture, trap, or design facts only when reusable"
+          - "keep transient task state in workflow run artifacts"
+artifact_gates:
+  rules:
+    - "Every blocking step must produce its required artifact before the wizard moves on."
+    - "Schema-backed JSON artifacts must satisfy required fields before resume."
+    - "code-edit, fix, implement, and blocks_downstream steps must remain manual-blocked until the Lead completes the edit."
+    - "same-level review is evidence for the Lead; it is not final closeout by itself."
+    - "when a step requires supervisor dispatch evidence, subagent_dispatch must be recorded before resume."
+lead_owned_decisions:
+  - "root_cause_finalization"
+  - "architecture_decision"
+  - "code_edit"
+  - "risk_acceptance"
+  - "final_integration"
+always_load_rules:
+  - "Do not skip workflow steps."
+  - "Do not replace requested artifacts with prose."
+  - "Do not count same-level subagents as low-model handoff."
+  - "Lead acts as a supervisor: assign bounded lanes to same-level subagents when useful, then integrate and decide."
+  - "If workflow feedback is needed after completion, write it as a non-blocking run artifact for a later explicit workflow edit."

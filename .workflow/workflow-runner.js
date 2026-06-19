@@ -906,6 +906,14 @@ function wizardResumeCommand(state, step) {
 }
 
 function schemaExampleValue(field, schema = {}) {
+  if (field === "subagent_dispatch") {
+    return {
+      decision: "dispatch",
+      rationale: "Required same-level review completed.",
+      roles: ["reviewer"],
+      result_refs: ["path-or-agent-result-ref"],
+    };
+  }
   if (schema.allowed_values) return schema.allowed_values.join(" | ");
   if (field === "confidence") return "low | medium | high";
   if (field === "status") return "pass | blocked";
@@ -923,6 +931,48 @@ function wizardSchemaExample(step) {
   const required = step.output_schema?.required ?? [];
   const properties = step.output_schema?.properties ?? {};
   return Object.fromEntries(required.map((field) => [field, schemaExampleValue(field, properties[field])]));
+}
+
+function requireNonEmptyString(value, label, stepId) {
+  if (typeof value !== "string" || value.trim() === "" || value.trim().toUpperCase() === "TODO") {
+    throw new Error(`Artifact for ${stepId} has invalid ${label}`);
+  }
+}
+
+function requireNonEmptyArray(value, label, stepId) {
+  if (!Array.isArray(value) || value.length === 0 || value.some((item) => !item || String(item).trim().toUpperCase() === "TODO")) {
+    throw new Error(`Artifact for ${stepId} has invalid ${label}`);
+  }
+}
+
+function validateSubagentDispatch(step, parsed) {
+  const supervision = step.supervision ?? {};
+  const requiredBySchema = (step.output_schema?.required ?? []).includes("subagent_dispatch");
+  if (!requiredBySchema && supervision.subagent_dispatch !== "required") return;
+
+  const dispatch = parsed.subagent_dispatch;
+  if (!dispatch || typeof dispatch !== "object" || Array.isArray(dispatch)) {
+    throw new Error(`Artifact for ${step.id} must include subagent_dispatch object`);
+  }
+
+  const allowedDecisions = new Set(["dispatch", "lead_only", "user_waived"]);
+  if (!allowedDecisions.has(dispatch.decision)) {
+    throw new Error(`Artifact for ${step.id} has invalid subagent_dispatch.decision`);
+  }
+  requireNonEmptyString(dispatch.rationale, "subagent_dispatch.rationale", step.id);
+
+  if (dispatch.decision === "dispatch") {
+    requireNonEmptyArray(dispatch.roles, "subagent_dispatch.roles", step.id);
+  }
+
+  if (supervision.dispatch_policy === "required_review") {
+    if (dispatch.decision === "lead_only") {
+      throw new Error(`Artifact for ${step.id} cannot use lead_only for required_review`);
+    }
+    if (supervision.require_result === true && dispatch.decision === "dispatch") {
+      requireNonEmptyArray(dispatch.result_refs, "subagent_dispatch.result_refs", step.id);
+    }
+  }
 }
 
 function wizardFormatInstructions(step, state) {
@@ -1046,6 +1096,8 @@ function validateStructuredArtifact(step, artifactPath) {
   if (missing.length > 0) {
     throw new Error(`Artifact for ${step.id} is missing required field(s): ${missing.join(", ")}`);
   }
+
+  validateSubagentDispatch(step, parsed);
 
   return parsed;
 }
@@ -1273,8 +1325,29 @@ function printPlan(spec, workflowName) {
   }
 }
 
+function readWorkflowPolicyRef(ref) {
+  if (!ref) return {};
+  const target = path.resolve(__dirname, ref);
+  const relative = path.relative(__dirname, target);
+  if (relative.startsWith("..") || path.isAbsolute(relative) || !existsSync(target)) return {};
+  return YAML.parse(readFileSync(target, "utf8")) ?? {};
+}
+
+function runnerRegistry(spec) {
+  const legacyRegistry = spec.delegation_policy?.runner_registry;
+  if (legacyRegistry) return legacyRegistry;
+
+  const inlineRegistry = spec.agent_contract?.delegation_policy?.low_judgment_workers?.runner_registry;
+  if (inlineRegistry) return inlineRegistry;
+
+  const delegationPolicy = readWorkflowPolicyRef(spec.agent_contract?.policy_refs?.delegation);
+  return delegationPolicy.low_judgment_workers?.runner_registry
+    ?? delegationPolicy.delegation_policy?.low_judgment_workers?.runner_registry
+    ?? {};
+}
+
 async function printRunners(spec, cwd) {
-  const registry = spec.delegation_policy?.runner_registry ?? {};
+  const registry = runnerRegistry(spec);
   for (const [name, runner] of Object.entries(registry)) {
     const probe = runner.availability_probe ?? "unspecified";
     let status = "unknown";

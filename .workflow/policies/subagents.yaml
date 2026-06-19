@@ -1,0 +1,78 @@
+same_level_subagents:
+  summary: "Same-level subagents isolate context, explore bounded lanes, and review from a distinct lens; they do not count as low-model handoff."
+  lead_supervisor_rule:
+    required_behavior:
+      - "Before high-context planning, diagnosis, classification, or review, decide whether a same-level subagent should take a lane."
+      - "Record the decision in the step artifact when supervision.subagent_dispatch is required."
+      - "If dispatching, define each role, exact lane, expected artifact, and what decision remains owned by Lead."
+      - "If staying lead-only, cite the matching do_not_dispatch_when reason and why coordination cost exceeds benefit."
+      - "For required review steps, provide a same-level subagent result or an explicit user waiver; Lead self-review is not enough."
+    artifact_field:
+      name: "subagent_dispatch"
+      decisions:
+        - "dispatch"
+        - "lead_only"
+        - "user_waived"
+      dispatch_requires:
+        - "roles"
+        - "rationale"
+        - "expected_artifacts"
+      required_review_dispatch_requires:
+        - "roles"
+        - "rationale"
+        - "result_refs"
+  dispatch_when:
+    - "context_load_high"
+    - "independent_parallel_lanes_exist"
+    - "review_requires_distinct_lens"
+    - "bug_has_multiple_plausible_hypotheses"
+    - "validation_is_clear_and_repeatable"
+  do_not_dispatch_when:
+    - "task_requires_final_decision"
+    - "task_requires_architecture_ownership"
+    - "task_scope_is_unclear"
+    - "file_conflicts_are_likely"
+    - "coordination_cost_exceeds_benefit"
+  roles:
+    explorer:
+      purpose: "Read/search broad context in an isolated context window."
+      allowed:
+        - "file reads"
+        - "exact searches"
+        - "concise evidence summaries"
+      forbidden:
+        - "choose final root cause"
+        - "edit code"
+        - "accept risk"
+    planner:
+      purpose: "Split a large task into bounded lanes and identify validation risks."
+      allowed:
+        - "propose options"
+        - "list assumptions"
+        - "mark open questions"
+      forbidden:
+        - "override workflow order"
+        - "decide final architecture"
+    reviewer:
+      purpose: "Review completed changes from a distinct same-level lens."
+      allowed:
+        - "adjacent regression review"
+        - "missing-test review"
+        - "issue acceptance review"
+      forbidden:
+        - "count as low-model delegation"
+        - "bypass closeout checklist"
+    validator:
+      purpose: "Run clear validation commands or inspect deterministic evidence."
+      allowed:
+        - "build/test/lint commands"
+        - "artifact checks when specified"
+      forbidden:
+        - "broaden validation scope without Lead approval"
+    hypothesis_checker:
+      purpose: "Check one explicit bug hypothesis and return evidence for or against it."
+      allowed:
+        - "targeted trace"
+        - "focused log or code inspection"
+      forbidden:
+        - "select final root cause"

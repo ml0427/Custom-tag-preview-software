@@ -5,168 +5,18 @@ description: >
   The workflow defines steps, evidence, gates, and report format.
   AI providers are adapters, not part of the workflow contract.
 
-runtime_contract:
-  principles:
-    - "Workflow fixes the route, not the answer."
-    - "Judgment stays in AI steps; evidence collection and verification stay in tool steps."
-    - "Provider-specific features must be hidden behind adapters."
-    - "Low-judgment execution can be delegated; decisions remain with the lead agent."
-  adapters:
-    ai:
-      required_capabilities:
-        - "read provided context"
-        - "return structured JSON or Markdown"
-        - "explain uncertainty"
-    shell:
-      required_capabilities:
-        - "run commands in workspace"
-        - "capture stdout, stderr, and exit code"
-    file:
-      required_capabilities:
-        - "read files"
-        - "write generated reports"
-    optional:
-      github:
-        required_capabilities:
-          - "fetch issue or pull request metadata"
-          - "read changed files"
-      local_memory:
-        required_capabilities:
-          - "search bounded local memory and workflow artifacts"
-          - "record durable architecture, trap, or design facts only when reusable"
-          - "keep transient task state in workflow run artifacts"
-
-local_memory_policy:
-  preferred_sources:
-    - ".mc-memory/MEMORY.md"
-    - ".mc-memory/PROJECTS.md"
-    - ".mc-memory/USER.md when the project actually needs user-specific durable context"
-    - ".workflow/.workflow-runs/"
-    - "session history"
-    - "project docs and nearby comments"
-  closeout_artifact:
-    location: ".workflow/.workflow-runs/<run-id>/closeout.md"
-    required_contents:
-      - "what changed"
-      - "how it was handled"
-      - "verification result"
-      - "whether bounded local memory needs an update"
-  durable_update_allowed_for:
-    - "architecture decisions"
-    - "reusable traps"
-    - "durable design facts"
-  forbidden:
-    - "require Pinecone or any external vector-memory upsert as a completion gate"
-    - "write transient task state, TODOs, raw logs, or wizard state to long-term memory"
-
-delegation_policy:
-  low_model_task_classes:
-    shell_exact:
-      description: "Run exact commands supplied by the lead agent."
-      examples:
-        - "git status --short"
-        - "npm test -- api"
-        - "cargo test"
-      required_capabilities:
-        - "run shell command in workspace"
-        - "return stdout, stderr, and exit code"
-    search_exact:
-      description: "Search exact strings or regex patterns supplied by the lead agent."
-      examples:
-        - "rg -n \"add_source|remove_source\" src src-tauri"
-      required_capabilities:
-        - "run ripgrep or equivalent"
-        - "return concise hit list"
-    file_excerpt:
-      description: "Read fixed files or fixed line ranges supplied by the lead agent."
-      examples:
-        - "read src-tauri/src/commands/sources.rs"
-      required_capabilities:
-        - "read workspace files"
-        - "preserve path and line references"
-    log_filter:
-      description: "Filter known logs with exact keywords supplied by the lead agent."
-      examples:
-        - "filter logs for app.exe lock"
-      required_capabilities:
-        - "read log files"
-        - "return matching lines and timestamps"
-    diff_summary:
-      description: "Collect git status, changed file lists, and diff stats."
-      examples:
-        - "git diff --stat"
-        - "git diff --name-status"
-      required_capabilities:
-        - "run git read-only commands"
-        - "return file list and stats"
-    closeout_exact:
-      description: "Stage, commit, push, or close an issue only when every file path and message is supplied."
-      examples:
-        - "git add <explicit files>"
-        - "git commit -m \"fix #123\""
-      required_capabilities:
-        - "run exact git or gh command"
-        - "stop on non-zero exit"
-      constraints:
-        - "no choosing files"
-        - "no inventing commit messages"
-        - "no force push"
-  forbidden_for_low_judgment_workers:
-    - "choose the root cause"
-    - "decide whether a PR is safe"
-    - "edit code without a fully specified patch scope"
-    - "rewrite architecture"
-    - "invent new requirements"
-  runner_registry:
-    local-small-worker:
-      display_name: "小N"
-      availability_probe: "ollama --version"
-      status_if_probe_passes: "available"
-      intended_task_classes:
-        - "shell_exact"
-        - "search_exact"
-        - "file_excerpt"
-        - "log_filter"
-        - "diff_summary"
-        - "closeout_exact"
-      notes:
-        - "Prefer this for fast deterministic execution when Ollama exists."
-        - "Do not ask it to reason about architecture or root cause."
-    remote-general-worker:
-      display_name: "小G"
-      availability_probe: "adapter-managed"
-      status_if_probe_passes: "available"
-      intended_task_classes:
-        - "file_excerpt"
-        - "diff_summary"
-        - "checklist_review"
-        - "summary_draft"
-      notes:
-        - "Use when local-small-worker is unavailable or the task needs light summarization."
-        - "Lead agent still owns final decisions."
-    lead-agent:
-      display_name: "Lead"
-      availability_probe: "current session"
-      intended_task_classes:
-        - "root_cause"
-        - "architecture_decision"
-        - "code_edit"
-        - "risk_acceptance"
-        - "final_integration"
-      notes:
-        - "Owns judgment, patch design, and final verification decision."
-  runner_selection:
-    rule: "Match the step's task_class to a runner with a passing availability_probe. If no low-model runner is available, record skipped delegation or wait for explicit Lead-managed low-model handoff without changing the workflow route."
-    execution_modes:
-      record: "Write a low-model packet but do not call a model or external runner."
-      hermes: "Resolve Hermes CLI, probe ollama --version, then send the packet to 小N when available or 小G fallback when Ollama is unavailable."
-      ollama-review: "Send the packet to an OpenAI-compatible chat completions endpoint for low-judgment review only."
-      command: "Pass the packet path to an external wrapper via WORKFLOW_LOW_MODEL_COMMAND. Use this when a non-Hermes external runner should execute delegated work."
-    lead_low_model_profile: "Uses record mode with WORKFLOW_LOW_MODEL_HANDOFF_REQUIRED=1. The runner only creates the packet; Lead must explicitly hand it to a low model before counting delegation as complete."
-    prefer_order:
-      - "local-small-worker"
-      - "remote-general-worker"
-      - "lead-agent"
+agent_contract:
+  summary: "Single execution contract; workflow.yaml stays the route manifest and policy bodies are loaded through explicit refs."
+  core_ref: "contracts/agent.yaml"
+  policy_refs:
+    memory: "policies/memory.yaml"
+    delegation: "policies/delegation.yaml"
+    subagents: "policies/subagents.yaml"
+    closeout: "policies/closeout.yaml"
+  load_strategy:
+    always:
+      - "core"
+    per_step: "rule_refs"
 
 workflows:
   feature-dev:
@@ -202,6 +52,8 @@ workflows:
 
     steps:
       - id: "collect-status"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "git_status"
         output: "git_status"
@@ -223,6 +75,8 @@ workflows:
             - "open_questions"
 
       - id: "search-existing-code"
+        rule_refs:
+          - "delegation"
         type: "shell"
         when: "feature_keywords is provided"
         command_ref: "search_feature_terms"
@@ -231,6 +85,8 @@ workflows:
         task_class: "search_exact"
 
       - id: "memory-search"
+        rule_refs:
+          - "memory"
         type: "tool-or-shell"
         strategy:
           preferred:
@@ -243,6 +99,8 @@ workflows:
         output: "memory_notes"
 
       - id: "impact-before-edit"
+        rule_refs:
+          - "delegation"
         type: "tool-or-shell"
         strategy:
           preferred:
@@ -252,6 +110,8 @@ workflows:
         output: "impact_notes"
 
       - id: "implementation-plan"
+        rule_refs:
+          - "subagents"
         type: "ai"
         input:
           - "feature_request"
@@ -263,11 +123,15 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "files_to_change"
             - "minimal_patch_plan"
             - "tests_to_run"
             - "low_model_subtasks"
             - "risks"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "implement"
         type: "code-edit"
@@ -282,6 +146,8 @@ workflows:
         output: "patch_summary"
 
       - id: "verify"
+        rule_refs:
+          - "delegation"
         type: "shell"
         commands:
           - "npm run build"
@@ -291,6 +157,8 @@ workflows:
         task_class: "shell_exact"
 
       - id: "detect-changes"
+        rule_refs:
+          - "delegation"
         type: "tool-or-shell"
         strategy:
           preferred:
@@ -300,6 +168,9 @@ workflows:
         output: "change_impact"
 
       - id: "adjacent-regression-review"
+        rule_refs:
+          - "subagents"
+          - "closeout"
         type: "ai"
         input:
           - "patch_summary"
@@ -315,12 +186,21 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "status"
             - "adjacent_features_checked"
             - "blocking_findings"
             - "suggested_followup_checks"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "required_review"
+          require_result: true
 
       - id: "closeout-checklist"
+        rule_refs:
+          - "closeout"
+          - "memory"
+          - "delegation"
         type: "ai"
         input:
           - "patch_summary"
@@ -393,6 +273,8 @@ workflows:
 
     steps:
       - id: "collect-issue"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "issue_json"
         output: "issue_json"
@@ -400,6 +282,8 @@ workflows:
         task_class: "shell_exact"
 
       - id: "collect-status"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "git_status"
         output: "git_status"
@@ -407,6 +291,8 @@ workflows:
         task_class: "diff_summary"
 
       - id: "summarize-issue"
+        rule_refs:
+          - "subagents"
         type: "ai"
         input:
           - "issue_json"
@@ -414,12 +300,18 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "plain_language_goal"
             - "acceptance_checks"
             - "candidate_symbols"
             - "issue_keywords"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "search-related-code"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "search_issue_terms"
         output: "code_hits"
@@ -427,6 +319,8 @@ workflows:
         task_class: "search_exact"
 
       - id: "memory-search"
+        rule_refs:
+          - "memory"
         type: "tool-or-shell"
         strategy:
           preferred:
@@ -439,6 +333,8 @@ workflows:
         output: "memory_notes"
 
       - id: "impact-before-edit"
+        rule_refs:
+          - "delegation"
         type: "tool-or-shell"
         strategy:
           preferred:
@@ -448,6 +344,8 @@ workflows:
         output: "impact_notes"
 
       - id: "implementation-plan"
+        rule_refs:
+          - "subagents"
         type: "ai"
         input:
           - "issue_json"
@@ -457,10 +355,14 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "files_to_change"
             - "minimal_patch_plan"
             - "tests_to_run"
             - "low_model_subtasks"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "fix"
         type: "code-edit"
@@ -474,6 +376,8 @@ workflows:
         output: "patch_summary"
 
       - id: "verify"
+        rule_refs:
+          - "delegation"
         type: "shell"
         commands:
           - "npm run build"
@@ -483,6 +387,8 @@ workflows:
         task_class: "shell_exact"
 
       - id: "detect-changes"
+        rule_refs:
+          - "delegation"
         type: "tool-or-shell"
         strategy:
           preferred:
@@ -492,6 +398,9 @@ workflows:
         output: "change_impact"
 
       - id: "adjacent-regression-review"
+        rule_refs:
+          - "subagents"
+          - "closeout"
         type: "ai"
         input:
           - "patch_summary"
@@ -508,12 +417,21 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "status"
             - "adjacent_features_checked"
             - "blocking_findings"
             - "suggested_followup_checks"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "required_review"
+          require_result: true
 
       - id: "closeout-checklist"
+        rule_refs:
+          - "closeout"
+          - "memory"
+          - "delegation"
         type: "ai"
         input:
           - "patch_summary"
@@ -581,17 +499,23 @@ workflows:
 
     steps:
       - id: "collect-diff"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "diff"
         output: "raw_diff"
 
       - id: "collect-changed-files"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "changed_files"
         output: "changed_files"
         delegate: "allowed"
 
       - id: "classify-change"
+        rule_refs:
+          - "subagents"
         type: "ai"
         input:
           - "changed_files"
@@ -599,6 +523,7 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "change_kinds"
             - "risk_areas"
             - "files_requiring_callers"
@@ -618,8 +543,13 @@ workflows:
               type: "array"
             files_requiring_callers:
               type: "array"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "collect-impact"
+        rule_refs:
+          - "delegation"
         type: "tool-or-shell"
         when: "classify-change.files_requiring_callers is not empty"
         strategy:
@@ -631,6 +561,8 @@ workflows:
         output: "impact_notes"
 
       - id: "check-api-contracts"
+        rule_refs:
+          - "subagents"
         type: "ai"
         when: "api in classify-change.change_kinds"
         input:
@@ -642,8 +574,13 @@ workflows:
           - "auth or permission drift"
           - "consumer property access mismatch"
         output: "api_findings"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "check-ui-regressions"
+        rule_refs:
+          - "subagents"
         type: "ai"
         when: "ui in classify-change.change_kinds or state in classify-change.change_kinds"
         input:
@@ -656,8 +593,13 @@ workflows:
           - "stale state"
           - "responsive layout risk"
         output: "ui_findings"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "check-tests"
+        rule_refs:
+          - "subagents"
         type: "ai"
         input:
           - "raw_diff"
@@ -668,8 +610,13 @@ workflows:
           - "deleted or weakened assertions"
           - "missing regression test"
         output: "test_findings"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "verify"
+        rule_refs:
+          - "delegation"
         type: "shell"
         commands:
           - "npm run build"
@@ -677,6 +624,9 @@ workflows:
         output: "verification_output"
 
       - id: "final-review"
+        rule_refs:
+          - "subagents"
+          - "closeout"
         type: "ai"
         input:
           - "raw_diff"
@@ -701,6 +651,10 @@ workflows:
             - "problem"
             - "why_it_matters"
             - "suggested_fix"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "required_review"
+          require_result: true
 
     gates:
       fail_if:
@@ -762,12 +716,16 @@ workflows:
             - "keywords"
 
       - id: "collect-status"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "git_status"
         output: "git_status"
         delegate: "allowed"
 
       - id: "search-error"
+        rule_refs:
+          - "delegation"
         type: "shell"
         when: "error_message is provided"
         command_ref: "search_error"
@@ -775,12 +733,16 @@ workflows:
         delegate: "allowed"
 
       - id: "search-related-code"
+        rule_refs:
+          - "delegation"
         type: "shell"
         command_ref: "search_symptom_terms"
         output: "code_hits"
         delegate: "allowed"
 
       - id: "trace-data-flow"
+        rule_refs:
+          - "subagents"
         type: "ai"
         input:
           - "code_hits"
@@ -789,17 +751,25 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "entry_points"
             - "data_flow"
             - "likely_breakpoints"
             - "files_to_read"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "read-focused-files"
+        rule_refs:
+          - "delegation"
         type: "file"
         input: "trace-data-flow.files_to_read"
         output: "focused_source"
 
       - id: "diagnose"
+        rule_refs:
+          - "subagents"
         type: "ai"
         input:
           - "focused_source"
@@ -815,10 +785,14 @@ workflows:
         output_schema:
           type: "object"
           required:
+            - "subagent_dispatch"
             - "root_cause_candidate"
             - "confidence"
             - "minimal_fix_plan"
             - "probe_needed"
+        supervision:
+          subagent_dispatch: "required"
+          dispatch_policy: "conditional"
 
       - id: "probe-before-third-fix"
         type: "tool-or-code-edit"
@@ -836,6 +810,8 @@ workflows:
         output: "patch_summary"
 
       - id: "verify"
+        rule_refs:
+          - "delegation"
         type: "shell"
         commands:
           - "npm run build"
@@ -865,26 +841,3 @@ workflows:
       warn_if:
         - "verification command cannot run in current environment"
         - "bug is fixed without a regression test or manual reproduction note"
-
-closeout_policy:
-  when_code_was_changed:
-    required:
-      - "increment version manually"
-      - "run npm run build"
-      - "write factual closeout artifact under .workflow/.workflow-runs/<run-id>/closeout.md"
-      - "record whether bounded local memory needs an update"
-      - "update .mc-memory only for durable architecture, trap, or design facts when applicable"
-      - "include or intentionally clean npm run build stamp changes in index.html and src-tauri/tauri.conf.json before commit"
-      - "run npx gitnexus analyze before the normal commit only when a required GitNexus query, impact, or detect_changes step reports a stale index and the next decision depends on GitNexus"
-      - "create a commit before reporting completion"
-      - "push the commit before reporting completion, unless the user explicitly requests local-only work"
-    forbidden:
-      - "require Pinecone or any external vector-memory upsert as a completion gate"
-      - "store transient task state, TODOs, raw logs, or wizard state in long-term memory"
-      - "write workflow state outside workflow run artifacts"
-      - "run npx gitnexus analyze after commit, merge, push, or fast-forward solely because HEAD advanced, a PostToolUse hook reports stale index, or AGENTS.md/CLAUDE.md GitNexus stats could be refreshed"
-      - "create or amend a post-commit GitNexus-stats-only change"
-      - "force push without explicit lead/user approval"
-  known_tool_limitations:
-    - "Patch tooling can report TS18028 private identifier errors from declaration files even when npm run build, tsc --noEmit, or vue-tsc --noEmit are clean; treat this as a patch-tool false positive only after project verification is clean."
-  report_language: "Traditional Chinese"

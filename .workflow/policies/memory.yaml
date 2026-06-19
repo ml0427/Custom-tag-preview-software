@@ -1,0 +1,23 @@
+memory_policy:
+  preferred_sources:
+    - ".mc-memory/MEMORY.md"
+    - ".mc-memory/PROJECTS.md"
+    - ".mc-memory/USER.md when the project actually needs user-specific durable context"
+    - ".workflow/.workflow-runs/"
+    - "session history"
+    - "project docs and nearby comments"
+  closeout_artifact:
+    location: ".workflow/.workflow-runs/<run-id>/closeout.md"
+    required_contents:
+      - "what changed"
+      - "how it was handled"
+      - "verification result"
+      - "whether bounded local memory needs an update"
+  durable_update_allowed_for:
+    - "architecture decisions"
+    - "reusable traps"
+    - "durable design facts"
+  forbidden:
+    - "require Pinecone or any external vector-memory upsert as a completion gate"
+    - "store transient task state, TODOs, raw logs, or wizard state in long-term memory"
+    - "write task TODOs or wizard state into .mc-memory"
