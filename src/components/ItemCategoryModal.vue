@@ -4,6 +4,7 @@ import { api, type Item } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
 import DetailFormLayout from './DetailFormLayout.vue';
+import { openFileAndRecord } from '../utils/openTracking';
 
 const props = defineProps<{
   item: Item | null;
@@ -45,7 +46,8 @@ const saveCategory = async () => {
 
 const openItem = async () => {
   if (!props.item) return;
-  await api.openFile(props.item.path);
+  await openFileAndRecord(props.item.path, api.openFile, api.recordItemOpen);
+  emit('updated');
 };
 </script>
 

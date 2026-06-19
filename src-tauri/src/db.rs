@@ -50,6 +50,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             exists_on_disk  INTEGER NOT NULL DEFAULT 1,
             missing_since   TEXT,
             last_seen_at    TEXT,
+            open_count      INTEGER NOT NULL DEFAULT 0,
             import_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );"
     ).execute(&pool).await?;
@@ -104,6 +105,8 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     let _ = sqlx::query("ALTER TABLE items ADD COLUMN missing_since TEXT")
         .execute(&pool).await;
     let _ = sqlx::query("ALTER TABLE items ADD COLUMN last_seen_at TEXT")
+        .execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE items ADD COLUMN open_count INTEGER NOT NULL DEFAULT 0")
         .execute(&pool).await;
     let _ = sqlx::query(
         "UPDATE items SET last_seen_at = COALESCE(last_seen_at, import_at), exists_on_disk = COALESCE(exists_on_disk, 1)"
@@ -534,6 +537,17 @@ where
     Ok(())
 }
 
+pub async fn increment_item_open_count<'e, E>(executor: E, id: i64) -> Result<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query("UPDATE items SET open_count = open_count + 1 WHERE id = ?")
+        .bind(id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
 /// 把所有 `category = ?` 的 item 重置回 'default'。
 /// 用於刪除某個 item_type 後，避免遺孤 category 值。
 pub async fn reset_items_category_to_default<'e, E>(
@@ -671,6 +685,50 @@ mod tests {
 
         assert_eq!(table_count, 1);
         assert_eq!(column_count, 5);
+    }
+
+    #[tokio::test]
+    async fn init_db_adds_open_count_to_items() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = 'open_count'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn increment_item_open_count_updates_existing_item() {
+        let dir = tempdir().unwrap();
+        let pool = init_db(dir.path()).await.unwrap();
+        let item_id = insert_item(
+            &pool,
+            "C:/Library/book.zip",
+            "file",
+            "book",
+            Some(123),
+            Some(456),
+            "2026-06-19T10:00:00Z",
+            None,
+        )
+        .await
+        .unwrap();
+
+        increment_item_open_count(&pool, item_id).await.unwrap();
+        increment_item_open_count(&pool, item_id).await.unwrap();
+
+        let open_count: i64 = sqlx::query_scalar("SELECT open_count FROM items WHERE id = ?")
+            .bind(item_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(open_count, 2);
     }
 
     #[tokio::test]

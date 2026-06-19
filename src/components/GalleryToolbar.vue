@@ -8,6 +8,7 @@ const props = defineProps<{
   sortDir: string;
   sortLabel: string;
   viewMode: 'list' | 'grid';
+  frequentMode: boolean;
   isLoading: boolean;
   hasParent: boolean;
 }>();
@@ -15,6 +16,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:searchQuery', val: string): void;
   (e: 'update:viewMode', val: 'list' | 'grid'): void;
+  (e: 'update:frequentMode', val: boolean): void;
   (e: 'refresh'): void;
   (e: 'goUp'): void;
   (e: 'updateSortBy', col: string): void;
@@ -57,6 +59,16 @@ const gallerySearch = computed({
       <div class="view-toggle">
         <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="emit('update:viewMode', 'list')" title="列表檢視">☰</button>
         <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="emit('update:viewMode', 'grid')" title="縮圖格子">⊞</button>
+        <button
+          class="view-btn frequent-btn"
+          :class="{ active: frequentMode }"
+          @click="emit('update:frequentMode', !frequentMode)"
+          title="顯示常用項目"
+          :aria-pressed="frequentMode"
+        >
+          <span aria-hidden="true">★</span>
+          <span>常用</span>
+        </button>
       </div>
     </div>
   </div>
@@ -215,5 +227,13 @@ const gallerySearch = computed({
   color: var(--accent);
   background: var(--accent-bg-subtle);
   box-shadow: 0 0 6px var(--accent-border);
+}
+.frequent-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.76rem;
+  white-space: nowrap;
 }
 </style>

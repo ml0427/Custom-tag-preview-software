@@ -22,6 +22,7 @@ export interface Item {
     existsOnDisk: boolean;
     missingSince: string | null;
     lastSeenAt: string | null;
+    openCount: number;
     importAt: string;
     tags: Tag[];
 }
@@ -393,6 +394,10 @@ export const api = {
 
     async quickImportItem(path: string): Promise<Item> {
         return await invoke<Item>('quick_import_item', { path });
+    },
+
+    async recordItemOpen(path: string): Promise<void> {
+        await invoke('record_item_open', { path });
     },
 
     async getImageBase64ByPath(path: string): Promise<string> {

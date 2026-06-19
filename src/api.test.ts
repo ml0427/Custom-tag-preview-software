@@ -124,6 +124,16 @@ describe('api', () => {
     });
   });
 
+  it('records item opens by path', async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await api.recordItemOpen('C:/Library/book.zip');
+
+    expect(invokeMock).toHaveBeenCalledWith('record_item_open', {
+      path: 'C:/Library/book.zip',
+    });
+  });
+
   it('loads metadata provider definitions', async () => {
     invokeMock.mockResolvedValueOnce([
       {

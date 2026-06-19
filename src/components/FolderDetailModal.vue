@@ -7,6 +7,7 @@ import { useItemTypes } from '../composables/useItemTypes';
 import DetailFormLayout from './DetailFormLayout.vue';
 import MetadataLookupModal from './MetadataLookupModal.vue';
 import TagEditorField from './TagEditorField.vue';
+import { openFileAndRecord } from '../utils/openTracking';
 
 const props = defineProps<{
   item: Item | null;
@@ -140,7 +141,8 @@ const handleMetadataApplied = () => {
 
 const openFolder = async () => {
   if (!props.item) return;
-  await api.openFile(props.item.path);
+  await openFileAndRecord(props.item.path, api.openFile, api.recordItemOpen);
+  emit('updated');
 };
 </script>
 

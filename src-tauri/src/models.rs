@@ -17,6 +17,7 @@ pub struct Item {
     pub exists_on_disk: bool,
     pub missing_since: Option<String>,
     pub last_seen_at: Option<String>,
+    pub open_count: i64,
     pub import_at: String,
     pub tags: Vec<Tag>,
 }

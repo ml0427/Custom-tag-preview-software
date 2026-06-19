@@ -16,6 +16,7 @@ import { useGalleryPreviewResize } from '../composables/useGalleryPreviewResize'
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
 import { isReadableArchiveItem, isReadableFileItem } from '../utils/readableItem';
+import { openFileAndRecord, recordOpenForPath } from '../utils/openTracking';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -35,7 +36,7 @@ const emit = defineEmits<{
 
 const { show: showToast, confirm: confirmDialog } = useToast();
 
-const { sortBy, sortDir, viewMode, gallerySearch } = useGalleryViewState(
+const { sortBy, sortDir, viewMode, frequentMode, gallerySearch } = useGalleryViewState(
   props.viewStateKey ?? 'default'
 );
 
@@ -57,7 +58,8 @@ const {
   () => props.selectedTagId,
   () => gallerySearch.value,
   () => sortBy.value,
-  () => sortDir.value
+  () => sortDir.value,
+  () => frequentMode.value
 );
 
 const isBatchDeleting = ref(false);
@@ -186,6 +188,7 @@ const createReaderItemFromFile = (fileItem: FileItem): Item => ({
   existsOnDisk: true,
   missingSince: null,
   lastSeenAt: null,
+  openCount: 0,
   importAt: '',
   tags: [],
 });
@@ -217,20 +220,33 @@ const openReaderForFileItem = async (fileItem: FileItem): Promise<boolean> => {
   return true;
 };
 
+const recordItemOpen = async (path: string) => {
+  await recordOpenForPath(path, api.recordItemOpen);
+  await loadAll();
+};
+
+const openSystemFile = async (path: string) => {
+  await openFileAndRecord(path, api.openFile, api.recordItemOpen);
+  await loadAll();
+};
+
 const handleFileItemDblClick = async (item: FileItem) => {
   if (item.isDir) {
     emit('navigateDir', item.path);
     return;
   }
 
-  if (await openReaderForFileItem(item)) return;
+  if (await openReaderForFileItem(item)) {
+    await recordItemOpen(item.path);
+    return;
+  }
 
   if (ARCHIVE_EXTS.includes(item.extension?.toLowerCase() ?? '')) {
-    api.openFile(item.path);
+    await openSystemFile(item.path);
   } else {
     const dbItem = itemByPath.value.get(pathKey(item.path));
     if (dbItem) openPreviewEdit(dbItem);
-    else api.openFile(item.path);
+    else await openSystemFile(item.path);
   }
 };
 
@@ -261,7 +277,9 @@ const handleContextRename = async (fileItem: FileItem, newName: string) => {
 };
 
 const handleReadFileItem = async (item: FileItem) => {
-  if (!await openReaderForFileItem(item)) {
+  if (await openReaderForFileItem(item)) {
+    await recordItemOpen(item.path);
+  } else {
     showToast('這個項目目前沒有可閱讀的圖片內容', 'error');
   }
 };
@@ -369,6 +387,10 @@ const filterLabel = computed(() => {
   return '全部';
 });
 
+const emptyStateTitle = computed(() =>
+  frequentMode.value ? '還沒有常用項目' : '此目錄沒有任何檔案'
+);
+
 
 const {
   isPreviewOpen,
@@ -430,6 +452,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :sortDir="sortDir"
           :sortLabel="sortBtnLabel"
           v-model:viewMode="viewMode"
+          v-model:frequentMode="frequentMode"
           :isLoading="isLoading"
           :hasParent="!!parentPath"
           @refresh="loadAll"
@@ -467,7 +490,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         </div>
 
         <div v-else-if="filteredFileItems.length === 0" class="empty-state">
-          <h3>此目錄沒有任何檔案</h3>
+          <h3>{{ emptyStateTitle }}</h3>
         </div>
 
         <FileExplorerTable

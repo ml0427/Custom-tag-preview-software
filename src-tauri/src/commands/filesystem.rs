@@ -64,10 +64,9 @@ pub async fn open_in_explorer(path: String) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Result<Item, String> {
+async fn import_or_refresh_item(path: &str, pool: &SqlitePool) -> Result<Item, String> {
     use std::time::UNIX_EPOCH;
-    let p = std::path::Path::new(&path);
+    let p = std::path::Path::new(path);
     if !p.exists() {
         return Err(format!("路徑不存在：{}", path));
     }
@@ -93,38 +92,62 @@ pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Res
 
     let inserted_id = db::insert_item(
         &*pool,
-        &path,
+        path,
         item_type,
         &name,
         file_size,
         Some(mtime_unix),
         &import_at,
         None,
-    ).await.map_err(|e| e.to_string())?;
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     if inserted_id == 0 {
         if !is_dir {
-            db::update_item_size_mtime(&*pool, sqlx::query_scalar::<_, i64>("SELECT id FROM items WHERE path = ?")
-                .bind(&path)
-                .fetch_one(&*pool)
-                .await
-                .map_err(|e| e.to_string())?, file_size, mtime_unix)
-                .await
-                .map_err(|e| e.to_string())?;
+            db::update_item_size_mtime(
+                &*pool,
+                sqlx::query_scalar::<_, i64>("SELECT id FROM items WHERE path = ?")
+                    .bind(path)
+                    .fetch_one(&*pool)
+                    .await
+                    .map_err(|e| e.to_string())?,
+                file_size,
+                mtime_unix,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
         } else {
-            db::mark_item_seen_by_path(&*pool, &path, &import_at)
+            db::mark_item_seen_by_path(&*pool, path, &import_at)
                 .await
                 .map_err(|e| e.to_string())?;
         }
     }
 
     let row = sqlx::query("SELECT * FROM items WHERE path = ?")
-        .bind(&path)
+        .bind(path)
         .fetch_one(&*pool)
         .await
         .map_err(|e| e.to_string())?;
     let id: i64 = row.get("id");
-    let tags = fetch_item_tags(&pool, id).await?;
+    let tags = fetch_item_tags(pool, id).await?;
     Ok(read_item_from_row(&row, tags))
+}
+
+#[tauri::command]
+pub async fn quick_import_item(path: String, pool: State<'_, SqlitePool>) -> Result<Item, String> {
+    import_or_refresh_item(&path, &pool).await
+}
+
+#[tauri::command]
+pub async fn record_item_open(path: String, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    record_item_open_by_path(&path, &pool).await
+}
+
+async fn record_item_open_by_path(path: &str, pool: &SqlitePool) -> Result<(), String> {
+    let item = import_or_refresh_item(path, pool).await?;
+    db::increment_item_open_count(pool, item.id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -220,4 +243,35 @@ pub async fn get_image_base64_by_path(path: String) -> Result<String, String> {
         mime,
         general_purpose::STANDARD.encode(&bytes)
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::Row;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn record_item_open_by_path_imports_and_counts_untracked_file() {
+        let dir = tempdir().unwrap();
+        let pool = db::init_db(dir.path()).await.unwrap();
+        let file_path = dir.path().join("book.zip");
+        std::fs::write(&file_path, b"zip bytes").unwrap();
+        let path = file_path.to_string_lossy().to_string();
+
+        record_item_open_by_path(&path, &pool).await.unwrap();
+        record_item_open_by_path(&path, &pool).await.unwrap();
+
+        let row =
+            sqlx::query("SELECT name, item_type, file_size, open_count FROM items WHERE path = ?")
+                .bind(&path)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        assert_eq!(row.get::<String, _>("name"), "book.zip");
+        assert_eq!(row.get::<String, _>("item_type"), "file");
+        assert_eq!(row.get::<i64, _>("file_size"), 9);
+        assert_eq!(row.get::<i64, _>("open_count"), 2);
+    }
 }

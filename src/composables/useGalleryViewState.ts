@@ -17,6 +17,13 @@ const readStoredValue = <T extends readonly string[]>(
   return validValues.includes(storedValue ?? '') ? storedValue as T[number] : fallback;
 };
 
+const readStoredBoolean = (key: string, fallback: boolean): boolean => {
+  const storedValue = localStorage.getItem(key);
+  if (storedValue === 'true') return true;
+  if (storedValue === 'false') return false;
+  return fallback;
+};
+
 export function useGalleryViewState(viewStateKey: string) {
   const storagePrefix = `gallery:${viewStateKey}`;
   const sortBy = ref<SortBy>(
@@ -28,12 +35,16 @@ export function useGalleryViewState(viewStateKey: string) {
   const viewMode = ref<ViewMode>(
     readStoredValue(`${storagePrefix}:view-mode`, VALID_VIEW_MODE, 'list')
   );
+  const frequentMode = ref(
+    readStoredBoolean(`${storagePrefix}:frequent-mode`, false)
+  );
   const gallerySearch = ref(localStorage.getItem(`${storagePrefix}:search`) ?? '');
 
-  watch([sortBy, sortDir, viewMode, gallerySearch], ([by, dir, mode, search]) => {
+  watch([sortBy, sortDir, viewMode, frequentMode, gallerySearch], ([by, dir, mode, frequent, search]) => {
     localStorage.setItem(`${storagePrefix}:sort-by`, by);
     localStorage.setItem(`${storagePrefix}:sort-dir`, dir);
     localStorage.setItem(`${storagePrefix}:view-mode`, mode);
+    localStorage.setItem(`${storagePrefix}:frequent-mode`, String(frequent));
     localStorage.setItem(`${storagePrefix}:search`, search);
   });
 
@@ -41,6 +52,7 @@ export function useGalleryViewState(viewStateKey: string) {
     sortBy,
     sortDir,
     viewMode,
+    frequentMode,
     gallerySearch,
   };
 }

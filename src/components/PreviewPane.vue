@@ -4,6 +4,7 @@ import { api, type Item, type Tag } from '../api';
 import MediaViewer from './MediaViewer.vue';
 import MetadataPanel from './MetadataPanel.vue';
 import PreviewEditPanel from './PreviewEditPanel.vue';
+import { openFileAndRecord } from '../utils/openTracking';
 
 const props = defineProps<{
     item: Item | null;
@@ -78,6 +79,12 @@ const formatDate = (unix: number | null) => {
         hour: '2-digit', minute: '2-digit'
     });
 };
+
+const openItem = async () => {
+    if (!props.item) return;
+    await openFileAndRecord(props.item.path, api.openFile, api.recordItemOpen);
+    emit('updated');
+};
 </script>
 
 <template>
@@ -140,7 +147,7 @@ const formatDate = (unix: number | null) => {
                 <button class="footer-btn btn-edit" @click="activeTab = activeTab === 'edit' ? 'info' : 'edit'">
                   {{ activeTab === 'edit' ? '資訊' : '編輯' }}
                 </button>
-                <button v-if="item.itemType === 'file'" class="footer-btn btn-open" @click="api.openFile(item.path)">▶ 開啟</button>
+                <button v-if="item.itemType === 'file'" class="footer-btn btn-open" @click="openItem">▶ 開啟</button>
             </div>
         </div>
 

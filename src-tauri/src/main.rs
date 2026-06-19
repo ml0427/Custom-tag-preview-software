@@ -166,6 +166,7 @@ fn main() {
             commands::compute_fingerprints,
             // File system
             commands::quick_import_item,
+            commands::record_item_open,
             commands::open_file,
             commands::open_in_explorer,
             commands::list_subdirs,

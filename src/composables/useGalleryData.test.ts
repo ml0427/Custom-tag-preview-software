@@ -57,6 +57,7 @@ const item = (overrides: Partial<Item>): Item => ({
   existsOnDisk: true,
   missingSince: null,
   lastSeenAt: '2026-05-21T15:00:00Z',
+  openCount: 0,
   importAt: '2026-05-21T15:00:00Z',
   tags: [],
   ...overrides,
@@ -158,6 +159,62 @@ describe('useGalleryData', () => {
     expect(gallery.itemByPath.value.get('c:\\library\\later.zip')?.tags).toMatchObject([
       { id: 9, name: 'later-tag' },
     ]);
+  });
+
+  it('filters frequent mode to opened items and sorts by open count descending', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([
+      file('never.zip', 20, '2026-05-21 09:00'),
+      file('often.zip', 20, '2026-05-21 09:00'),
+      file('sometimes.zip', 20, '2026-05-21 09:00'),
+    ]);
+    apiMock.getItems
+      .mockResolvedValueOnce(page([]))
+      .mockResolvedValueOnce(page([
+        item({ id: 1, path: 'C:/Library/never.zip', name: 'never', openCount: 0 }),
+        item({ id: 2, path: 'C:/Library/often.zip', name: 'often', openCount: 7 }),
+        item({ id: 3, path: 'C:/Library/sometimes.zip', name: 'sometimes', openCount: 2 }),
+      ]));
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => '',
+      () => 'name',
+      () => 'asc',
+      () => true,
+    );
+
+    await gallery.loadAll();
+    await nextTick();
+
+    expect(gallery.filteredFileItems.value.map(item => item.name)).toEqual(['often.zip', 'sometimes.zip']);
+  });
+
+  it('applies search inside frequent mode results', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([
+      file('Alpha.zip', 20, '2026-05-21 09:00'),
+      file('Beta.zip', 20, '2026-05-21 09:00'),
+    ]);
+    apiMock.getItems
+      .mockResolvedValueOnce(page([]))
+      .mockResolvedValueOnce(page([
+        item({ id: 1, path: 'C:/Library/Alpha.zip', name: 'Alpha', openCount: 3 }),
+        item({ id: 2, path: 'C:/Library/Beta.zip', name: 'Beta', openCount: 5 }),
+      ]));
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => 'alpha',
+      () => 'name',
+      () => 'asc',
+      () => true,
+    );
+
+    await gallery.loadAll();
+    await nextTick();
+
+    expect(gallery.filteredFileItems.value.map(item => item.name)).toEqual(['Alpha.zip']);
   });
 
   it('formats tagged view file mtimes with local time instead of UTC', async () => {

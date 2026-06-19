@@ -16,7 +16,8 @@ export function useGalleryData(
   selectedTagId: () => number | null | undefined,
   gallerySearch: () => string,
   sortBy: () => 'name' | 'size' | 'date',
-  sortDir: () => 'asc' | 'desc'
+  sortDir: () => 'asc' | 'desc',
+  frequentMode: () => boolean = () => false,
 ) {
   const itemsData = ref<Item[]>([]);
   const externalChangeItemsData = ref<Item[]>([]);
@@ -62,6 +63,18 @@ export function useGalleryData(
     let items = [...base];
     const q = gallerySearch().trim().toLowerCase();
     if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
+
+    if (frequentMode()) {
+      items = items
+        .filter(item => (itemByPath.value.get(pathKey(item.path))?.openCount ?? 0) > 0)
+        .sort((a, b) => {
+          const aCount = itemByPath.value.get(pathKey(a.path))?.openCount ?? 0;
+          const bCount = itemByPath.value.get(pathKey(b.path))?.openCount ?? 0;
+          if (aCount !== bCount) return bCount - aCount;
+          return (a.name || '').localeCompare(b.name || '', 'zh-TW', { sensitivity: 'base' });
+        });
+      return items;
+    }
 
     // 排序邏輯也應該在這裡執行，確保 grid view 也是排序過的
     const by = sortBy();
