@@ -2,6 +2,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { api, type FileItem, type Item } from '../api';
 import { isReadableImageFile } from '../utils/readableItem';
+import { createReaderWheelState, resolveReaderWheelNavigation } from '../utils/readerWheelNavigation';
 
 type ReaderPage =
   | { kind: 'archive'; entry: string; label: string }
@@ -17,7 +18,6 @@ const emit = defineEmits<{
 
 const pages = ref<ReaderPage[]>([]);
 const pageIndex = ref(0);
-const pageJumpInput = ref('1');
 const imageUrl = ref('');
 const isLoading = ref(false);
 const errorMessage = ref('');
@@ -29,6 +29,7 @@ const isFullscreen = ref(false);
 const readerChromeVisible = ref(true);
 let autoplayTimer: ReturnType<typeof window.setTimeout> | null = null;
 let chromeHideTimer: ReturnType<typeof window.setTimeout> | null = null;
+let wheelNavigationState = createReaderWheelState();
 
 const currentPage = computed(() => pages.value[pageIndex.value] ?? null);
 const isAtFirstPage = computed(() => pageIndex.value <= 0);
@@ -36,13 +37,6 @@ const isAtLastPage = computed(() => pageIndex.value >= pages.value.length - 1);
 const canAutoplay = computed(() => pages.value.length > 1 && !isLoading.value && !errorMessage.value);
 const pageLabel = computed(() =>
   pages.value.length > 0 ? `${pageIndex.value + 1} / ${pages.value.length}` : '0 / 0'
-);
-const pageJumpNumber = computed(() => Number.parseInt(pageJumpInput.value, 10));
-const canJumpToPage = computed(() =>
-  Number.isFinite(pageJumpNumber.value)
-  && pageJumpNumber.value >= 1
-  && pageJumpNumber.value <= pages.value.length
-  && pageJumpNumber.value !== pageIndex.value + 1
 );
 const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'FOLDER READER' : 'ARCHIVE READER');
 const autoplayLabel = computed(() => `${autoplaySeconds.value.toFixed(1)} 秒/頁`);
@@ -52,12 +46,11 @@ const canFullscreen = computed(() =>
 );
 const fullscreenButtonLabel = computed(() => isFullscreen.value ? '退出全螢幕' : '全螢幕');
 const footerHint = computed(() => {
+  const exitHint = isFullscreen.value ? 'Esc 退出全螢幕' : 'Esc 關閉';
   if (!currentPage.value) return 'Esc 關閉';
-  if (isFullscreen.value && isAutoplaying.value) return `自動播放中 · ${autoplayLabel.value} · Esc 退出全螢幕`;
-  if (isFullscreen.value) return 'Esc 退出全螢幕';
-  if (isAutoplaying.value) return `自動播放中 · ${autoplayLabel.value} · Esc 關閉`;
-  if (isAtLastPage.value) return '已到最後一頁 · Esc 關閉';
-  return '點擊畫面或按空白鍵下一頁 · Esc 關閉';
+  if (isAutoplaying.value) return `自動播放中 · ${autoplayLabel.value} · ${exitHint}`;
+  if (isAtLastPage.value) return `已到最後一頁 · 滾輪向上上一頁 · ${exitHint}`;
+  return `滾輪換頁 · 點擊畫面或按空白鍵下一頁 · ${exitHint}`;
 });
 
 const sortByName = (items: FileItem[]) =>
@@ -218,6 +211,7 @@ const loadPages = async () => {
   pageIndex.value = 0;
   imageUrl.value = '';
   errorMessage.value = '';
+  wheelNavigationState = createReaderWheelState();
 
   if (!item) return;
 
@@ -254,28 +248,6 @@ const loadPages = async () => {
   }
 };
 
-const syncPageJumpInput = () => {
-  pageJumpInput.value = String(pageIndex.value + 1);
-};
-
-const jumpToPage = (targetPage: number) => {
-  if (!pages.value.length || !Number.isFinite(targetPage)) {
-    syncPageJumpInput();
-    return;
-  }
-  const nextIndex = Math.min(Math.max(Math.trunc(targetPage), 1), pages.value.length) - 1;
-  if (nextIndex === pageIndex.value) {
-    syncPageJumpInput();
-    return;
-  }
-  pageIndex.value = nextIndex;
-  loadCurrentPage();
-};
-
-const jumpToInputPage = () => {
-  jumpToPage(pageJumpNumber.value);
-};
-
 const goPrev = () => {
   if (isAtFirstPage.value) return;
   pageIndex.value -= 1;
@@ -288,6 +260,22 @@ const goNext = () => {
   loadCurrentPage();
 };
 
+const handleReaderWheel = (event: WheelEvent) => {
+  if (!props.item || !pages.value.length) return;
+  const result = resolveReaderWheelNavigation({
+    state: wheelNavigationState,
+    deltaY: event.deltaY,
+    deltaMode: event.deltaMode,
+    now: event.timeStamp,
+    isLoading: isLoading.value,
+    isAtFirstPage: isAtFirstPage.value,
+    isAtLastPage: isAtLastPage.value,
+  });
+  wheelNavigationState = result.state;
+  if (result.direction === 'previous') goPrev();
+  if (result.direction === 'next') goNext();
+};
+
 const onKeydown = (event: KeyboardEvent) => {
   if (!props.item) return;
   if (event.key === 'Escape') {
@@ -298,14 +286,6 @@ const onKeydown = (event: KeyboardEvent) => {
   if (event.key === 'ArrowRight' || event.key === ' ') {
     event.preventDefault();
     goNext();
-  }
-  if (event.key === 'Home') {
-    event.preventDefault();
-    jumpToPage(1);
-  }
-  if (event.key === 'End' && pages.value.length > 0) {
-    event.preventDefault();
-    jumpToPage(pages.value.length);
   }
 };
 
@@ -321,7 +301,6 @@ watch(() => props.item, item => {
   }
 }, { immediate: true });
 watch([isAutoplaying, autoplaySeconds, pageIndex, canAutoplay], scheduleAutoplay);
-watch([pageIndex, () => pages.value.length], syncPageJumpInput);
 watch(isFullscreen, fullscreen => {
   if (fullscreen) {
     showReaderChrome();
@@ -387,20 +366,6 @@ onUnmounted(() => {
           </div>
           <button class="reader-btn" type="button" :disabled="isAtFirstPage" @click.stop="goPrev">上一頁</button>
           <button class="reader-btn" type="button" :disabled="isAtLastPage" @click.stop="goNext">下一頁</button>
-          <form class="page-jump" @submit.prevent.stop="jumpToInputPage" @click.stop @dblclick.stop>
-            <input
-              v-model="pageJumpInput"
-              class="page-jump-input"
-              type="number"
-              inputmode="numeric"
-              min="1"
-              :max="pages.length || 1"
-              :disabled="!pages.length"
-              aria-label="跳到頁碼"
-              @blur="syncPageJumpInput"
-            />
-            <button class="reader-btn page-jump-button" type="submit" :disabled="!canJumpToPage">跳頁</button>
-          </form>
           <button
             class="reader-btn fullscreen-toggle"
             type="button"
@@ -414,7 +379,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <main class="reader-stage" @click="goNext">
+      <main class="reader-stage" @click="goNext" @wheel.prevent="handleReaderWheel">
         <div v-if="isLoading && !imageUrl" class="reader-state">載入中...</div>
         <div v-else-if="errorMessage" class="reader-state reader-error">{{ errorMessage }}</div>
         <img
@@ -650,33 +615,6 @@ onUnmounted(() => {
     linear-gradient(90deg, transparent 6px, #08090b 6px 8px, transparent 8px 12px, #08090b 12px 14px, transparent 14px),
     #ffd089;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-}
-
-.page-jump {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.page-jump-input {
-  width: 64px;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f4f1ea;
-  font-size: 0.82rem;
-  text-align: center;
-}
-
-.page-jump-input:disabled {
-  opacity: 0.38;
-}
-
-.page-jump-button {
-  white-space: nowrap;
 }
 
 .reader-btn,
