@@ -8,6 +8,8 @@ type ReaderPage =
   | { kind: 'archive'; entry: string; label: string }
   | { kind: 'file'; path: string; label: string };
 
+const WHEEL_TARGET_SETTLE_MS = 200;
+
 const props = defineProps<{
   item: Item | null;
 }>();
@@ -18,6 +20,7 @@ const emit = defineEmits<{
 
 const pages = ref<ReaderPage[]>([]);
 const pageIndex = ref(0);
+const targetPageIndex = ref(0);
 const imageUrl = ref('');
 const isLoading = ref(false);
 const errorMessage = ref('');
@@ -29,15 +32,25 @@ const isFullscreen = ref(false);
 const readerChromeVisible = ref(true);
 let autoplayTimer: ReturnType<typeof window.setTimeout> | null = null;
 let chromeHideTimer: ReturnType<typeof window.setTimeout> | null = null;
+let wheelTargetTimer: ReturnType<typeof window.setTimeout> | null = null;
 let wheelNavigationState = createReaderWheelState();
 
 const currentPage = computed(() => pages.value[pageIndex.value] ?? null);
-const isAtFirstPage = computed(() => pageIndex.value <= 0);
-const isAtLastPage = computed(() => pageIndex.value >= pages.value.length - 1);
+const targetPage = computed(() => pages.value[targetPageIndex.value] ?? null);
+const hasPendingPageTarget = computed(() => targetPageIndex.value !== pageIndex.value);
+const isAtFirstPage = computed(() => targetPageIndex.value <= 0);
+const isAtLastPage = computed(() => targetPageIndex.value >= pages.value.length - 1);
 const canAutoplay = computed(() => pages.value.length > 1 && !isLoading.value && !errorMessage.value);
-const pageLabel = computed(() =>
-  pages.value.length > 0 ? `${pageIndex.value + 1} / ${pages.value.length}` : '0 / 0'
-);
+const pageLabel = computed(() => {
+  if (pages.value.length <= 0) return '0 / 0';
+  const currentLabel = `${pageIndex.value + 1} / ${pages.value.length}`;
+  if (!hasPendingPageTarget.value) return currentLabel;
+  return `${currentLabel} · 目標 ${targetPageIndex.value + 1}`;
+});
+const bottomPageLabel = computed(() => {
+  if (hasPendingPageTarget.value) return `目標：${targetPage.value?.label ?? ''}`;
+  return currentPage.value?.label ?? '';
+});
 const readerModeLabel = computed(() => props.item?.itemType === 'folder' ? 'FOLDER READER' : 'ARCHIVE READER');
 const autoplayLabel = computed(() => `${autoplaySeconds.value.toFixed(1)} 秒/頁`);
 const autoplayButtonLabel = computed(() => isAutoplaying.value ? '停止播放' : '自動播放');
@@ -48,9 +61,10 @@ const fullscreenButtonLabel = computed(() => isFullscreen.value ? '退出全螢�
 const footerHint = computed(() => {
   const exitHint = isFullscreen.value ? 'Esc 退出全螢幕' : 'Esc 關閉';
   if (!currentPage.value) return 'Esc 關閉';
+  if (hasPendingPageTarget.value) return `目標第 ${targetPageIndex.value + 1} 頁 · 停下後載入 · ${exitHint}`;
   if (isAutoplaying.value) return `自動播放中 · ${autoplayLabel.value} · ${exitHint}`;
   if (isAtLastPage.value) return `已到最後一頁 · 滾輪向上上一頁 · ${exitHint}`;
-  return `滾輪換頁 · 點擊畫面或按空白鍵下一頁 · ${exitHint}`;
+  return `滾輪選頁 · 點擊畫面或按空白鍵下一頁 · ${exitHint}`;
 });
 
 const sortByName = (items: FileItem[]) =>
@@ -81,6 +95,12 @@ const clearChromeHideTimer = () => {
   if (!chromeHideTimer) return;
   window.clearTimeout(chromeHideTimer);
   chromeHideTimer = null;
+};
+
+const clearWheelTargetTimer = () => {
+  if (!wheelTargetTimer) return;
+  window.clearTimeout(wheelTargetTimer);
+  wheelTargetTimer = null;
 };
 
 const scheduleChromeHide = () => {
@@ -175,13 +195,14 @@ const requestInitialFullscreen = async () => {
 
 const closeReader = async () => {
   stopAutoplay();
+  clearWheelTargetTimer();
   await exitReaderFullscreen();
   emit('close');
 };
 
-const loadCurrentPage = async () => {
+const loadPageAt = async (nextPageIndex: number) => {
   const item = props.item;
-  const page = currentPage.value;
+  const page = pages.value[nextPageIndex] ?? null;
   const token = ++loadToken.value;
   errorMessage.value = '';
 
@@ -193,9 +214,13 @@ const loadCurrentPage = async () => {
       ? await api.getArchiveImageBase64ByPath(item.path, page.entry)
       : await api.getImageBase64ByPath(page.path);
     await waitForImageReady(url);
-    if (loadToken.value === token) imageUrl.value = url;
+    if (loadToken.value === token && targetPageIndex.value === nextPageIndex) {
+      imageUrl.value = url;
+      pageIndex.value = nextPageIndex;
+      wheelNavigationState = createReaderWheelState(nextPageIndex);
+    }
   } catch (e: any) {
-    if (loadToken.value === token) {
+    if (loadToken.value === token && targetPageIndex.value === nextPageIndex) {
       errorMessage.value = e?.message ?? String(e);
       stopAutoplay();
     }
@@ -204,14 +229,31 @@ const loadCurrentPage = async () => {
   }
 };
 
+const loadTargetPageNow = () => {
+  clearWheelTargetTimer();
+  if (targetPageIndex.value === pageIndex.value) return;
+  void loadPageAt(targetPageIndex.value);
+};
+
+const scheduleTargetPageLoad = () => {
+  clearWheelTargetTimer();
+  if (targetPageIndex.value === pageIndex.value) return;
+  wheelTargetTimer = window.setTimeout(() => {
+    wheelTargetTimer = null;
+    void loadPageAt(targetPageIndex.value);
+  }, WHEEL_TARGET_SETTLE_MS);
+};
+
 const loadPages = async () => {
   const item = props.item;
   const token = ++loadToken.value;
   pages.value = [];
   pageIndex.value = 0;
+  targetPageIndex.value = 0;
   imageUrl.value = '';
   errorMessage.value = '';
-  wheelNavigationState = createReaderWheelState();
+  clearWheelTargetTimer();
+  wheelNavigationState = createReaderWheelState(0);
 
   if (!item) return;
 
@@ -237,7 +279,7 @@ const loadPages = async () => {
       stopAutoplay();
       return;
     }
-    await loadCurrentPage();
+    await loadPageAt(0);
   } catch (e: any) {
     if (loadToken.value === token) {
       errorMessage.value = e?.message ?? String(e);
@@ -250,14 +292,16 @@ const loadPages = async () => {
 
 const goPrev = () => {
   if (isAtFirstPage.value) return;
-  pageIndex.value -= 1;
-  loadCurrentPage();
+  targetPageIndex.value -= 1;
+  wheelNavigationState = createReaderWheelState(targetPageIndex.value);
+  loadTargetPageNow();
 };
 
 const goNext = () => {
   if (isAtLastPage.value) return;
-  pageIndex.value += 1;
-  loadCurrentPage();
+  targetPageIndex.value += 1;
+  wheelNavigationState = createReaderWheelState(targetPageIndex.value);
+  loadTargetPageNow();
 };
 
 const handleReaderWheel = (event: WheelEvent) => {
@@ -266,14 +310,13 @@ const handleReaderWheel = (event: WheelEvent) => {
     state: wheelNavigationState,
     deltaY: event.deltaY,
     deltaMode: event.deltaMode,
-    now: event.timeStamp,
-    isLoading: isLoading.value,
-    isAtFirstPage: isAtFirstPage.value,
-    isAtLastPage: isAtLastPage.value,
+    pageCount: pages.value.length,
   });
   wheelNavigationState = result.state;
-  if (result.direction === 'previous') goPrev();
-  if (result.direction === 'next') goNext();
+  if (!result.changed) return;
+  targetPageIndex.value = result.targetPageIndex;
+  clearAutoplayTimer();
+  scheduleTargetPageLoad();
 };
 
 const onKeydown = (event: KeyboardEvent) => {
@@ -313,6 +356,7 @@ watch(isFullscreen, fullscreen => {
 onUnmounted(() => {
   clearAutoplayTimer();
   clearChromeHideTimer();
+  clearWheelTargetTimer();
   window.removeEventListener('keydown', onKeydown);
   document.removeEventListener('fullscreenchange', syncFullscreenState);
 });
@@ -392,7 +436,7 @@ onUnmounted(() => {
       </main>
 
       <div class="reader-bottombar" @click.stop @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
-        <span>{{ currentPage?.label ?? '' }}</span>
+        <span>{{ bottomPageLabel }}</span>
         <span class="reader-hint">{{ footerHint }}</span>
       </div>
     </div>

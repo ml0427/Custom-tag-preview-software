@@ -3,41 +3,31 @@ export type ReaderWheelDirection = 'previous' | 'next';
 export type ReaderWheelState = {
   accumulatedDeltaY: number;
   lastDirection: ReaderWheelDirection | null;
-  lastNavigationAt: number;
+  targetPageIndex: number;
 };
 
 type ResolveReaderWheelNavigationInput = {
   state: ReaderWheelState;
   deltaY: number;
   deltaMode: number;
-  now: number;
-  isLoading: boolean;
-  isAtFirstPage: boolean;
-  isAtLastPage: boolean;
+  pageCount: number;
   threshold?: number;
-  cooldownMs?: number;
 };
 
 type ResolveReaderWheelNavigationResult = {
-  direction: ReaderWheelDirection | null;
+  changed: boolean;
+  targetPageIndex: number;
   state: ReaderWheelState;
 };
 
 const DEFAULT_THRESHOLD = 72;
-const DEFAULT_COOLDOWN_MS = 320;
 const LINE_DELTA_MULTIPLIER = 16;
 const PAGE_DELTA_MULTIPLIER = 480;
 
-export const createReaderWheelState = (): ReaderWheelState => ({
+export const createReaderWheelState = (targetPageIndex = 0): ReaderWheelState => ({
   accumulatedDeltaY: 0,
   lastDirection: null,
-  lastNavigationAt: Number.NEGATIVE_INFINITY,
-});
-
-const resetAccumulation = (state: ReaderWheelState): ReaderWheelState => ({
-  ...state,
-  accumulatedDeltaY: 0,
-  lastDirection: null,
+  targetPageIndex,
 });
 
 const normalizeDeltaY = (deltaY: number, deltaMode: number) => {
@@ -46,53 +36,56 @@ const normalizeDeltaY = (deltaY: number, deltaMode: number) => {
   return deltaY;
 };
 
+const clampPageIndex = (pageIndex: number, pageCount: number) =>
+  Math.min(Math.max(pageIndex, 0), Math.max(pageCount - 1, 0));
+
 export const resolveReaderWheelNavigation = ({
   state,
   deltaY,
   deltaMode,
-  now,
-  isLoading,
-  isAtFirstPage,
-  isAtLastPage,
+  pageCount,
   threshold = DEFAULT_THRESHOLD,
-  cooldownMs = DEFAULT_COOLDOWN_MS,
 }: ResolveReaderWheelNavigationInput): ResolveReaderWheelNavigationResult => {
   const normalizedDeltaY = normalizeDeltaY(deltaY, deltaMode);
-  if (!Number.isFinite(normalizedDeltaY) || normalizedDeltaY === 0) {
-    return { direction: null, state };
+  const currentTargetPageIndex = clampPageIndex(state.targetPageIndex, pageCount);
+  const unchanged = (nextState = state): ResolveReaderWheelNavigationResult => ({
+    changed: false,
+    targetPageIndex: currentTargetPageIndex,
+    state: nextState,
+  });
+
+  if (pageCount <= 0 || !Number.isFinite(normalizedDeltaY) || normalizedDeltaY === 0) {
+    return unchanged({ ...state, targetPageIndex: currentTargetPageIndex });
   }
 
   const direction: ReaderWheelDirection = normalizedDeltaY > 0 ? 'next' : 'previous';
-  const isBlocked =
-    isLoading
-    || (direction === 'previous' && isAtFirstPage)
-    || (direction === 'next' && isAtLastPage);
-
-  if (isBlocked || now - state.lastNavigationAt < cooldownMs) {
-    return { direction: null, state: resetAccumulation(state) };
-  }
-
   const accumulatedDeltaY = state.lastDirection === direction
     ? state.accumulatedDeltaY + normalizedDeltaY
     : normalizedDeltaY;
 
   if (Math.abs(accumulatedDeltaY) < threshold) {
-    return {
-      direction: null,
-      state: {
-        ...state,
-        accumulatedDeltaY,
-        lastDirection: direction,
-      },
-    };
+    return unchanged({
+      accumulatedDeltaY,
+      lastDirection: direction,
+      targetPageIndex: currentTargetPageIndex,
+    });
   }
 
+  const pageStep = Math.trunc(Math.abs(accumulatedDeltaY) / threshold);
+  const pageDelta = direction === 'next' ? pageStep : -pageStep;
+  const targetPageIndex = clampPageIndex(currentTargetPageIndex + pageDelta, pageCount);
+  const changed = targetPageIndex !== currentTargetPageIndex;
+  const leftoverDelta = changed
+    ? Math.sign(accumulatedDeltaY) * (Math.abs(accumulatedDeltaY) % threshold)
+    : 0;
+
   return {
-    direction,
+    changed,
+    targetPageIndex,
     state: {
-      accumulatedDeltaY: 0,
+      accumulatedDeltaY: leftoverDelta,
       lastDirection: direction,
-      lastNavigationAt: now,
+      targetPageIndex,
     },
   };
 };

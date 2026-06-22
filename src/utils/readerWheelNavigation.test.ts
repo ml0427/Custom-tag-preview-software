@@ -9,72 +9,67 @@ const baseInput = (state: ReaderWheelState, overrides = {}) => ({
   state,
   deltaY: 0,
   deltaMode: 0,
-  now: 1000,
-  isLoading: false,
-  isAtFirstPage: false,
-  isAtLastPage: false,
+  pageCount: 20,
   ...overrides,
 });
 
 describe('reader wheel navigation', () => {
-  it('accumulates small downward wheel deltas before moving to the next page', () => {
-    let state = createReaderWheelState();
+  it('accumulates small downward wheel deltas before moving the target page', () => {
+    const state = createReaderWheelState(4);
 
     const first = resolveReaderWheelNavigation(baseInput(state, { deltaY: 30 }));
-    expect(first.direction).toBeNull();
+    expect(first.changed).toBe(false);
+    expect(first.targetPageIndex).toBe(4);
     expect(first.state.accumulatedDeltaY).toBe(30);
 
-    const second = resolveReaderWheelNavigation(baseInput(first.state, { deltaY: 50, now: 1040 }));
-    expect(second.direction).toBe('next');
-    expect(second.state.accumulatedDeltaY).toBe(0);
-    expect(second.state.lastNavigationAt).toBe(1040);
+    const second = resolveReaderWheelNavigation(baseInput(first.state, { deltaY: 50 }));
+    expect(second.changed).toBe(true);
+    expect(second.targetPageIndex).toBe(5);
+    expect(second.state.targetPageIndex).toBe(5);
+    expect(second.state.accumulatedDeltaY).toBe(8);
   });
 
   it('resets accumulated movement when wheel direction changes', () => {
-    const state = resolveReaderWheelNavigation(baseInput(createReaderWheelState(), { deltaY: 40 })).state;
+    const state = resolveReaderWheelNavigation(baseInput(createReaderWheelState(4), { deltaY: 40 })).state;
 
-    const result = resolveReaderWheelNavigation(baseInput(state, { deltaY: -50, now: 1020 }));
+    const result = resolveReaderWheelNavigation(baseInput(state, { deltaY: -50 }));
 
-    expect(result.direction).toBeNull();
+    expect(result.changed).toBe(false);
+    expect(result.targetPageIndex).toBe(4);
     expect(result.state.accumulatedDeltaY).toBe(-50);
   });
 
-  it('blocks repeated page turns during the cooldown window', () => {
-    const first = resolveReaderWheelNavigation(baseInput(createReaderWheelState(), { deltaY: 90, now: 1000 }));
+  it('moves multiple target pages for a large wheel delta', () => {
+    const result = resolveReaderWheelNavigation(baseInput(createReaderWheelState(4), { deltaY: 220 }));
 
-    const second = resolveReaderWheelNavigation(baseInput(first.state, { deltaY: 90, now: 1100 }));
-
-    expect(first.direction).toBe('next');
-    expect(second.direction).toBeNull();
-    expect(second.state.accumulatedDeltaY).toBe(0);
-    expect(second.state.lastNavigationAt).toBe(1000);
+    expect(result.changed).toBe(true);
+    expect(result.targetPageIndex).toBe(7);
+    expect(result.state.accumulatedDeltaY).toBe(4);
   });
 
-  it('does not navigate while loading or past page boundaries', () => {
-    const loading = resolveReaderWheelNavigation(baseInput(createReaderWheelState(), {
-      deltaY: 90,
-      isLoading: true,
-    }));
-    const firstPage = resolveReaderWheelNavigation(baseInput(createReaderWheelState(), {
+  it('clamps target pages to the first and last page boundaries', () => {
+    const firstPage = resolveReaderWheelNavigation(baseInput(createReaderWheelState(0), {
       deltaY: -90,
-      isAtFirstPage: true,
     }));
-    const lastPage = resolveReaderWheelNavigation(baseInput(createReaderWheelState(), {
+    const lastPage = resolveReaderWheelNavigation(baseInput(createReaderWheelState(19), {
       deltaY: 90,
-      isAtLastPage: true,
     }));
 
-    expect(loading.direction).toBeNull();
-    expect(firstPage.direction).toBeNull();
-    expect(lastPage.direction).toBeNull();
+    expect(firstPage.changed).toBe(false);
+    expect(firstPage.targetPageIndex).toBe(0);
+    expect(firstPage.state.accumulatedDeltaY).toBe(0);
+    expect(lastPage.changed).toBe(false);
+    expect(lastPage.targetPageIndex).toBe(19);
+    expect(lastPage.state.accumulatedDeltaY).toBe(0);
   });
 
   it('normalizes line-mode wheel events before applying the threshold', () => {
-    const result = resolveReaderWheelNavigation(baseInput(createReaderWheelState(), {
+    const result = resolveReaderWheelNavigation(baseInput(createReaderWheelState(4), {
       deltaY: 5,
       deltaMode: 1,
     }));
 
-    expect(result.direction).toBe('next');
+    expect(result.changed).toBe(true);
+    expect(result.targetPageIndex).toBe(5);
   });
 });
