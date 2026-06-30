@@ -136,7 +136,7 @@ The wizard must block at these points:
 | `adjacent-regression-review` | Same-level review artifact exists. |
 | Blocking adjacent finding | Lead or user acknowledges, fixes, or explicitly accepts the risk. |
 | GitNexus analyze | Only before the normal commit, when a required GitNexus decision needs a fresh index. PostToolUse stale warnings after commit/merge/push are advisory. |
-| Closeout | Commit and push are complete unless the user explicitly requested local-only work. |
+| Closeout | Commit and push are complete unless the user explicitly requested local-only work; after push, `npm run tauri:build` has run with the blocker guard first, unless the user explicitly requested skipping it. |
 
 ## Low-Model Paths
 

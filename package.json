@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "tauri:dev": "tauri dev",
+    "pretauri:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-tauri-build-blockers.ps1",
     "tauri:build": "tauri build",
     "dev": "vite --host 127.0.0.1 --strictPort",
     "prebuild": "node scripts/stamp-build.cjs",

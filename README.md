@@ -88,16 +88,16 @@ npm install
 ### 開發模式
 
 ```powershell
-npm run tauri dev
+npm run tauri:dev
 ```
 
 ### 打包發佈
 
 ```powershell
-npm run tauri build
+npm run tauri:build
 ```
 
-產出安裝檔位於 `src-tauri/target/release/bundle/`。
+`npm run tauri:build` 會先停止已啟動的本專案 Tauri app 或 dev server，再開始打包。產出安裝檔位於 `src-tauri/target/release/bundle/`。
 
 ---
 

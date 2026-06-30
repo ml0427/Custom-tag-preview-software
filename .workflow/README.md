@@ -67,6 +67,8 @@ node .workflow/workflow-runner.js wizard resume --run <run-id> --complete-step f
 - `lead-low-model` 只會產生 packet，不會自動算委派完成，必須明確 resolve handoff。
 - closeout 前必須有 build/test、detect changes、adjacent regression review 等必要 artifact。
 - 工作流 runner 不啟動 `npm run tauri dev`，驗證以 `npm run build` 為主。
+- 成功 push 後，最後必須補跑 `npm run tauri:build`，除非使用者明確要求跳過。
+- `npm run tauri:build` 會先透過 `pretauri:build` 執行 `scripts/stop-tauri-build-blockers.ps1`，檢查並停止已啟動的 Tauri app、此 repo 的 Vite/Tauri dev process，以及符合條件的 5173 port listener，再開始 build。
 
 ## 輔助指令
 
