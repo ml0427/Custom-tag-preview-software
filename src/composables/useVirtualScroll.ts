@@ -1,5 +1,10 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, type Ref } from 'vue';
 
+export interface VirtualScrollOptions {
+  getInitialScrollTop?: () => number;
+  onScrollTopChange?: (scrollTop: number) => void;
+}
+
 /**
  * 虛擬滾動邏輯 Composable
  * @param items 原始資料列表 (Ref)
@@ -9,11 +14,28 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick, type Ref } from
 export function useVirtualScroll<T>(
   items: Ref<T[]>,
   rowHeight: number,
-  buffer: number = 15
+  buffer: number = 15,
+  options: VirtualScrollOptions = {},
 ) {
   const outerRef = ref<HTMLElement | null>(null);
   const scrollTop = ref(0);
   const containerHeight = ref(0);
+
+  const normalizeScrollTop = (value: number): number => (
+    Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
+  );
+
+  const setScrollTop = (value: number) => {
+    const nextScrollTop = normalizeScrollTop(value);
+    scrollTop.value = nextScrollTop;
+    if (outerRef.value && outerRef.value.scrollTop !== nextScrollTop) {
+      outerRef.value.scrollTop = nextScrollTop;
+    }
+  };
+
+  const restoreScrollTop = () => {
+    setScrollTop(options.getInitialScrollTop?.() ?? 0);
+  };
 
   // 計算可見範圍的索引
   const visibleStart = computed(() => Math.max(0, Math.floor(scrollTop.value / rowHeight) - buffer));
@@ -33,7 +55,9 @@ export function useVirtualScroll<T>(
 
   // 滾動事件處理
   const onOuterScroll = (e: Event) => {
-    scrollTop.value = (e.target as HTMLElement).scrollTop;
+    const nextScrollTop = (e.target as HTMLElement).scrollTop;
+    scrollTop.value = nextScrollTop;
+    options.onScrollTopChange?.(nextScrollTop);
   };
 
   /**
@@ -57,6 +81,9 @@ export function useVirtualScroll<T>(
     if (outerRef.value) {
       containerHeight.value = outerRef.value.clientHeight;
       outerRef.value.addEventListener('scroll', onOuterScroll, { passive: true });
+      restoreScrollTop();
+      nextTick(restoreScrollTop);
+      requestAnimationFrame(restoreScrollTop);
       
       resizeObserver = new ResizeObserver(entries => {
         if (entries[0]) {
@@ -72,11 +99,10 @@ export function useVirtualScroll<T>(
     resizeObserver?.disconnect();
   });
 
-  // 當資料項改變時，通常需要重置滾動位置與重新測量高度
+  // 當資料項改變時，依目前 context 還原位置並重新測量高度
   watch(items, (newVal) => {
     if (!newVal) return;
-    scrollTop.value = 0;
-    if (outerRef.value) outerRef.value.scrollTop = 0;
+    restoreScrollTop();
     
     // 多層級確保高度被正確捕捉 (應對動畫或非同步渲染導致的高度延遲)
     const measure = () => {
@@ -87,8 +113,14 @@ export function useVirtualScroll<T>(
     };
     
     measure();
-    nextTick(measure);
-    requestAnimationFrame(measure);
+    nextTick(() => {
+      measure();
+      restoreScrollTop();
+    });
+    requestAnimationFrame(() => {
+      measure();
+      restoreScrollTop();
+    });
   }, { immediate: true });
 
   return {
@@ -101,5 +133,6 @@ export function useVirtualScroll<T>(
     topSpacerHeight,
     bottomSpacerHeight,
     scrollToIndex,
+    restoreScrollTop,
   };
 }

@@ -11,7 +11,7 @@ import MetadataLookupModal from './MetadataLookupModal.vue';
 import { useToast } from '../composables/useToast';
 import { useGalleryData } from '../composables/useGalleryData';
 import { useGallerySelection } from '../composables/useGallerySelection';
-import { useGalleryViewState } from '../composables/useGalleryViewState';
+import { buildGalleryScrollContextKey, useGalleryViewState } from '../composables/useGalleryViewState';
 import { useGalleryPreviewResize } from '../composables/useGalleryPreviewResize';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 const { show: showToast, confirm: confirmDialog } = useToast();
 
-const { sortBy, sortDir, viewMode, frequentMode, gallerySearch } = useGalleryViewState(
+const { sortBy, sortDir, viewMode, frequentMode, gallerySearch, getScrollTop, setScrollTop } = useGalleryViewState(
   props.viewStateKey ?? 'default'
 );
 
@@ -61,6 +61,21 @@ const {
   () => sortDir.value,
   () => frequentMode.value
 );
+
+const scrollContextKey = computed(() => buildGalleryScrollContextKey({
+  viewMode: viewMode.value,
+  sourcePath: props.sourcePath,
+  selectedTagId: props.selectedTagId,
+  tagPage: tagPage.value,
+  sortBy: sortBy.value,
+  sortDir: sortDir.value,
+  frequentMode: frequentMode.value,
+  search: gallerySearch.value,
+}));
+const initialScrollTop = computed(() => getScrollTop(scrollContextKey.value));
+const handleScrollPositionChange = (stateKey: string, scrollTop: number) => {
+  setScrollTop(stateKey, scrollTop);
+};
 
 const isBatchDeleting = ref(false);
 const {
@@ -503,6 +518,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :searchQuery="gallerySearch"
           :sortBy="sortBy"
           :sortDir="sortDir"
+          :scrollStateKey="scrollContextKey"
+          :initialScrollTop="initialScrollTop"
           @click="handleGalleryItemClick"
           @dblclick="handleFileItemDblClick"
           @read="handleReadFileItem"
@@ -513,6 +530,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @rename="handleContextRename"
           @delete="handleDelete"
           @sort="handleSort"
+          @scrollPositionChange="handleScrollPositionChange"
         />
         <ThumbnailGridView
           v-else
@@ -521,6 +539,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :selectedItemPath="selectedFileItemPath"
           :selectedPaths="selectedPaths"
           :searchQuery="gallerySearch"
+          :scrollStateKey="scrollContextKey"
+          :initialScrollTop="initialScrollTop"
           @click="handleGalleryItemClick"
           @dblclick="handleFileItemDblClick"
           @read="handleReadFileItem"
@@ -530,6 +550,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @rulesApplied="loadAll"
           @rename="handleContextRename"
           @delete="handleDelete"
+          @scrollPositionChange="handleScrollPositionChange"
         />
       </div>
 

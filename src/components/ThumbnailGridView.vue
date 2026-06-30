@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onBeforeUnmount, onMounted, onUnmounted, nextTick } from 'vue';
 import { type Item, type FileItem } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useToast } from '../composables/useToast';
@@ -15,6 +15,8 @@ const props = defineProps<{
   selectedItemPath: string | null;
   selectedPaths?: string[];
   searchQuery?: string;
+  scrollStateKey?: string;
+  initialScrollTop?: number;
 }>();
 
 const emit = defineEmits<{
@@ -27,6 +29,7 @@ const emit = defineEmits<{
   (e: 'addCategory', item: FileItem): void;
   (e: 'metadataLookup', item: FileItem): void;
   (e: 'rulesApplied'): void;
+  (e: 'scrollPositionChange', stateKey: string, scrollTop: number): void;
 }>();
 
 const { itemTypes } = useItemTypes();
@@ -57,6 +60,39 @@ const cardElements = new Map<string, { el: Element; item: FileItem }>();
 const observedCards = new Map<Element, string>();
 let currentItemPaths = new Set<string>();
 let thumbObserver: IntersectionObserver | null = null;
+
+const normalizeScrollTop = (value: number): number => (
+  Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
+);
+
+const restoreScrollTop = () => {
+  if (!outerRef.value) return;
+  const nextScrollTop = normalizeScrollTop(props.initialScrollTop ?? 0);
+  if (outerRef.value.scrollTop !== nextScrollTop) {
+    outerRef.value.scrollTop = nextScrollTop;
+  }
+};
+
+const resetObserverAndRestoreScroll = () => {
+  nextTick(() => {
+    restoreScrollTop();
+    resetObserver();
+    requestAnimationFrame(() => {
+      restoreScrollTop();
+      resetObserver();
+    });
+  });
+};
+
+const handleOuterScroll = (event: Event) => {
+  if (!props.scrollStateKey) return;
+  emit('scrollPositionChange', props.scrollStateKey, (event.target as HTMLElement).scrollTop);
+};
+
+const emitCurrentScrollPosition = (stateKey = props.scrollStateKey) => {
+  if (!stateKey) return;
+  emit('scrollPositionChange', stateKey, outerRef.value?.scrollTop ?? 0);
+};
 
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
@@ -177,10 +213,18 @@ watch(() => props.items, items => {
 
   thumbQueue.splice(0, thumbQueue.length);
   queuedThumbs.clear();
-  nextTick(resetObserver);
+  resetObserverAndRestoreScroll();
 }, { immediate: true });
 
-onMounted(() => nextTick(resetObserver));
+watch(() => props.scrollStateKey, (_nextKey, previousKey) => {
+  emitCurrentScrollPosition(previousKey);
+  resetObserverAndRestoreScroll();
+});
+
+onMounted(resetObserverAndRestoreScroll);
+onBeforeUnmount(() => {
+  emitCurrentScrollPosition();
+});
 onUnmounted(() => {
   thumbObserver?.disconnect();
   cardElements.clear();
@@ -212,7 +256,7 @@ const startRenameCtx = () => {
 </script>
 
 <template>
-  <div class="thumb-grid-outer" ref="outerRef" @contextmenu.prevent>
+  <div class="thumb-grid-outer" ref="outerRef" @scroll.passive="handleOuterScroll" @contextmenu.prevent>
     <div class="thumb-grid">
       <div
         v-for="item in items"

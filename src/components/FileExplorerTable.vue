@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, reactive, nextTick, onBeforeUnmount, onMounted, onUnmounted, watch } from 'vue';
 import { type Item, type FileItem } from '../api';
 import { formatSize } from '../utils/format';
 import { useItemTypes } from '../composables/useItemTypes';
@@ -19,6 +19,8 @@ const props = defineProps<{
   searchQuery?: string;
   sortBy: 'name' | 'size' | 'date';
   sortDir: 'asc' | 'desc';
+  scrollStateKey?: string;
+  initialScrollTop?: number;
 }>();
 
 const emit = defineEmits<{
@@ -32,6 +34,7 @@ const emit = defineEmits<{
   (e: 'addCategory', item: FileItem): void;
   (e: 'metadataLookup', item: FileItem): void;
   (e: 'rulesApplied'): void;
+  (e: 'scrollPositionChange', stateKey: string, scrollTop: number): void;
 }>();
 
 const ROW_HEIGHT = 56;
@@ -74,10 +77,6 @@ const commitRename = (item: FileItem) => {
 
 const cancelRename = () => { editingPath.value = null; };
 
-const onOuterScroll = (e: Event) => {
-  scrollTop.value = (e.target as HTMLDivElement).scrollTop;
-};
-
 onMounted(() => {
   if (outerRef.value) {
     outerRef.value.addEventListener('keydown', handleKeydown);
@@ -115,8 +114,28 @@ const {
   visibleItems,
   topSpacerHeight,
   bottomSpacerHeight,
-  scrollToIndex
-} = useVirtualScroll(sortedItems, ROW_HEIGHT, BUFFER);
+  scrollToIndex,
+  restoreScrollTop,
+} = useVirtualScroll(sortedItems, ROW_HEIGHT, BUFFER, {
+  getInitialScrollTop: () => props.initialScrollTop ?? 0,
+  onScrollTopChange: nextScrollTop => {
+    if (props.scrollStateKey) emit('scrollPositionChange', props.scrollStateKey, nextScrollTop);
+  },
+});
+
+const emitCurrentScrollPosition = (stateKey = props.scrollStateKey) => {
+  if (!stateKey) return;
+  emit('scrollPositionChange', stateKey, outerRef.value?.scrollTop ?? scrollTop.value);
+};
+
+watch(() => props.scrollStateKey, (_nextKey, previousKey) => {
+  emitCurrentScrollPosition(previousKey);
+  nextTick(restoreScrollTop);
+});
+
+onBeforeUnmount(() => {
+  emitCurrentScrollPosition();
+});
 
 const currentIndex = computed(() => {
   if (!props.selectedItemPath) return -1;
