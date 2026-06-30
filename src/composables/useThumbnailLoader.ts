@@ -5,6 +5,7 @@ import { useItemTypes } from './useItemTypes';
 import { pathKey } from '../utils/pathKey';
 
 const ARCHIVE_EXTS = new Set(['zip', 'cbz', 'cbr', 'rar', '7z']);
+const PAGE_COUNT_ARCHIVE_EXTS = new Set(['zip', 'cbz']);
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
 const VIDEO_EXTS = new Set(['mp4', 'mkv', 'avi', 'mov', 'wmv']);
 const AUDIO_EXTS = new Set(['mp3', 'flac', 'wav', 'ogg']);
@@ -122,6 +123,21 @@ export function useThumbnailLoader() {
     return '';
   };
 
+  const canLoadArchivePageCount = (item: FileItem): boolean => {
+    const ext = item.extension?.toLowerCase() ?? '';
+    return !item.isDir && PAGE_COUNT_ARCHIVE_EXTS.has(ext);
+  };
+
+  const loadArchivePageCount = async (item: FileItem): Promise<number | null> => {
+    if (!canLoadArchivePageCount(item)) return null;
+
+    const entries = await api.getArchiveImagesByPath(item.path).catch(error => {
+      logThumbDebug('pageCount.archiveError', { path: item.path, error });
+      return [];
+    });
+    return entries.length > 0 ? entries.length : null;
+  };
+
   const hasUserCategory = (dbItem: Item | null): boolean =>
     !!dbItem?.category && dbItem.category !== 'default';
 
@@ -176,6 +192,8 @@ export function useThumbnailLoader() {
     buildThumbCacheUrl,
     loadThumbUrl,
     loadThumbFallbackUrl,
+    canLoadArchivePageCount,
+    loadArchivePageCount,
     getIcon,
     getItemType,
     getTypeColor,

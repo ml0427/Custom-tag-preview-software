@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useThumbnailLoader } from './useThumbnailLoader';
+import { api } from '../api';
 import type { FileItem, Item } from '../api';
 import { pathKey } from '../utils/pathKey';
 
@@ -17,6 +18,14 @@ vi.mock('./useItemTypes', () => ({
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string, protocol = 'asset') => `http://${protocol}.localhost/${path}`,
 }));
+
+vi.mock('../api', () => ({
+  api: {
+    getArchiveImagesByPath: vi.fn(),
+  },
+}));
+
+const apiMock = vi.mocked(api);
 
 const fileItem = (path: string): FileItem => ({
   name: path.split(/[\\/]/).pop() ?? path,
@@ -46,6 +55,10 @@ const dbItem = (path: string): Item => ({
 });
 
 describe('useThumbnailLoader', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('looks up DB items with normalized path keys for list and grid views', () => {
     const loader = useThumbnailLoader();
     const itemByPath = new Map<string, Item>([
@@ -82,5 +95,38 @@ describe('useThumbnailLoader', () => {
     expect(url).toBe(
       'http://comic-cache.localhost/326.jpg?v=001.webp%7C1779340800%7CC%3A%2FLibrary%2Fbook.zip'
     );
+  });
+
+  it('counts readable zip archive pages from the archive image list', async () => {
+    apiMock.getArchiveImagesByPath.mockResolvedValueOnce([
+      'pages/001.jpg',
+      'pages/002.jpg',
+      'pages/003.png',
+    ]);
+    const loader = useThumbnailLoader();
+
+    const count = await loader.loadArchivePageCount(fileItem('C:/Library/book.zip'));
+
+    expect(apiMock.getArchiveImagesByPath).toHaveBeenCalledWith('C:/Library/book.zip');
+    expect(count).toBe(3);
+  });
+
+  it('does not show an archive page count for folders, unsupported files, or empty archives', async () => {
+    apiMock.getArchiveImagesByPath.mockResolvedValueOnce([]);
+    const loader = useThumbnailLoader();
+
+    expect(await loader.loadArchivePageCount({ ...fileItem('C:/Library'), isDir: true })).toBeNull();
+    expect(await loader.loadArchivePageCount({ ...fileItem('C:/Library/readme.txt'), extension: 'txt' })).toBeNull();
+    expect(await loader.loadArchivePageCount(fileItem('C:/Library/empty.zip'))).toBeNull();
+    expect(apiMock.getArchiveImagesByPath).toHaveBeenCalledTimes(1);
+  });
+
+  it('identifies only zip and cbz archives as page-count candidates', () => {
+    const loader = useThumbnailLoader();
+
+    expect(loader.canLoadArchivePageCount(fileItem('C:/Library/book.zip'))).toBe(true);
+    expect(loader.canLoadArchivePageCount({ ...fileItem('C:/Library/book.cbz'), extension: 'cbz' })).toBe(true);
+    expect(loader.canLoadArchivePageCount({ ...fileItem('C:/Library/book.rar'), extension: 'rar' })).toBe(false);
+    expect(loader.canLoadArchivePageCount({ ...fileItem('C:/Library'), isDir: true })).toBe(false);
   });
 });

@@ -541,6 +541,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :searchQuery="gallerySearch"
           :scrollStateKey="scrollContextKey"
           :initialScrollTop="initialScrollTop"
+          :showOpenCount="frequentMode"
           @click="handleGalleryItemClick"
           @dblclick="handleFileItemDblClick"
           @read="handleReadFileItem"

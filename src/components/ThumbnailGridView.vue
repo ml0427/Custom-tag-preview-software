@@ -17,6 +17,7 @@ const props = defineProps<{
   searchQuery?: string;
   scrollStateKey?: string;
   initialScrollTop?: number;
+  showOpenCount?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -43,6 +44,8 @@ const {
   getTypeColor,
   loadThumbUrl,
   loadThumbFallbackUrl,
+  canLoadArchivePageCount,
+  loadArchivePageCount,
   logThumbDebug,
   onImgError,
 } = useThumbnailLoader();
@@ -54,6 +57,12 @@ const queuedThumbs = new Set<string>();
 const thumbQueue: FileItem[] = [];
 let activeThumbLoads = 0;
 const MAX_THUMB_LOADS = 6;
+const archivePageCounts = reactive(new Map<string, number | null>());
+const archivePageCountLoading = new Set<string>();
+const queuedArchivePageCounts = new Set<string>();
+const archivePageCountQueue: FileItem[] = [];
+let activeArchivePageCountLoads = 0;
+const MAX_ARCHIVE_PAGE_COUNT_LOADS = 4;
 
 const outerRef = ref<HTMLElement | null>(null);
 const cardElements = new Map<string, { el: Element; item: FileItem }>();
@@ -151,8 +160,53 @@ const enqueueThumb = (item: FileItem) => {
   pumpThumbQueue();
 };
 
+const shouldLoadThumb = (item: FileItem) =>
+  !item.isDir && !thumbUrls.has(item.path) && !thumbLoading.has(item.path);
+
+const shouldLoadArchivePageCount = (item: FileItem) =>
+  canLoadArchivePageCount(item)
+  && !archivePageCounts.has(item.path)
+  && !archivePageCountLoading.has(item.path);
+
+const loadArchivePageCountForItem = async (item: FileItem) => {
+  const path = item.path;
+  if (!shouldLoadArchivePageCount(item)) return;
+  archivePageCountLoading.add(path);
+  try {
+    const count = await loadArchivePageCount(item);
+    if (currentItemPaths.has(path)) archivePageCounts.set(path, count);
+  } finally {
+    archivePageCountLoading.delete(path);
+  }
+};
+
+const pumpArchivePageCountQueue = () => {
+  while (activeArchivePageCountLoads < MAX_ARCHIVE_PAGE_COUNT_LOADS && archivePageCountQueue.length > 0) {
+    const item = archivePageCountQueue.shift();
+    if (!item) continue;
+    queuedArchivePageCounts.delete(item.path);
+
+    if (!shouldLoadArchivePageCount(item)) {
+      continue;
+    }
+
+    activeArchivePageCountLoads++;
+    loadArchivePageCountForItem(item).finally(() => {
+      activeArchivePageCountLoads--;
+      pumpArchivePageCountQueue();
+    });
+  }
+};
+
+const enqueueArchivePageCount = (item: FileItem) => {
+  if (!shouldLoadArchivePageCount(item) || queuedArchivePageCounts.has(item.path)) return;
+  queuedArchivePageCounts.add(item.path);
+  archivePageCountQueue.push(item);
+  pumpArchivePageCountQueue();
+};
+
 const observeCard = (el: Element, item: FileItem) => {
-  if (item.isDir || thumbUrls.has(item.path)) return;
+  if (!shouldLoadThumb(item) && !shouldLoadArchivePageCount(item)) return;
   observedCards.set(el, item.path);
   thumbObserver?.observe(el);
 };
@@ -184,6 +238,7 @@ const resetObserver = () => {
         const item = path ? cardElements.get(path)?.item : null;
         if (!item) return;
         enqueueThumb(item);
+        enqueueArchivePageCount(item);
         thumbObserver?.unobserve(entry.target);
         observedCards.delete(entry.target);
       });
@@ -204,6 +259,9 @@ watch(() => props.items, items => {
   Array.from(thumbUrls.keys()).forEach(path => {
     if (!livePaths.has(path)) thumbUrls.delete(path);
   });
+  Array.from(archivePageCounts.keys()).forEach(path => {
+    if (!livePaths.has(path)) archivePageCounts.delete(path);
+  });
   Array.from(cardElements.keys()).forEach(path => {
     if (!livePaths.has(path)) cardElements.delete(path);
   });
@@ -213,6 +271,8 @@ watch(() => props.items, items => {
 
   thumbQueue.splice(0, thumbQueue.length);
   queuedThumbs.clear();
+  archivePageCountQueue.splice(0, archivePageCountQueue.length);
+  queuedArchivePageCounts.clear();
   resetObserverAndRestoreScroll();
 }, { immediate: true });
 
@@ -231,6 +291,8 @@ onUnmounted(() => {
   observedCards.clear();
   thumbQueue.splice(0, thumbQueue.length);
   queuedThumbs.clear();
+  archivePageCountQueue.splice(0, archivePageCountQueue.length);
+  queuedArchivePageCounts.clear();
 });
 
 const cardRefs = ref<Record<string, any>>({});
@@ -277,6 +339,9 @@ const startRenameCtx = () => {
           :typeColor="getTypeColor(item, itemByPath)"
           :searchQuery="searchQuery"
           :showReadAction="canRead(item)"
+          :pageCount="archivePageCounts.get(item.path) ?? null"
+          :showOpenCount="showOpenCount"
+          :openCount="getDbItem(item, itemByPath)?.openCount ?? 0"
           @click="emit('click', item, $event)"
           @dblclick="emit('dblclick', item)"
           @read="emit('read', item)"

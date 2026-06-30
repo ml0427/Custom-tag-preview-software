@@ -13,6 +13,9 @@ const props = defineProps<{
   typeColor: string | null;
   searchQuery?: string;
   showReadAction?: boolean;
+  pageCount?: number | null;
+  showOpenCount?: boolean;
+  openCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -100,6 +103,8 @@ const tags = props.dbItem?.tags ?? [];
 
       <div class="thumb-meta">
         <span class="thumb-type">{{ typeLabel }}</span>
+        <span v-if="pageCount && pageCount > 0" class="thumb-badge">{{ pageCount }} 頁</span>
+        <span v-if="showOpenCount && openCount && openCount > 0" class="thumb-badge thumb-open-count">使用 {{ openCount }} 次</span>
         <div class="thumb-tags" v-if="tags.length > 0">
           <span v-for="tag in tags.slice(0, 2)" :key="tag.id" class="mini-tag">{{ tag.name }}</span>
           <span v-if="tags.length > 2" class="tag-more">+{{ tags.length - 2 }}</span>
@@ -233,6 +238,20 @@ const tags = props.dbItem?.tags ?? [];
   padding: 1px 5px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+.thumb-badge {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--bg-overlay-soft);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.thumb-open-count {
+  color: var(--accent);
+  background: var(--accent-bg-subtle);
 }
 
 .thumb-tags { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; overflow: hidden; }
