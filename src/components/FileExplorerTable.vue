@@ -123,6 +123,12 @@ const {
   },
 });
 
+const restoreScrollPosition = () => {
+  restoreScrollTop();
+  nextTick(restoreScrollTop);
+  requestAnimationFrame(restoreScrollTop);
+};
+
 const emitCurrentScrollPosition = (stateKey = props.scrollStateKey) => {
   if (!stateKey) return;
   emit('scrollPositionChange', stateKey, outerRef.value?.scrollTop ?? scrollTop.value);
@@ -136,6 +142,8 @@ watch(() => props.scrollStateKey, (_nextKey, previousKey) => {
 onBeforeUnmount(() => {
   emitCurrentScrollPosition();
 });
+
+defineExpose({ restoreScrollPosition });
 
 const currentIndex = computed(() => {
   if (!props.selectedItemPath) return -1;

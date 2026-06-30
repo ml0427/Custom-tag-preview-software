@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, watch, onUnmounted } from 'vue';
 import { api, type Item, type FileItem, type Tag } from '../api';
 import PreviewPane from './PreviewPane.vue';
 import FileExplorerTable from './FileExplorerTable.vue';
@@ -176,6 +176,30 @@ const batchDelete = async () => {
 
 const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'cbz', 'cbr'];
 const readerItem = ref<Item | null>(null);
+type ScrollRestorableView = { restoreScrollPosition: () => void };
+const fileExplorerTableRef = ref<ScrollRestorableView | null>(null);
+const thumbnailGridRef = ref<ScrollRestorableView | null>(null);
+
+const restoreGalleryScrollPosition = () => {
+  const restore = () => {
+    if (viewMode.value === 'list') {
+      fileExplorerTableRef.value?.restoreScrollPosition();
+      return;
+    }
+    thumbnailGridRef.value?.restoreScrollPosition();
+  };
+
+  restore();
+  nextTick(() => {
+    restore();
+    requestAnimationFrame(restore);
+  });
+};
+
+const handleReaderClose = () => {
+  readerItem.value = null;
+  restoreGalleryScrollPosition();
+};
 
 const findDbItemForFileItem = (fileItem: FileItem): Item | null => {
   const exact = itemByPath.value.get(pathKey(fileItem.path));
@@ -510,6 +534,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
         <FileExplorerTable
           v-else-if="viewMode === 'list'"
+          ref="fileExplorerTableRef"
           :key="'list-' + props.sourcePath + '-' + String(props.selectedTagId ?? '')"
           :items="filteredFileItems"
           :itemByPath="itemByPath"
@@ -534,6 +559,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
         />
         <ThumbnailGridView
           v-else
+          ref="thumbnailGridRef"
           :items="filteredFileItems"
           :itemByPath="itemByPath"
           :selectedItemPath="selectedFileItemPath"
@@ -642,7 +668,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
     <ComicSlideReader
       :item="readerItem"
-      @close="readerItem = null"
+      @close="handleReaderClose"
     />
 
     <MetadataLookupModal

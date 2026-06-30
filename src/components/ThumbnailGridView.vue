@@ -93,6 +93,10 @@ const resetObserverAndRestoreScroll = () => {
   });
 };
 
+const restoreScrollPosition = () => {
+  resetObserverAndRestoreScroll();
+};
+
 const handleOuterScroll = (event: Event) => {
   if (!props.scrollStateKey) return;
   emit('scrollPositionChange', props.scrollStateKey, (event.target as HTMLElement).scrollTop);
@@ -285,6 +289,7 @@ onMounted(resetObserverAndRestoreScroll);
 onBeforeUnmount(() => {
   emitCurrentScrollPosition();
 });
+defineExpose({ restoreScrollPosition });
 onUnmounted(() => {
   thumbObserver?.disconnect();
   cardElements.clear();
