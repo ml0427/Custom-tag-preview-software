@@ -529,13 +529,18 @@ const {
 }
 
 .row-read-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 26px;
+  padding: 0;
   border: 1px solid var(--border-default);
   border-radius: 6px;
   background: var(--bg-overlay-soft);
   color: var(--text-secondary);
   font-size: 0.74rem;
+  line-height: 1;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
