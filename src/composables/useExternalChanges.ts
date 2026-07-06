@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import { api, type FileItem, type Item } from '../api';
+import { api, type FileItem, type Item, type ItemType } from '../api';
 import { pathKey } from '../utils/pathKey';
 import { useToast } from './useToast';
 
@@ -23,6 +23,20 @@ const parentDir = (path: string): string => {
   const normalized = path.replace(/[\\/]+$/, '');
   const idx = Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/'));
   return idx > 0 ? normalized.slice(0, idx) : normalized;
+};
+
+const findNearestParentFolder = (targetPath: string, dbItems: Item[]): Item | null => {
+  const itemByPath = new Map(dbItems.map(item => [pathKey(item.path), item]));
+  let current = pathKey(targetPath);
+
+  while (true) {
+    const separatorIndex = current.lastIndexOf('\\');
+    if (separatorIndex <= 0) return null;
+
+    current = current.slice(0, separatorIndex);
+    const parent = itemByPath.get(current);
+    if (parent?.itemType === 'folder') return parent;
+  }
 };
 
 const DB_PAGE_SIZE = 1000;
@@ -112,6 +126,8 @@ export function useExternalChanges(sourcePath: () => string | null) {
   const isFixing = ref(false);
   const lastFixResult = ref<{ added: number; updated: number; removed: number } | null>(null);
   const dismissedKeys = ref<Set<string>>(new Set());
+  const latestDbItems = ref<Item[]>([]);
+  let itemTypesCache: ItemType[] | null = null;
 
   const counts = computed(() => ({
     untracked: changes.value.filter(c => c.kind === 'untracked').length,
@@ -121,14 +137,35 @@ export function useExternalChanges(sourcePath: () => string | null) {
 
   const changeKey = (change: ExternalChange) => `${change.kind}::${pathKey(change.path)}`;
 
+  const getItemTypes = async (): Promise<ItemType[]> => {
+    itemTypesCache ??= await api.getItemTypes();
+    return itemTypesCache;
+  };
+
+  const applyParentFolderPresetRules = async (item: Item, parentFolder: Item | null) => {
+    if (item.itemType === 'folder' || !parentFolder) return;
+
+    const preset = await api.getFolderRulePreset(parentFolder.id);
+    if (!preset) return;
+
+    const types = await getItemTypes();
+    const type = types.find(t => t.id === preset.presetTypeId);
+    if (!type?.tagRules?.length) return;
+
+    await api.applyRulesToItem(item.id, type.tagRules);
+  };
+
   const importUntrackedItem = async (path: string): Promise<void> => {
-    await api.quickImportItem(path);
+    const parentFolder = findNearestParentFolder(path, latestDbItems.value);
+    const item = await api.quickImportItem(path);
+    await applyParentFolderPresetRules(item, parentFolder);
   };
 
   const refresh = async () => {
     const path = sourcePath();
     if (!path) {
       changes.value = [];
+      latestDbItems.value = [];
       return;
     }
     isLoading.value = true;
@@ -137,11 +174,13 @@ export function useExternalChanges(sourcePath: () => string | null) {
         api.listDirFiles(path),
         loadAllDbItems(path),
       ]);
+      latestDbItems.value = dbItems;
       const detected = computeExternalChanges(path, fileItems, dbItems);
       changes.value = detected.filter(c => !dismissedKeys.value.has(changeKey(c)));
     } catch (e) {
       console.error('[useExternalChanges] refresh failed', e);
       changes.value = [];
+      latestDbItems.value = [];
     } finally {
       isLoading.value = false;
     }

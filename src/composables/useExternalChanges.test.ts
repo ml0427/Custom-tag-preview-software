@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, type FileItem, type Item, type Page } from '../api';
+import { api, type FileItem, type FolderRulePreset, type Item, type ItemType, type Page, type TagRuleInput } from '../api';
 import { computeExternalChanges, useExternalChanges } from './useExternalChanges';
 
 vi.mock('../api', async importOriginal => {
@@ -13,6 +13,7 @@ vi.mock('../api', async importOriginal => {
       quickImportItem: vi.fn(),
       setItemCategory: vi.fn(),
       getItemTypes: vi.fn(),
+      getFolderRulePreset: vi.fn(),
       applyRulesToItem: vi.fn(),
       untrackItem: vi.fn(),
       incrementalScan: vi.fn(),
@@ -64,6 +65,40 @@ const page = <T>(content: T[], totalPages = 1): Page<T> => ({
   totalElements: content.length,
   number: 0,
   size: content.length,
+});
+
+const tagRules: TagRuleInput[] = [
+  {
+    name: 'comic-name',
+    matchType: 'contains',
+    pattern: 'new',
+    tagName: '漫畫',
+  },
+];
+
+const itemType = (overrides: Partial<ItemType>): ItemType => ({
+  id: 7,
+  name: 'comic',
+  icon: 'C',
+  displayName: '漫畫',
+  color: null,
+  example: 'book.zip',
+  isBuiltin: false,
+  extensions: ['zip'],
+  tagRules,
+  ...overrides,
+});
+
+const folderPreset = (overrides: Partial<FolderRulePreset>): FolderRulePreset => ({
+  folderItemId: 10,
+  presetTypeId: 7,
+  presetName: 'comic',
+  presetDisplayName: '漫畫',
+  presetIcon: 'C',
+  applyToSubfolders: false,
+  applyToFiles: false,
+  fileExtensions: [],
+  ...overrides,
 });
 
 describe('computeExternalChanges', () => {
@@ -136,6 +171,7 @@ describe('useExternalChanges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMock.getItemTypes.mockResolvedValue([]);
+    apiMock.getFolderRulePreset.mockResolvedValue(null);
     apiMock.applyRulesToItem.mockResolvedValue({ added: 0, updated: 0, removed: 0, tagged: 0 });
   });
 
@@ -187,6 +223,52 @@ describe('useExternalChanges', () => {
     expect(apiMock.setItemCategory).not.toHaveBeenCalled();
     expect(apiMock.getItemTypes).not.toHaveBeenCalled();
     expect(apiMock.applyRulesToItem).not.toHaveBeenCalled();
+  });
+
+  it('applies parent folder preset rules when fixing an untracked child file', async () => {
+    const parentFolder = dbItem({
+      id: 10,
+      path: 'C:/Library',
+      name: 'Library',
+      itemType: 'folder',
+      fileSize: null,
+      fileModifiedAt: null,
+      category: 'default',
+    });
+    const importedItem = dbItem({
+      id: 20,
+      path: 'C:/Library/new.zip',
+      name: 'new.zip',
+      category: 'default',
+    });
+
+    apiMock.listDirFiles
+      .mockResolvedValueOnce([
+        fileItem({ path: 'C:/Library/new.zip', name: 'new.zip' }),
+      ])
+      .mockResolvedValueOnce([
+        fileItem({ path: 'C:/Library/new.zip', name: 'new.zip' }),
+      ]);
+    apiMock.getItems
+      .mockResolvedValueOnce(page([parentFolder]))
+      .mockResolvedValueOnce(page([parentFolder, importedItem]));
+    apiMock.quickImportItem.mockResolvedValueOnce(importedItem);
+    apiMock.getFolderRulePreset.mockResolvedValueOnce(folderPreset({ folderItemId: 10, presetTypeId: 7 }));
+    apiMock.getItemTypes.mockResolvedValueOnce([
+      itemType({ id: 1, name: 'default', tagRules: [] }),
+      itemType({ id: 7, name: 'comic', tagRules }),
+    ]);
+
+    const externalChanges = useExternalChanges(() => 'C:/Library');
+
+    await externalChanges.refresh();
+    await externalChanges.fixAll();
+
+    expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
+    expect(apiMock.getFolderRulePreset).toHaveBeenCalledWith(10);
+    expect(apiMock.getItemTypes).toHaveBeenCalledTimes(1);
+    expect(apiMock.applyRulesToItem).toHaveBeenCalledWith(20, tagRules);
+    expect(apiMock.setItemCategory).not.toHaveBeenCalled();
   });
 
   it('does not apply parent category when the parent has only the default category', async () => {
