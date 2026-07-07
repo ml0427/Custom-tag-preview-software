@@ -74,6 +74,7 @@ const scrollContextKey = computed(() => buildGalleryScrollContextKey({
 }));
 const initialScrollTop = computed(() => getScrollTop(scrollContextKey.value));
 const handleScrollPositionChange = (stateKey: string, scrollTop: number) => {
+  if (readerItem.value) return;
   setScrollTop(stateKey, scrollTop);
 };
 
@@ -176,17 +177,24 @@ const batchDelete = async () => {
 
 const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'cbz', 'cbr'];
 const readerItem = ref<Item | null>(null);
-type ScrollRestorableView = { restoreScrollPosition: () => void };
+type ScrollRestorableView = {
+  restoreScrollPosition: () => void;
+  captureScrollPosition: () => void;
+};
 const fileExplorerTableRef = ref<ScrollRestorableView | null>(null);
 const thumbnailGridRef = ref<ScrollRestorableView | null>(null);
 
+const getActiveGalleryView = (): ScrollRestorableView | null => (
+  viewMode.value === 'list' ? fileExplorerTableRef.value : thumbnailGridRef.value
+);
+
+const captureGalleryScrollPosition = () => {
+  getActiveGalleryView()?.captureScrollPosition();
+};
+
 const restoreGalleryScrollPosition = () => {
   const restore = () => {
-    if (viewMode.value === 'list') {
-      fileExplorerTableRef.value?.restoreScrollPosition();
-      return;
-    }
-    thumbnailGridRef.value?.restoreScrollPosition();
+    getActiveGalleryView()?.restoreScrollPosition();
   };
 
   restore();
@@ -249,12 +257,14 @@ const openReaderForFileItem = async (fileItem: FileItem): Promise<boolean> => {
   if (!fileItem.isDir && !isReadableArchiveItem(fileItem)) return false;
 
   if (!fileItem.isDir) {
+    captureGalleryScrollPosition();
     readerItem.value = createReaderItemFromFile(fileItem);
     return true;
   }
 
   const dbItem = existing ?? await getOrImportDbItem(fileItem);
   if (!dbItem || !isReadableFileItem(fileItem, dbItem)) return false;
+  captureGalleryScrollPosition();
   readerItem.value = dbItem;
   return true;
 };

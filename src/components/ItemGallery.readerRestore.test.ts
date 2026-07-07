@@ -14,8 +14,25 @@ describe('ItemGallery reader close scroll restore', () => {
     expect(gallerySource).toContain('@close="handleReaderClose"');
   });
 
+  it('captures the current gallery position before opening the reader', () => {
+    expect(gallerySource).toContain('captureScrollPosition: () => void');
+    expect(gallerySource).toContain('const captureGalleryScrollPosition = () =>');
+    expect(gallerySource).toContain('captureGalleryScrollPosition();\n    readerItem.value =');
+  });
+
+  it('does not let reader-open scroll events overwrite the saved gallery position', () => {
+    expect(gallerySource).toContain('const handleScrollPositionChange = (stateKey: string, scrollTop: number) => {');
+    expect(gallerySource).toContain('if (readerItem.value) return;');
+    expect(gallerySource).toContain('setScrollTop(stateKey, scrollTop);');
+  });
+
   it('exposes scroll restore hooks from both gallery views', () => {
-    expect(tableSource).toContain('defineExpose({ restoreScrollPosition })');
-    expect(gridSource).toContain('defineExpose({ restoreScrollPosition })');
+    expect(tableSource).toContain('restoreScrollPosition');
+    expect(gridSource).toContain('restoreScrollPosition');
+  });
+
+  it('exposes scroll capture hooks from both gallery views', () => {
+    expect(tableSource).toContain('defineExpose({ restoreScrollPosition, captureScrollPosition })');
+    expect(gridSource).toContain('defineExpose({ restoreScrollPosition, captureScrollPosition })');
   });
 });

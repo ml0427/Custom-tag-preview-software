@@ -107,6 +107,10 @@ const emitCurrentScrollPosition = (stateKey = props.scrollStateKey) => {
   emit('scrollPositionChange', stateKey, outerRef.value?.scrollTop ?? 0);
 };
 
+const captureScrollPosition = () => {
+  emitCurrentScrollPosition();
+};
+
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
   if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
@@ -289,7 +293,7 @@ onMounted(resetObserverAndRestoreScroll);
 onBeforeUnmount(() => {
   emitCurrentScrollPosition();
 });
-defineExpose({ restoreScrollPosition });
+defineExpose({ restoreScrollPosition, captureScrollPosition });
 onUnmounted(() => {
   thumbObserver?.disconnect();
   cardElements.clear();
