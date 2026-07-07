@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { computed } from 'vue';
 import { buildGalleryScrollContextKey, useGalleryViewState } from './useGalleryViewState';
 
 describe('useGalleryViewState scroll memory', () => {
@@ -30,6 +31,19 @@ describe('useGalleryViewState scroll memory', () => {
 
     state.setScrollTop('source:A|list', -24);
     expect(state.getScrollTop('source:A|list')).toBe(0);
+  });
+
+  it('updates computed readers when the saved scroll position changes', () => {
+    const state = useGalleryViewState('workspace-reactive-scroll-test');
+    const rememberedScrollTop = computed(() => state.getScrollTop('source:A|grid'));
+
+    expect(rememberedScrollTop.value).toBe(0);
+
+    state.setScrollTop('source:A|grid', 133912.9);
+    expect(rememberedScrollTop.value).toBe(133912);
+
+    state.setScrollTop('source:A|grid', 0);
+    expect(rememberedScrollTop.value).toBe(0);
   });
 
   it('builds distinct context keys for view-affecting state', () => {

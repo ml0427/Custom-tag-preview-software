@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 
 const VALID_SORT_BY = ['name', 'size', 'date'] as const;
 const VALID_SORT_DIR = ['asc', 'desc'] as const;
@@ -19,7 +19,7 @@ export interface GalleryScrollContextInput {
   search: string;
 }
 
-const galleryScrollPositions = new Map<string, number>();
+const galleryScrollPositions = reactive(new Map<string, number>());
 
 export const buildGalleryScrollContextKey = ({
   viewMode,
