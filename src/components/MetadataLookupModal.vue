@@ -288,7 +288,7 @@ const applySelectedTags = async () => {
 <template>
   <teleport to="body">
     <div v-if="visible && item" class="metadata-overlay" @click.self="emit('close')">
-      <section class="metadata-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-title">
+      <section class="metadata-modal workbench-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-title">
         <header class="metadata-header">
           <div class="title-stack">
             <p class="eyebrow">metadata lookup</p>
@@ -459,9 +459,10 @@ const applySelectedTags = async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg-panel);
+  background: var(--surface-panel);
   color: var(--text-primary);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--line-default);
+  border-top: 2px solid var(--catalog-spine);
   border-radius: 8px;
   box-shadow: var(--shadow-modal);
 }

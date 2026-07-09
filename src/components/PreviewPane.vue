@@ -5,6 +5,7 @@ import MediaViewer from './MediaViewer.vue';
 import MetadataPanel from './MetadataPanel.vue';
 import PreviewEditPanel from './PreviewEditPanel.vue';
 import { openFileAndRecord } from '../utils/openTracking';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps<{
     item: Item | null;
@@ -88,14 +89,19 @@ const openItem = async () => {
 </script>
 
 <template>
-    <div class="preview-pane" :class="{ 'empty': !item }">
-        <div class="pane-header">
-            <span class="pane-title">PREVIEW</span>
-            <button class="pane-close" @click="emit('close')" title="關閉預覽">✕</button>
+    <div class="preview-pane inspector-panel" :class="{ 'empty': !item }" aria-label="項目 Inspector">
+        <div class="pane-header inspector-identity">
+            <div>
+                <span class="pane-kicker">Record inspector</span>
+                <span class="pane-title">項目資料</span>
+            </div>
+            <button class="pane-close" @click="emit('close')" title="關閉 Inspector" aria-label="關閉 Inspector">
+                <AppIcon name="x" :size="15" />
+            </button>
         </div>
 
-        <div v-if="item" class="content">
-            <div class="pane-tabs" role="tablist" aria-label="預覽模式">
+        <div v-if="item" class="content inspector-content">
+            <div class="pane-tabs inspector-tabs" role="tablist" aria-label="預覽模式">
                 <button
                   class="pane-tab"
                   :class="{ active: activeTab === 'info' }"
@@ -119,19 +125,23 @@ const openItem = async () => {
             </div>
 
             <template v-if="activeTab === 'info'">
-                <MediaViewer
-                  :item="item"
-                  :coverUrl="coverUrl"
-                  @click="activeTab = 'edit'"
-                />
-                <MetadataPanel
-                  :title="item.name"
-                  :size="item.itemType === 'file' ? formatSize(item.fileSize) : undefined"
-                  :date="item.itemType === 'file' ? formatDate(item.fileModifiedAt) : undefined"
-                  :tags="item.tags"
-                  :note="item.note"
-                  @tagClick="emit('tagClick', $event)"
-                />
+                <div class="inspector-scroll">
+                    <div class="inspector-media">
+                        <MediaViewer
+                          :item="item"
+                          :coverUrl="coverUrl"
+                          @click="activeTab = 'edit'"
+                        />
+                    </div>
+                    <MetadataPanel
+                      :title="item.name"
+                      :size="item.itemType === 'file' ? formatSize(item.fileSize) : undefined"
+                      :date="item.itemType === 'file' ? formatDate(item.fileModifiedAt) : undefined"
+                      :tags="item.tags"
+                      :note="item.note"
+                      @tagClick="emit('tagClick', $event)"
+                    />
+                </div>
             </template>
 
             <PreviewEditPanel
@@ -143,17 +153,20 @@ const openItem = async () => {
               @deleted="emit('deleted')"
             />
 
-            <div class="pane-footer">
+            <div class="pane-footer inspector-actions">
                 <button class="footer-btn btn-edit" @click="activeTab = activeTab === 'edit' ? 'info' : 'edit'">
                   {{ activeTab === 'edit' ? '資訊' : '編輯' }}
                 </button>
-                <button v-if="item.itemType === 'file'" class="footer-btn btn-open" @click="openItem">▶ 開啟</button>
+                <button v-if="item.itemType === 'file'" class="footer-btn btn-open" @click="openItem">
+                    <AppIcon name="play" :size="14" /> 開啟
+                </button>
             </div>
         </div>
 
         <div v-else class="empty-state">
-            <div class="empty-icon">📂</div>
-            <p>選取工作目錄中的已匯入項目來預覽詳細資訊</p>
+            <span class="empty-icon"><AppIcon name="panel-right" :size="26" /></span>
+            <span class="pane-kicker">No record selected</span>
+            <p>選取一個項目，在這裡查看內容、Metadata 與標籤。</p>
         </div>
     </div>
 </template>
@@ -162,8 +175,8 @@ const openItem = async () => {
 .preview-pane {
     width: 350px;
     height: 100%;
-    background: var(--bg-panel);
-    border-left: 1px solid var(--border-default);
+    background: var(--surface-panel);
+    border-left: 1px solid var(--line-default);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -173,17 +186,29 @@ const openItem = async () => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border-subtle);
+    min-height: 68px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--line-default);
+    border-top: 2px solid var(--catalog-spine);
     flex-shrink: 0;
 }
 
 .pane-title {
-    font-family: var(--font-mono);
-    font-size: 10px;
+    display: block;
+    margin-top: 4px;
+    color: var(--content-primary);
+    font-family: var(--font-jp);
+    font-size: 0.95rem;
     font-weight: 600;
+}
+
+.pane-kicker {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 500;
     letter-spacing: 0.15em;
-    color: var(--text-tertiary);
+    color: var(--content-muted);
     text-transform: uppercase;
 }
 
@@ -191,9 +216,12 @@ const openItem = async () => {
     background: transparent;
     border: none;
     color: var(--text-tertiary);
-    font-size: 0.85rem;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 0;
     border-radius: 4px;
     line-height: 1;
     transition: color 0.15s, background 0.15s;
@@ -206,10 +234,28 @@ const openItem = async () => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: var(--text-secondary);
-    opacity: 0.6;
+    gap: 8px;
+    padding: 28px;
+    color: var(--content-muted);
+    text-align: center;
 }
-.empty-icon { font-size: 3rem; margin-bottom: 16px; }
+.empty-icon {
+    width: 52px;
+    height: 52px;
+    margin-bottom: 7px;
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+    background: var(--accent-bg-subtle);
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state p {
+    max-width: 250px;
+    font-size: 0.76rem;
+    line-height: 1.6;
+}
 
 .content {
     flex: 1;
@@ -218,11 +264,21 @@ const openItem = async () => {
     overflow: hidden;
 }
 
+.inspector-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.inspector-media {
+    padding: 12px 14px 0;
+}
+
 .pane-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px;
-    padding: 10px 16px 0;
+    padding: 10px 14px 0;
     flex-shrink: 0;
 }
 
@@ -253,7 +309,7 @@ const openItem = async () => {
     display: flex;
     gap: 8px;
     padding: 14px 16px;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--line-default);
     flex-shrink: 0;
 }
 
@@ -270,6 +326,27 @@ const openItem = async () => {
     background: transparent;
     border: 1px solid var(--border-default);
     color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+@media (max-width: 1279px) {
+    .inspector-panel { max-width: 340px; }
+}
+
+@media (max-width: 959px) {
+    .inspector-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 320;
+        width: min(360px, calc(100vw - 64px)) !important;
+        min-width: 0 !important;
+        box-shadow: var(--shadow-modal);
+    }
 }
 
 .footer-btn:hover {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
 import { useExternalChanges, type ExternalChangeKind } from '../composables/useExternalChanges';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -36,7 +37,14 @@ const hasAny = computed(() => changes.value.length > 0);
 </script>
 
 <template>
-  <div class="health-view">
+  <div class="health-view page-shell">
+    <header class="health-hero page-header">
+      <div>
+        <span class="page-kicker">System integrity</span>
+        <h1 class="page-title">檔案健檢</h1>
+        <p class="page-copy">比對磁碟與資料庫狀態，集中處理新增、遺失與內容變更。</p>
+      </div>
+    </header>
     <section class="health-section ext-section">
       <header class="section-header">
         <div class="section-title-row">
@@ -74,7 +82,7 @@ const hasAny = computed(() => changes.value.length > 0);
         </div>
 
         <div v-else-if="!hasAny" class="state-center">
-          <div class="state-icon">✅</div>
+          <div class="state-icon"><AppIcon name="check" :size="28" :stroke-width="2.2" /></div>
           <p class="state-msg">沒有偵測到外部更動</p>
           <p v-if="lastFixResult" class="state-hint">
             上次修復：新增 {{ lastFixResult.added }} ・ 更新 {{ lastFixResult.updated }} ・ 移除 {{ lastFixResult.removed }}
@@ -154,6 +162,47 @@ const hasAny = computed(() => changes.value.length > 0);
 </template>
 
 <style scoped>
+.health-hero {
+  padding: 28px 32px 22px;
+  border-bottom: 1px solid var(--line-default);
+}
+
+.page-kicker {
+  color: var(--content-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.page-title {
+  margin-top: 5px;
+  color: var(--content-primary);
+  font-family: var(--font-sans);
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.page-copy {
+  max-width: 680px;
+  margin-top: 10px;
+  color: var(--content-secondary);
+  font-size: 0.86rem;
+}
+
+.state-icon {
+  width: 58px;
+  height: 58px;
+  margin-bottom: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-success) 28%, transparent);
+  border-radius: var(--radius-lg);
+}
+
 .health-view {
   display: flex;
   flex-direction: column;
@@ -258,7 +307,6 @@ const hasAny = computed(() => changes.value.length > 0);
   gap: 10px;
   color: var(--text-secondary);
 }
-.state-icon { font-size: 2.4rem; }
 .state-msg { font-size: 0.95rem; }
 .state-hint { font-size: 0.78rem; opacity: 0.6; }
 

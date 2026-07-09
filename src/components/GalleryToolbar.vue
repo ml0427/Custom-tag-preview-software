@@ -149,14 +149,6 @@ const gallerySearch = computed({
   border-radius: var(--radius-md);
 }
 
-.command-icon:hover:not(:disabled),
-.search-clear:hover,
-.sort-direction:hover {
-  color: var(--content-primary);
-  background: var(--surface-hover);
-  border-color: var(--line-default);
-}
-
 .command-icon:disabled {
   opacity: 0.28;
   cursor: default;
@@ -276,10 +268,21 @@ const gallerySearch = computed({
   white-space: nowrap;
 }
 
+.command-chip {
+  height: var(--control-height-md);
+  padding-inline: 11px;
+  background: var(--surface-raised);
+  border-color: var(--line-default);
+}
+
+.command-icon:hover:not(:disabled),
+.search-clear:hover,
+.sort-direction:hover,
 .segment-button:hover,
 .command-chip:hover {
   color: var(--content-primary);
   background: var(--surface-hover);
+  border-color: var(--line-default);
 }
 
 .segment-button.active,
@@ -287,13 +290,6 @@ const gallerySearch = computed({
   color: var(--accent);
   background: var(--accent-bg-subtle);
   border-color: var(--accent-border);
-}
-
-.command-chip {
-  height: var(--control-height-md);
-  padding-inline: 11px;
-  background: var(--surface-raised);
-  border-color: var(--line-default);
 }
 
 @media (max-width: 1080px) {

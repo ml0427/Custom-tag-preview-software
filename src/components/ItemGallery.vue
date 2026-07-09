@@ -689,13 +689,19 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       </div>
     </div>
 
-    <button class="preview-toggle-btn" @click="togglePreview" :title="isPreviewOpen ? '收起預覽' : '展開預覽'">
-      {{ isPreviewOpen ? '›' : '‹' }}
+    <button
+      class="inspector-toggle"
+      @click="togglePreview"
+      :title="isPreviewOpen ? '收起 Inspector' : '展開 Inspector'"
+      aria-label="切換 Inspector"
+      :aria-pressed="isPreviewOpen"
+    >
+      <AppIcon name="panel-right" :size="16" />
     </button>
 
     <div
       v-if="isPreviewOpen"
-      class="resizer"
+      class="inspector-resizer"
       :class="{ 'is-resizing': isResizing }"
       @mousedown="startResizing"
     ></div>
@@ -744,7 +750,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   overflow: hidden;
 }
 
-.resizer {
+.inspector-resizer {
   width: 4px;
   height: 100vh;
   cursor: col-resize;
@@ -754,7 +760,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   position: relative;
 }
 
-.resizer:hover, .resizer.is-resizing {
+.inspector-resizer:hover, .inspector-resizer.is-resizing {
   background: var(--accent);
   width: 6px;
   box-shadow: 0 0 10px var(--accent);
@@ -940,27 +946,31 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .page-info { font-family: var(--font-mono); font-size: 0.75rem; }
 
-.preview-toggle-btn {
+.inspector-toggle {
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 14px;
-  height: 60px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-default);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  color: var(--text-secondary);
+  right: 14px;
+  bottom: 14px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  color: var(--content-muted);
   cursor: pointer;
   z-index: 110;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
   transition: background 0.2s, color 0.2s;
+  box-shadow: var(--shadow-popover);
 }
-.preview-toggle-btn:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
+.inspector-toggle:hover,
+.inspector-toggle[aria-pressed="true"] {
+  background: var(--accent-bg-subtle);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
 
 .selection-command-bar {
   position: relative;
@@ -1034,4 +1044,14 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 .tag-picker-item:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
 .tag-picker-empty { padding: 10px; text-align: center; font-size: 0.8rem; color: var(--text-tertiary); }
+
+@media (max-width: 959px) {
+  .gallery-container {
+    padding-inline: 12px;
+  }
+
+  .inspector-resizer {
+    display: none;
+  }
+}
 </style>

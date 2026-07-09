@@ -149,6 +149,7 @@ const openFolder = async () => {
 <template>
   <DetailFormLayout
     v-if="item"
+    class="workbench-modal"
     :title="item.name"
     :subtitle="item.path"
     @close="emit('close')"

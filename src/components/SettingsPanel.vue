@@ -135,12 +135,12 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 </script>
 
 <template>
-  <div class="settings-panel">
-    <header class="settings-hero">
+  <div class="settings-panel page-shell">
+    <header class="settings-hero page-header">
       <div class="hero-copy">
-        <span class="eyebrow">Settings</span>
-        <h2>設定中心</h2>
-        <p>把外觀、標籤規則集與診斷工具分開管理；資料夾維持單純容器，語意交給標籤。</p>
+        <span class="eyebrow page-kicker">Settings</span>
+        <h2 class="page-title">設定中心</h2>
+        <p class="page-copy">把外觀、標籤規則集與診斷工具分開管理；資料夾維持單純容器，語意交給標籤。</p>
       </div>
       <div class="hero-metrics" aria-label="設定摘要">
         <span class="metric-pill"><strong>{{ ruleSetCount }}</strong> 規則集</span>

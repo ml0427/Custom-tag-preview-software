@@ -316,4 +316,20 @@ onUnmounted(() => {
 
 .scan-bar-enter-active, .scan-bar-leave-active { transition: opacity var(--transition-fast), transform var(--transition-fast); }
 .scan-bar-enter-from, .scan-bar-leave-to { opacity: 0; transform: translateY(10px); }
+
+@media (max-width: 1279px) {
+  .context-sidebar { width: 228px; }
+}
+
+@media (max-width: 959px) {
+  .context-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 64px;
+    z-index: 300;
+    width: min(260px, calc(100vw - 64px));
+    box-shadow: var(--shadow-modal);
+  }
+}
 </style>

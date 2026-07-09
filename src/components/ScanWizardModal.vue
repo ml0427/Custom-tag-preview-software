@@ -138,7 +138,7 @@ const applyAndClose = async () => {
 <template>
   <Teleport to="body">
     <div v-if="visible" class="overlay" @click.self="emit('close')">
-      <div class="wizard-card">
+      <div class="wizard-card workbench-modal">
         <!-- Header -->
         <div class="wizard-header">
           <div class="step-bar">

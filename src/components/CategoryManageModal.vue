@@ -41,7 +41,7 @@ watch(() => props.visible, async (v) => {
 <template>
     <Teleport to="body">
         <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
-            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rule-set-modal-title">
+            <div class="modal workbench-modal" role="dialog" aria-modal="true" aria-labelledby="rule-set-modal-title">
                 <header class="modal-header">
                     <div class="title-block">
                         <span class="modal-eyebrow">Automation presets</span>

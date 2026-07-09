@@ -342,9 +342,13 @@ const handleSetCover = async (imagePath: string) => {
 
 .edit-section {
   min-width: 0;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
 }
 
 .edit-section h3 {
@@ -354,7 +358,7 @@ const handleSetCover = async (imagePath: string) => {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--content-muted);
 }
 
 .field-block {
@@ -440,6 +444,11 @@ const handleSetCover = async (imagePath: string) => {
   padding: 5px 8px;
 }
 
+.panel-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .panel-btn:hover:not(:disabled) {
   border-color: var(--accent);
   background: var(--accent-bg-subtle);
@@ -449,11 +458,6 @@ const handleSetCover = async (imagePath: string) => {
 .panel-btn.primary:hover:not(:disabled) {
   background: var(--accent-hover);
   color: var(--text-on-accent);
-}
-
-.panel-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .hint-line {

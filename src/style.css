@@ -204,6 +204,34 @@ input[type="text"]:focus {
   box-shadow: var(--shadow-popover);
 }
 
+.page-shell {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  color: var(--content-primary);
+  background: var(--surface-canvas);
+}
+
+.page-header {
+  background:
+    linear-gradient(110deg, var(--accent-bg-subtle), transparent 46%),
+    var(--surface-canvas);
+}
+
+.page-kicker {
+  color: var(--content-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.workbench-modal {
+  border-color: var(--line-default);
+  box-shadow: var(--shadow-modal);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

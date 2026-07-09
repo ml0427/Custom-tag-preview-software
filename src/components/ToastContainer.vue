@@ -66,12 +66,6 @@ const toastIcon = (type: string): AppIconName => {
   pointer-events: auto;
 }
 
-.toast-success { border-left-color: var(--color-success); }
-.toast-error { border-left-color: var(--color-danger); }
-.toast-info .toast-icon { color: var(--color-info); }
-.toast-success .toast-icon { color: var(--color-success); }
-.toast-error .toast-icon { color: var(--color-danger); }
-
 .toast-icon {
   width: 28px;
   height: 28px;
@@ -81,6 +75,12 @@ const toastIcon = (type: string): AppIconName => {
   background: var(--surface-hover);
   border-radius: var(--radius-sm);
 }
+
+.toast-success { border-left-color: var(--color-success); }
+.toast-error { border-left-color: var(--color-danger); }
+.toast-info .toast-icon { color: var(--color-info); }
+.toast-success .toast-icon { color: var(--color-success); }
+.toast-error .toast-icon { color: var(--color-danger); }
 
 .toast-message {
   min-width: 0;

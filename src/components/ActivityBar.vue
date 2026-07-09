@@ -194,4 +194,16 @@ const mainItems: Array<{
 .settings-button {
   flex: 0 0 auto;
 }
+
+@media (max-width: 959px) {
+  .activity-bar {
+    width: 64px;
+    padding-inline: 5px;
+  }
+
+  .activity-btn,
+  .brand-mark {
+    width: 50px;
+  }
+}
 </style>
