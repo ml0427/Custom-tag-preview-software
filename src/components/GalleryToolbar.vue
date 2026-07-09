@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps<{
   sourcePath: string | null;
@@ -25,215 +26,286 @@ const emit = defineEmits<{
 
 const gallerySearch = computed({
   get: () => props.searchQuery,
-  set: (val) => emit('update:searchQuery', val)
+  set: (val) => emit('update:searchQuery', val),
 });
 </script>
 
 <template>
-  <div class="search-bar-wrap">
-    <template v-if="sourcePath">
-      <button class="nav-btn" :disabled="!hasParent" @click="emit('goUp')" title="上一層">↑</button>
-      <button class="nav-btn" @click="emit('refresh')" :class="{ spinning: isLoading }" title="重新整理">↺</button>
-      <span class="divider"></span>
-    </template>
-    <span class="search-icon">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
-    </span>
-    <input
-      v-model="gallerySearch"
-      class="gallery-search"
-      placeholder="搜尋檔名、標籤、備註..."
-    />
-    <button v-if="gallerySearch" class="clear-btn" @click="gallerySearch = ''" title="清除搜尋">✕</button>
-    <div class="header-right">
-      <div v-if="viewMode === 'grid'" class="sort-group">
-        <select class="sort-select" :value="sortBy" @change="emit('updateSortBy', ($event.target as HTMLSelectElement).value)">
+  <div class="gallery-command-bar" role="search">
+    <div v-if="sourcePath" class="navigation-controls">
+      <button class="command-icon" :disabled="!hasParent" @click="emit('goUp')" title="上一層" aria-label="上一層">
+        <AppIcon name="arrow-up" :size="17" />
+      </button>
+      <button class="command-icon" @click="emit('refresh')" :class="{ spinning: isLoading }" title="重新整理" aria-label="重新整理">
+        <AppIcon name="refresh" :size="17" />
+      </button>
+      <span class="command-divider" aria-hidden="true"></span>
+    </div>
+
+    <label class="command-search">
+      <AppIcon name="search" :size="16" />
+      <input
+        v-model="gallerySearch"
+        class="gallery-search"
+        placeholder="搜尋檔名、標籤、備註..."
+        aria-label="搜尋檔名、標籤或備註"
+      />
+      <button v-if="gallerySearch" type="button" class="search-clear" @click.prevent="gallerySearch = ''" title="清除搜尋" aria-label="清除搜尋">
+        <AppIcon name="x" :size="14" />
+      </button>
+    </label>
+
+    <div class="command-actions">
+      <div v-if="viewMode === 'grid'" class="sort-controls" :title="sortLabel">
+        <select class="sort-select" :value="sortBy" aria-label="排序欄位" @change="emit('updateSortBy', ($event.target as HTMLSelectElement).value)">
           <option value="name">名稱</option>
           <option value="size">大小</option>
           <option value="date">時間</option>
         </select>
-        <button class="sort-dir-btn" @click="emit('toggleSortDir')" title="切換排序方向">
+        <button class="sort-direction" @click="emit('toggleSortDir')" title="切換排序方向" aria-label="切換排序方向">
           {{ sortDir === 'asc' ? '↑' : '↓' }}
         </button>
       </div>
-      <div class="view-toggle">
-        <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="emit('update:viewMode', 'list')" title="列表檢視">☰</button>
-        <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="emit('update:viewMode', 'grid')" title="縮圖格子">⊞</button>
+
+      <div class="view-segment" role="group" aria-label="顯示模式">
         <button
-          class="view-btn frequent-btn"
-          :class="{ active: frequentMode }"
-          @click="emit('update:frequentMode', !frequentMode)"
-          title="顯示常用項目"
-          :aria-pressed="frequentMode"
+          class="segment-button"
+          :class="{ active: viewMode === 'list' }"
+          :aria-pressed="viewMode === 'list'"
+          @click="emit('update:viewMode', 'list')"
+          title="列表檢視"
         >
-          <span aria-hidden="true">★</span>
-          <span>常用</span>
+          <AppIcon name="list" :size="16" />
+          <span>列表</span>
+        </button>
+        <button
+          class="segment-button"
+          :class="{ active: viewMode === 'grid' }"
+          :aria-pressed="viewMode === 'grid'"
+          @click="emit('update:viewMode', 'grid')"
+          title="縮圖格子"
+        >
+          <AppIcon name="grid" :size="15" />
+          <span>封面</span>
         </button>
       </div>
+
+      <button
+        class="command-chip frequent-btn"
+        :class="{ active: frequentMode }"
+        @click="emit('update:frequentMode', !frequentMode)"
+        title="顯示常用項目"
+        :aria-pressed="frequentMode"
+      >
+        <AppIcon name="star" :size="14" />
+        <span>常用</span>
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.search-bar-wrap {
+.gallery-command-bar {
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 8px 14px;
-  background: var(--bg-panel);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-default);
-  margin-bottom: 6px;
-  min-width: 0;
+  gap: 8px;
+  background: var(--surface-panel);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
-.header-right {
+.navigation-controls,
+.command-actions,
+.view-segment,
+.sort-controls {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 0 1 auto;
-  margin-left: auto;
-  min-width: 0;
 }
 
-.sort-group {
-  display: flex;
+.navigation-controls {
+  gap: 3px;
+}
+
+.command-icon,
+.search-clear,
+.sort-direction {
+  display: inline-flex;
   align-items: center;
-  flex-shrink: 0;
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  overflow: hidden;
+  justify-content: center;
+  color: var(--content-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 
-.sort-select {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-family: var(--font-mono);
-  padding: 3px 6px 3px 8px;
-  outline: none;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  min-width: 0;
+.command-icon {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  padding: 0;
+  border-radius: var(--radius-md);
 }
-.sort-select:hover { color: var(--text-primary); }
 
-.sort-dir-btn {
-  background: transparent;
-  border: none;
-  border-left: 1px solid var(--border-default);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-family: var(--font-mono);
-  padding: 3px 8px;
-  cursor: pointer;
-  line-height: 1.6;
-  transition: color 0.15s, background 0.15s;
+.command-icon:hover:not(:disabled),
+.search-clear:hover,
+.sort-direction:hover {
+  color: var(--content-primary);
+  background: var(--surface-hover);
+  border-color: var(--line-default);
 }
-.sort-dir-btn:hover { color: var(--text-primary); background: var(--bg-overlay-strong); }
 
-.nav-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  line-height: 1;
-  flex-shrink: 0;
-  transition: color 0.15s, background 0.15s;
+.command-icon:disabled {
+  opacity: 0.28;
+  cursor: default;
 }
-.nav-btn:disabled { opacity: 0.3; cursor: default; }
-.nav-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-overlay-soft); }
-.nav-btn.spinning { animation: spin 0.5s linear; }
+
+.command-icon.spinning :deep(svg) {
+  animation: spin 0.55s linear;
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.divider {
+.command-divider {
   width: 1px;
-  height: 16px;
-  background: var(--border-default);
-  flex-shrink: 0;
+  height: 22px;
+  margin: 0 2px;
+  background: var(--line-default);
 }
 
-.clear-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.clear-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
-
-.search-icon {
+.command-search {
+  min-width: 180px;
+  height: var(--control-height-md);
+  padding: 0 9px 0 11px;
+  flex: 1 1 320px;
   display: flex;
   align-items: center;
-  flex-shrink: 0;
-  color: var(--text-tertiary);
+  gap: 9px;
+  color: var(--content-muted);
+  background: var(--surface-input);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
-.search-icon svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
+
+.command-search:focus-within {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: var(--ring-focus);
 }
 
 .gallery-search {
-  flex: 1 1 12rem;
   min-width: 0;
+  height: 100%;
+  padding: 0;
+  flex: 1;
+  color: var(--content-primary);
   background: transparent;
   border: none;
   outline: none;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-family: var(--font-jp);
+  font-size: 0.78rem;
 }
 
-.gallery-search::placeholder { color: var(--text-secondary); }
+.gallery-search::placeholder {
+  color: var(--content-muted);
+}
 
-.view-toggle {
-  display: flex;
-  gap: 1px;
-  flex-shrink: 0;
-  background: var(--bg-elevated);
+.search-clear {
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border-radius: var(--radius-sm);
-  padding: 2px;
 }
-.view-btn {
+
+.command-actions {
+  margin-left: auto;
+  gap: 7px;
+}
+
+.sort-controls,
+.view-segment {
+  height: var(--control-height-md);
+  padding: 3px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+}
+
+.sort-select {
+  height: 28px;
+  padding: 0 22px 0 8px;
+  color: var(--content-secondary);
   background: transparent;
   border: none;
-  color: var(--text-tertiary);
-  font-size: 0.9rem;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
   cursor: pointer;
-  padding: 3px 7px;
+}
+
+.sort-direction {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-left-color: var(--line-default);
   border-radius: var(--radius-sm);
-  line-height: 1;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  font-family: var(--font-mono);
 }
-.view-btn:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
-.view-btn.active {
-  color: var(--accent);
-  background: var(--accent-bg-subtle);
-  box-shadow: 0 0 6px var(--accent-border);
+
+.view-segment {
+  gap: 2px;
 }
-.frequent-btn {
+
+.segment-button,
+.command-chip {
+  height: 28px;
+  padding: 0 9px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-size: 0.76rem;
+  justify-content: center;
+  gap: 6px;
+  color: var(--content-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-jp);
+  font-size: 0.68rem;
   white-space: nowrap;
+}
+
+.segment-button:hover,
+.command-chip:hover {
+  color: var(--content-primary);
+  background: var(--surface-hover);
+}
+
+.segment-button.active,
+.command-chip.active {
+  color: var(--accent);
+  background: var(--accent-bg-subtle);
+  border-color: var(--accent-border);
+}
+
+.command-chip {
+  height: var(--control-height-md);
+  padding-inline: 11px;
+  background: var(--surface-raised);
+  border-color: var(--line-default);
+}
+
+@media (max-width: 1080px) {
+  .segment-button span,
+  .frequent-btn span {
+    display: none;
+  }
+
+  .segment-button,
+  .command-chip {
+    width: 30px;
+    padding: 0;
+  }
 }
 </style>

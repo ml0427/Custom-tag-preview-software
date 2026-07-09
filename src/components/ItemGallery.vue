@@ -8,6 +8,7 @@ import ComicSlideReader from './ComicSlideReader.vue';
 import GalleryToolbar from './GalleryToolbar.vue';
 import GalleryInfoBar from './GalleryInfoBar.vue';
 import MetadataLookupModal from './MetadataLookupModal.vue';
+import AppIcon from './AppIcon.vue';
 import { useToast } from '../composables/useToast';
 import { useGalleryData } from '../composables/useGalleryData';
 import { useGallerySelection } from '../composables/useGallerySelection';
@@ -440,6 +441,30 @@ const emptyStateTitle = computed(() =>
   frequentMode.value ? '還沒有常用項目' : '此目錄沒有任何檔案'
 );
 
+const workspaceTitle = computed(() => {
+  if (props.sourcePath) {
+    return props.sourcePath.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).pop() ?? '工作目錄';
+  }
+  if (props.selectedTagId != null) {
+    return props.allTags.find(tag => tag.id === props.selectedTagId)?.name ?? '標籤結果';
+  }
+  return '典藏工作台';
+});
+
+const workspaceKicker = computed(() => (
+  props.selectedTagId != null ? 'Tag index' : props.sourcePath ? 'Library location' : 'Archive workbench'
+));
+
+const workspacePathLabel = computed(() => {
+  if (props.sourcePath) return props.sourcePath;
+  if (props.selectedTagId != null) return '跨工作目錄檢視符合標籤的內容';
+  return '選擇一個來源，開始整理你的本地典藏。';
+});
+
+const emptyStateHint = computed(() => (
+  frequentMode.value ? '開啟內容後，常用項目會依使用次數排列在這裡。' : '這個位置目前沒有可顯示的內容。'
+));
+
 
 const {
   isPreviewOpen,
@@ -494,6 +519,15 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   <div class="main-layout">
     <div class="gallery-container">
       <div class="header">
+        <div class="workspace-heading">
+          <div class="workspace-title-block">
+            <span class="workspace-kicker">{{ workspaceKicker }}</span>
+            <h1>{{ workspaceTitle }}</h1>
+            <p>{{ workspacePathLabel }}</p>
+          </div>
+          <span class="workspace-index">{{ String(filteredFileItems.length).padStart(3, '0') }}</span>
+        </div>
+
         <GalleryToolbar
           :sourcePath="sourcePath"
           v-model:searchQuery="gallerySearch"
@@ -519,6 +553,56 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           :sizeLabel="totalSizeLabel"
         />
 
+        <div v-if="selectedPaths.length > 1" class="selection-command-bar">
+          <span class="batch-count">已選取 {{ selectedPaths.length }} 項</span>
+          <button class="batch-btn" @click="clearMultiSelect">取消選取</button>
+
+          <div class="batch-tag-wrap">
+            <button class="batch-btn" :disabled="isBatchTagging" @click="tagPickerMode === 'add' ? closeTagPicker() : openTagPicker('add')">
+              ＋ 加標籤
+            </button>
+            <div v-if="tagPickerMode === 'add'" class="tag-picker-popover surface-popover">
+              <input
+                v-model="tagPickerSearch"
+                class="tag-picker-input"
+                placeholder="搜尋標籤…"
+                @input="onTagPickerInput"
+                autofocus
+              />
+              <div class="tag-picker-list">
+                <div
+                  v-for="t in tagPickerSuggestions"
+                  :key="t.id"
+                  class="tag-picker-item"
+                  @mousedown.prevent="batchAddTag(t)"
+                >{{ t.name }}</div>
+                <div v-if="tagPickerSearch && !tagPickerSuggestions.length" class="tag-picker-empty">無符合標籤</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="batch-tag-wrap">
+            <button class="batch-btn" :disabled="isBatchTagging || !removableTags.length" @click="tagPickerMode === 'remove' ? closeTagPicker() : openTagPicker('remove')">
+              － 移標籤
+            </button>
+            <div v-if="tagPickerMode === 'remove'" class="tag-picker-popover surface-popover">
+              <div class="tag-picker-list">
+                <div
+                  v-for="t in removableTags"
+                  :key="t.id"
+                  class="tag-picker-item"
+                  @mousedown.prevent="batchRemoveTag(t)"
+                >{{ t.name }}</div>
+                <div v-if="!removableTags.length" class="tag-picker-empty">已選項目無標籤</div>
+              </div>
+            </div>
+          </div>
+
+          <button class="batch-btn batch-danger" :disabled="isBatchDeleting" @click="batchDelete">
+            {{ isBatchDeleting ? '刪除中...' : '移至資源回收筒' }}
+          </button>
+        </div>
+
         <div v-if="externalChangesReady && externalChanges.length" class="external-change-banner">
           <span class="external-change-text">
             偵測到 <strong>{{ externalChanges.length }}</strong> 筆外部更動
@@ -529,17 +613,22 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
       <div class="table-wrapper">
         <div v-if="!sourcePath && selectedTagId == null" class="no-workspace-state">
-          <div class="no-workspace-icon">📂</div>
-          <p>請從左側選擇工作目錄或標籤</p>
+          <span class="state-index"><AppIcon name="archive" :size="28" /></span>
+          <span class="state-kicker">No collection selected</span>
+          <h3>先選擇一個典藏位置</h3>
+          <p>從左側選擇工作目錄或標籤，內容會顯示在這裡。</p>
         </div>
 
         <div v-else-if="isLoading" class="loader">
           <div class="spinner"></div>
-          <p>載入中...</p>
+          <span class="state-kicker">Reading index</span>
+          <h3>正在讀取內容</h3>
         </div>
 
         <div v-else-if="filteredFileItems.length === 0" class="empty-state">
+          <span class="state-kicker">Empty index</span>
           <h3>{{ emptyStateTitle }}</h3>
+          <p>{{ emptyStateHint }}</p>
         </div>
 
         <FileExplorerTable
@@ -600,58 +689,6 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       </div>
     </div>
 
-    <Teleport to="body">
-      <div v-if="selectedPaths.length > 1" class="batch-action-bar">
-        <span class="batch-count">已選取 {{ selectedPaths.length }} 項</span>
-        <button class="batch-btn" @click="clearMultiSelect">取消選取</button>
-
-        <div class="batch-tag-wrap">
-          <button class="batch-btn" :disabled="isBatchTagging" @click="tagPickerMode === 'add' ? closeTagPicker() : openTagPicker('add')">
-            ＋ 加標籤
-          </button>
-          <div v-if="tagPickerMode === 'add'" class="tag-picker-popover">
-            <input
-              v-model="tagPickerSearch"
-              class="tag-picker-input"
-              placeholder="搜尋標籤…"
-              @input="onTagPickerInput"
-              autofocus
-            />
-            <div class="tag-picker-list">
-              <div
-                v-for="t in tagPickerSuggestions"
-                :key="t.id"
-                class="tag-picker-item"
-                @mousedown.prevent="batchAddTag(t)"
-              >{{ t.name }}</div>
-              <div v-if="tagPickerSearch && !tagPickerSuggestions.length" class="tag-picker-empty">無符合標籤</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="batch-tag-wrap">
-          <button class="batch-btn" :disabled="isBatchTagging || !removableTags.length" @click="tagPickerMode === 'remove' ? closeTagPicker() : openTagPicker('remove')">
-            － 移標籤
-          </button>
-          <div v-if="tagPickerMode === 'remove'" class="tag-picker-popover">
-            <div class="tag-picker-list">
-              <div
-                v-for="t in removableTags"
-                :key="t.id"
-                class="tag-picker-item"
-                @mousedown.prevent="batchRemoveTag(t)"
-              >{{ t.name }}</div>
-              <div v-if="!removableTags.length" class="tag-picker-empty">已選項目無標籤</div>
-            </div>
-          </div>
-        </div>
-
-        <button class="batch-btn batch-danger" :disabled="isBatchDeleting" @click="batchDelete">
-          {{ isBatchDeleting ? '刪除中...' : '移至資源回收筒' }}
-        </button>
-      </div>
-    </Teleport>
-
     <button class="preview-toggle-btn" @click="togglePreview" :title="isPreviewOpen ? '收起預覽' : '展開預覽'">
       {{ isPreviewOpen ? '›' : '‹' }}
     </button>
@@ -700,7 +737,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .gallery-container {
   flex: 1;
-  padding: 12px 12px 0;
+  min-width: 0;
+  padding: 16px 16px 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -722,7 +760,62 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   box-shadow: 0 0 10px var(--accent);
 }
 
-.header { margin-bottom: 8px; }
+.header { margin-bottom: 10px; }
+
+.workspace-heading {
+  min-width: 0;
+  padding: 0 2px 13px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace-title-block {
+  min-width: 0;
+}
+
+.workspace-kicker,
+.state-kicker {
+  color: var(--content-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.workspace-title-block h1 {
+  margin-top: 4px;
+  color: var(--content-primary);
+  font-family: var(--font-sans);
+  font-size: clamp(1.2rem, 2vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-title-block p {
+  margin-top: 4px;
+  color: var(--content-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-index {
+  color: var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: clamp(1.4rem, 3vw, 2.35rem);
+  font-weight: 500;
+  letter-spacing: -0.08em;
+  line-height: 0.9;
+}
 
 .external-change-banner {
   margin-top: 8px;
@@ -773,10 +866,38 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--text-tertiary);
+  gap: 7px;
+  color: var(--content-muted);
+  text-align: center;
 }
 
-.no-workspace-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+.state-index {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-lg);
+}
+
+.no-workspace-state h3,
+.loader h3,
+.empty-state h3 {
+  color: var(--content-primary);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.no-workspace-state p,
+.empty-state p {
+  max-width: 360px;
+  color: var(--content-muted);
+  font-family: var(--font-jp);
+  font-size: 0.76rem;
+}
 .spinner {
   width: 30px;
   height: 30px;
@@ -841,24 +962,25 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 .preview-toggle-btn:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
 
-.batch-action-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-elevated);
-  border: 1px solid var(--accent);
-  padding: 10px 20px;
-  border-radius: 50px;
-  box-shadow: var(--shadow-popover);
+.selection-command-bar {
+  position: relative;
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 7px 8px 7px 11px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  z-index: 2000;
-  animation: slideUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  flex-wrap: wrap;
+  gap: 7px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-default);
+  border-left: 2px solid var(--catalog-spine);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  z-index: 150;
+  animation: selection-in var(--transition-base) ease-out;
 }
 
-@keyframes slideUp { from { transform: translate(-50%, 100px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@keyframes selection-in { from { transform: translateY(-5px); opacity: 0; } }
 
 .batch-count { font-weight: 600; color: var(--accent); font-size: 0.9rem; margin-right: 8px; }
 .batch-btn {
@@ -879,7 +1001,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .batch-tag-wrap { position: relative; }
 .tag-picker-popover {
   position: absolute;
-  bottom: calc(100% + 12px);
+  top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-elevated);
