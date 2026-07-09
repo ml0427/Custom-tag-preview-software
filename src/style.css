@@ -154,3 +154,63 @@ input[type="text"]:focus {
 }
 
 .no-select { user-select: none; }
+
+/* Archive Workbench primitives */
+:where(button, input, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.icon-button {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--content-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.icon-button:hover {
+  color: var(--content-primary);
+  background: var(--surface-hover);
+  border-color: var(--line-default);
+}
+
+.workbench-card {
+  background: var(--surface-panel);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.workbench-kicker {
+  color: var(--content-muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.surface-popover {
+  background: var(--surface-raised);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -11,9 +11,9 @@
 
 :root,
 :root[data-theme="obsidian"] {
-  --bg-app:               #060609;
-  --bg-panel:             #0d0d15;
-  --bg-elevated:          #13131f;
+  --bg-app:               #08090c;
+  --bg-panel:             #11141b;
+  --bg-elevated:          #191e27;
   --bg-input:             rgba(0,0,0,0.4);
   --bg-hover:             rgba(255,255,255,0.04);
 
@@ -21,19 +21,19 @@
   --border-default:       rgba(255,255,255,0.09);
   --border-strong:        rgba(255,255,255,0.15);
 
-  --text-primary:         #f2efe8;
+  --text-primary:         #f2eee5;
   --text-secondary:       #c6c3b9;
   --text-tertiary:        #78766e;
   --text-on-accent:       #060609;
 
-  --accent:               #f0b429;
-  --accent-hover:         #f7cc5a;
+  --accent:               #d8a646;
+  --accent-hover:         #edbf63;
   --accent-bg-subtle:     rgba(240,178,41,0.07);
   --accent-bg-strong:     rgba(240,178,41,0.18);
 
   --color-danger:         #f07070;
   --color-danger-bg-subtle: rgba(240,112,112,0.1);
-  --color-success:        #68d9a4;
+  --color-success:        #67c5aa;
   --color-warning:        #f0b429;
   --color-info:           #7eb8f7;
 
@@ -41,7 +41,7 @@
   --bg-overlay-strong:    rgba(255,255,255,0.08);
   --bg-scrim:             rgba(0,0,0,0.70);
   --bg-scrim-heavy:       rgba(0,0,0,0.90);
-  --bg-image-placeholder: #060609;
+  --bg-image-placeholder: #08090c;
 
   --shadow-popover:       0 4px 16px rgba(0,0,0,0.5);
   --shadow-modal:         0 20px 60px rgba(0,0,0,0.6);
@@ -272,6 +272,27 @@
   --font-jp:   'Share Tech Mono', monospace;
 
   --accent-border: rgba(0,255,65,0.2);
+}
+
+
+/* ── Archive Workbench semantic layer ──────────────────────────────────────── */
+
+:root {
+  --surface-canvas: var(--bg-app);
+  --surface-panel: var(--bg-panel);
+  --surface-raised: var(--bg-elevated);
+  --surface-input: var(--bg-input);
+  --surface-hover: var(--bg-hover);
+  --line-subtle: var(--border-subtle);
+  --line-default: var(--border-default);
+  --line-strong: var(--border-strong);
+  --content-primary: var(--text-primary);
+  --content-secondary: var(--text-secondary);
+  --content-muted: var(--text-tertiary);
+  --control-height-sm: 30px;
+  --control-height-md: 36px;
+  --panel-gap: 12px;
+  --catalog-spine: var(--accent);
 }
 
 
