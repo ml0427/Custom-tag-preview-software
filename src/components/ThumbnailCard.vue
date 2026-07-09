@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue';
 import { type Item, type FileItem } from '../api';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps<{
   item: FileItem;
@@ -58,13 +59,16 @@ const tags = props.dbItem?.tags ?? [];
 
 <template>
   <div
-    class="thumb-card"
+    class="thumb-card archive-card"
     :class="{ selected: isSelected }"
     @click="emit('click', $event)"
     @dblclick="emit('dblclick')"
     @contextmenu.prevent.stop="emit('contextmenu', $event)"
   >
     <div class="thumb-cover">
+      <span v-if="isSelected" class="selection-marker" aria-label="已選取">
+        <AppIcon name="check" :size="13" :stroke-width="2.4" />
+      </span>
       <img
         v-if="showCover && coverUrl"
         :src="coverUrl"
@@ -83,7 +87,8 @@ const tags = props.dbItem?.tags ?? [];
         @click.stop="emit('read')"
         @dblclick.stop
       >
-        播放/閱讀
+        <AppIcon name="play" :size="14" />
+        <span>播放／閱讀</span>
       </button>
       <div v-if="typeColor" class="thumb-color-bar" :style="{ background: typeColor }"></div>
     </div>
@@ -116,24 +121,29 @@ const tags = props.dbItem?.tags ?? [];
 
 <style scoped>
 .thumb-card {
-  background: var(--bg-overlay-soft);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  position: relative;
+  background: var(--surface-panel);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: default;
-  transition: background 0.2s, border-color 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-base), background var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
   display: flex;
   flex-direction: column;
 }
 
 .thumb-card:hover {
-  background: var(--accent-bg-subtle);
-  border-color: var(--accent);
+  transform: translateY(-2px);
+  background: var(--surface-raised);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
 }
 
 .thumb-card.selected {
   background: var(--accent-bg-subtle) !important;
   border-color: var(--accent) !important;
+  box-shadow: inset 2px 0 0 var(--catalog-spine), var(--shadow-md);
 }
 
 .thumb-cover {
@@ -150,6 +160,12 @@ const tags = props.dbItem?.tags ?? [];
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 240ms ease, filter 240ms ease;
+}
+
+.thumb-card:hover .thumb-img {
+  transform: scale(1.025);
+  filter: saturate(1.05) contrast(1.02);
 }
 
 .thumb-icon-placeholder {
@@ -163,6 +179,22 @@ const tags = props.dbItem?.tags ?? [];
 
 .thumb-icon { font-size: 3rem; }
 
+.selection-marker {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-on-accent);
+  background: var(--accent);
+  border: 2px solid var(--surface-panel);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  z-index: 4;
+}
+
 .thumb-color-bar {
   position: absolute;
   left: 0;
@@ -173,7 +205,7 @@ const tags = props.dbItem?.tags ?? [];
 
 .thumb-read-action {
   position: absolute;
-  top: 8px;
+  bottom: 9px;
   left: 8px;
   right: 8px;
   height: 30px;
@@ -188,6 +220,10 @@ const tags = props.dbItem?.tags ?? [];
   transform: translateY(-4px);
   transition: opacity 0.16s, transform 0.16s, background 0.16s;
   backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 
 .thumb-read-action:focus-visible {
@@ -205,7 +241,8 @@ const tags = props.dbItem?.tags ?? [];
 }
 
 .thumb-info {
-  padding: 8px 10px;
+  min-height: 88px;
+  padding: 10px 11px 11px;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -213,8 +250,8 @@ const tags = props.dbItem?.tags ?? [];
 }
 
 .thumb-name {
-  font-size: 0.82rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
   display: -webkit-box;
@@ -232,7 +269,8 @@ const tags = props.dbItem?.tags ?? [];
 }
 
 .thumb-type {
-  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 9px;
   color: var(--text-secondary);
   background: var(--bg-overlay-soft);
   padding: 1px 5px;
@@ -241,7 +279,8 @@ const tags = props.dbItem?.tags ?? [];
 }
 
 .thumb-badge {
-  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 9px;
   color: var(--text-secondary);
   background: var(--bg-overlay-soft);
   padding: 1px 5px;

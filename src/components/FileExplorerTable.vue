@@ -326,7 +326,7 @@ const {
 
 <template>
   <div class="vscroll-outer" ref="outerRef" tabindex="0">
-    <table class="comic-table">
+    <table class="comic-table archive-table">
       <thead class="sticky-header">
         <tr>
           <th v-if="visibleCols.has('thumb')" class="col-thumb"></th>
@@ -446,7 +446,7 @@ const {
   <Teleport to="body">
     <div
       v-if="contextMenu.visible"
-      class="context-menu"
+      class="context-menu surface-popover"
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop
     >
@@ -480,7 +480,9 @@ const {
   height: 100%; /* 改用 100% 配合父層 flex */
   overflow-y: auto;
   outline: none;
-  background: var(--bg-panel);
+  background: var(--surface-panel);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   position: relative;
   isolation: isolate; /* 隔離 sticky-header stacking context，避免 row hit-test 穿透 */
 }
@@ -504,12 +506,14 @@ const {
 .comic-table th {
   position: sticky;
   top: 0;
-  background: var(--bg-panel);
+  background: var(--surface-panel);
   background-clip: padding-box;
-  padding: 12px 8px;
-  font-size: 0.8rem;
+  height: 38px;
+  padding: 0 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
   font-weight: 600;
-  color: var(--text-tertiary);
+  color: var(--content-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   z-index: 50;
@@ -521,7 +525,7 @@ const {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: var(--bg-panel);
+  background: var(--surface-panel);
 }
 .comic-table th.sortable { cursor: pointer; user-select: none; }
 .comic-table th.sortable:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
@@ -565,8 +569,9 @@ tr:hover .row-read-btn {
 }
 
 .comic-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-subtle);
+  height: 52px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line-subtle);
   font-size: 0.92rem;
   white-space: nowrap;
   overflow: hidden;
@@ -575,7 +580,7 @@ tr:hover .row-read-btn {
 }
 
 .comic-table tr { cursor: default; transition: background 0.15s; }
-.comic-table tr:hover { background: var(--bg-overlay-soft); }
+.comic-table tr:hover { background: var(--surface-hover); }
 .comic-table tr.selected { background: var(--accent-bg-subtle) !important; }
 .spacer-row td { padding: 0; border: none; }
 .comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
@@ -635,9 +640,9 @@ tr:hover .row-read-btn {
 
 /* Thumbnail */
 .thumb-wrap {
-  width: 40px;
-  height: 40px;
-  border-radius: 6px;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-overlay-soft);
   display: flex;
@@ -661,7 +666,7 @@ tr:hover .row-read-btn {
 }
 .file-title {
   font-family: var(--font-jp);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -720,24 +725,21 @@ tr:hover .row-read-btn {
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 4px;
-  min-width: 160px;
-  box-shadow: var(--shadow-popover);
+  padding: 5px;
+  min-width: 190px;
 }
 .ctx-item {
   display: block;
   width: 100%;
-  padding: 8px 14px;
+  min-height: 34px;
+  padding: 7px 12px;
   background: transparent;
   border: none;
   color: var(--text-primary);
   font-size: 0.9rem;
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: background 0.15s;
 }
 .ctx-item:hover { background: var(--bg-overlay-strong); }

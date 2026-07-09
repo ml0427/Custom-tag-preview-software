@@ -365,7 +365,7 @@ const startRenameCtx = () => {
   <Teleport to="body">
     <div
       v-if="contextMenu.visible"
-      class="context-menu"
+      class="context-menu surface-popover"
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop @contextmenu.prevent.stop
     >
@@ -398,8 +398,9 @@ const startRenameCtx = () => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px;
+  padding: 14px 2px 24px;
   box-sizing: border-box;
+  background: var(--surface-canvas);
 }
 
 .thumb-grid-outer::-webkit-scrollbar { width: 8px; }
@@ -410,31 +411,28 @@ const startRenameCtx = () => {
 
 .thumb-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
 }
 
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 4px;
-  min-width: 160px;
-  box-shadow: var(--shadow-popover);
+  padding: 5px;
+  min-width: 190px;
 }
 .ctx-item {
   display: block;
   width: 100%;
-  padding: 8px 14px;
+  min-height: 34px;
+  padding: 7px 12px;
   background: transparent;
   border: none;
   color: var(--text-primary);
   font-size: 0.9rem;
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: background 0.15s;
 }
 .ctx-item:hover { background: var(--bg-overlay-strong); }
