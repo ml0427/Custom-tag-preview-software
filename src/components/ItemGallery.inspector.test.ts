@@ -24,6 +24,11 @@ describe('Archive Workbench Inspector', () => {
     expect(gallery).toContain('<AppIcon');
   });
 
+  it('wires the resizer active state from the preview resize composable', () => {
+    const match = gallery.match(/const\s*\{(?<body>[\s\S]*?)\}\s*=\s*useGalleryPreviewResize\(\)/);
+    expect(match?.groups?.body).toContain('isResizing');
+  });
+
   it('uses one modal surface across editing workflows', () => {
     for (const source of modalSources) {
       expect(source).toContain('workbench-modal');

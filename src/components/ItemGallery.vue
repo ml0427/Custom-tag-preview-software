@@ -468,6 +468,7 @@ const emptyStateHint = computed(() => (
 
 const {
   isPreviewOpen,
+  isResizing,
   previewWidth,
   togglePreview,
   startResizing,
