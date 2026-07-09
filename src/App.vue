@@ -116,11 +116,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="layout" @contextmenu.prevent>
+  <div class="app-shell" @contextmenu.prevent>
     <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
-      <div v-if="activePanel && activePanel !== 'file-health' && activePanel !== 'settings'" class="side-panel glass-panel">
+      <aside v-if="activePanel && activePanel !== 'file-health' && activePanel !== 'settings'" class="context-sidebar">
         <TagSidebar
           v-if="activePanel === 'tags'"
           :key="tagSidebarRefreshKey"
@@ -133,10 +133,10 @@ onUnmounted(() => {
           @select="(path) => { selectedSourcePath = path; }"
           @folderCreated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); loadGlobalTags(); }"
         />
-      </div>
+      </aside>
     </transition>
 
-    <main class="main-content">
+    <main class="content-stage">
       <FileHealthView v-if="activePanel === 'file-health'" :sourcePath="selectedSourcePath" />
       <SettingsPanel
         v-else-if="activePanel === 'settings'"
@@ -179,7 +179,7 @@ onUnmounted(() => {
     <!-- 掃描進度條 -->
     <Teleport to="body">
       <transition name="scan-bar">
-        <div v-if="scanProgress.active" class="scan-progress-bar">
+        <div v-if="scanProgress.active" class="scan-status-capsule">
           <span class="scan-spinner"></span>
           <span class="scan-text">{{ scanStatusText }}</span>
           <span class="scan-name">{{ scanProgress.name }}</span>
@@ -199,30 +199,30 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.layout {
+.app-shell {
   display: flex;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: var(--bg-app);
+  background: var(--surface-canvas);
 }
 
-.side-panel {
-  width: 240px;
+.context-sidebar {
+  width: 260px;
   height: 100vh;
-  flex-shrink: 0;
-  border-radius: 0;
-  border-top: none;
-  border-bottom: none;
-  border-left: none;
+  flex: 0 0 auto;
+  background: var(--surface-panel);
+  border-right: 1px solid var(--line-default);
   overflow: hidden;
 }
 
-.main-content {
-  flex-grow: 1;
+.content-stage {
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--surface-canvas);
 }
 
 .panel-slide-enter-active,
@@ -239,24 +239,26 @@ onUnmounted(() => {
 
 .panel-slide-enter-to,
 .panel-slide-leave-from {
-  width: 240px;
+  width: 260px;
   opacity: 1;
 }
 
-.scan-progress-bar {
+.scan-status-capsule {
   position: fixed;
   bottom: 20px;
   right: 24px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
+  min-width: 280px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-default);
+  border-left: 2px solid var(--catalog-spine);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
   box-shadow: var(--shadow-popover);
   z-index: 1200;
-  max-width: 360px;
+  max-width: 420px;
   font-family: var(--font-mono);
 }
 

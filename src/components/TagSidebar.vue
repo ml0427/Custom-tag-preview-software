@@ -113,7 +113,11 @@ onUnmounted(() => {
 <template>
   <div class="panel">
     <div class="panel-header">
-      <h2>標籤篩選</h2>
+      <div>
+        <span class="panel-kicker">Index</span>
+        <h2>標籤篩選</h2>
+      </div>
+      <span class="panel-count">{{ tags.length }}</span>
     </div>
 
     <div class="search-box">
@@ -190,18 +194,44 @@ onUnmounted(() => {
 }
 
 .panel-header {
-  padding: 20px 16px 12px;
-  border-bottom: 1px solid var(--border-default);
+  padding: 22px 16px 14px;
+  border-bottom: 1px solid var(--line-default);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .panel-header h2 {
+  margin-top: 5px;
+  color: var(--content-primary);
+  font-family: var(--font-jp);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panel-kicker {
+  color: var(--content-muted);
   font-family: var(--font-mono);
   font-size: 9px;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-tertiary);
-  font-weight: 500;
+}
+
+.panel-count {
+  min-width: 26px;
+  height: 22px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .search-box {
@@ -349,8 +379,8 @@ onUnmounted(() => {
 .tag-list::-webkit-scrollbar-thumb { background: var(--bg-overlay-strong); border-radius: 10px; }
 
 .panel-footer {
-  padding: 10px 12px;
-  border-top: 1px solid var(--border-default);
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line-default);
   flex-shrink: 0;
 }
 
@@ -360,9 +390,10 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-weight: 500;
-  background: var(--bg-overlay-soft);
-  border: 1px dashed var(--border-default);
-  color: var(--text-secondary);
+  min-height: var(--control-height-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-default);
+  color: var(--content-secondary);
   cursor: pointer;
   transition: all 0.15s;
 }

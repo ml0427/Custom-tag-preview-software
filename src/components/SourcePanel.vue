@@ -370,7 +370,11 @@ onMounted(() => {
 <template>
   <div ref="panelRef" class="panel" @contextmenu.prevent>
     <div class="panel-header">
-      <h2>工作目錄</h2>
+      <div>
+        <span class="panel-kicker">Library</span>
+        <h2>工作目錄</h2>
+      </div>
+      <span class="panel-count">{{ sources.length }}</span>
     </div>
 
     <LocalDirTree
@@ -522,8 +526,8 @@ onMounted(() => {
 }
 
 .panel-header {
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 22px 16px 14px;
+  border-bottom: 1px solid var(--line-default);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -531,20 +535,43 @@ onMounted(() => {
 }
 
 .panel-header h2 {
+  margin-top: 5px;
+  color: var(--content-primary);
+  font-family: var(--font-jp);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panel-kicker {
+  color: var(--content-muted);
   font-family: var(--font-mono);
   font-size: 9px;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-tertiary);
-  font-weight: 500;
+}
+
+.panel-count {
+  min-width: 26px;
+  height: 22px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--accent-bg-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 .panel-footer {
-  padding: 12px;
+  padding: 12px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-top: 1px solid var(--border-default);
+  border-top: 1px solid var(--line-default);
   flex-shrink: 0;
 }
 
@@ -562,7 +589,9 @@ onMounted(() => {
 }
 
 .btn-add {
-  color: var(--text-secondary);
+  min-height: var(--control-height-md);
+  color: var(--content-secondary);
+  background: var(--surface-raised);
 }
 .btn-add:hover { background: var(--bg-overlay-soft); color: var(--text-primary); }
 

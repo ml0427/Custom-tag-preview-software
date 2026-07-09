@@ -1,116 +1,157 @@
 <script setup lang="ts">
+import AppIcon, { type AppIconName } from './AppIcon.vue';
+
 defineProps<{ active: string | null; hasSource: boolean }>();
 const emit = defineEmits<{ (e: 'select', id: string): void }>();
 
-const mainItems = [
-  { id: 'workspace',   label: '工作目錄' },
-  { id: 'tags',        label: '標籤篩選' },
-  { id: 'file-health', label: '檔案健檢' },
+const mainItems: Array<{
+  id: 'workspace' | 'tags' | 'file-health';
+  label: string;
+  shortLabel: string;
+  icon: AppIconName;
+}> = [
+  { id: 'workspace', label: '工作目錄', shortLabel: '目錄', icon: 'folder' },
+  { id: 'tags', label: '標籤篩選', shortLabel: '標籤', icon: 'tag' },
+  { id: 'file-health', label: '檔案健檢', shortLabel: '健檢', icon: 'shield' },
 ];
-
-const settingsItem = { id: 'settings', label: '設定' };
 </script>
 
 <template>
-  <div class="activity-bar">
+  <nav class="activity-bar primary-rail" aria-label="主要導覽">
+    <div class="brand-mark" aria-label="Custom Tag Preview">
+      <span class="brand-glyph"><AppIcon name="archive" :size="20" /></span>
+      <span class="brand-type">CTP</span>
+    </div>
+
+    <div class="rail-group">
+      <button
+        v-for="item in mainItems"
+        :key="item.id"
+        class="activity-btn"
+        :class="{ active: active === item.id }"
+        :title="item.label"
+        :aria-current="active === item.id ? 'page' : undefined"
+        @click="emit('select', item.id)"
+      >
+        <span class="icon-container">
+          <AppIcon :name="item.icon" :size="19" />
+          <span v-if="item.id === 'workspace' && hasSource" class="source-status" aria-label="已選擇工作目錄"></span>
+        </span>
+        <span class="activity-label">{{ item.shortLabel }}</span>
+      </button>
+    </div>
+
+    <div class="rail-rule" aria-hidden="true"></div>
 
     <button
-      v-for="item in mainItems"
-      :key="item.id"
-      class="activity-btn"
-      :class="{ active: active === item.id }"
-      :title="item.label"
-      @click="emit('select', item.id)"
+      class="activity-btn settings-button"
+      :class="{ active: active === 'settings' }"
+      title="設定"
+      :aria-current="active === 'settings' ? 'page' : undefined"
+      @click="emit('select', 'settings')"
     >
-      <div class="icon-container">
-        <!-- workspace: folder -->
-        <svg v-if="item.id === 'workspace'" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-        </svg>
-
-        <!-- tags: tag -->
-        <svg v-else-if="item.id === 'tags'" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 8.25c-.97 0-1.75-.78-1.75-1.75s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.75-1.75 1.75z"/>
-        </svg>
-
-        <!-- file-health: shield with checkmark -->
-        <svg v-else-if="item.id === 'file-health'" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1.41 15.41L6.17 12l1.41-1.41 3.01 3.01 6.84-6.84L18.84 8l-8.25 8.41z"/>
-        </svg>
-      </div>
+      <span class="icon-container"><AppIcon name="settings" :size="19" /></span>
+      <span class="activity-label">設定</span>
     </button>
-
-    <div class="spacer"></div>
-
-    <!-- settings (置底) -->
-    <button
-      class="activity-btn"
-      :class="{ active: active === settingsItem.id }"
-      :title="settingsItem.label"
-      @click="emit('select', settingsItem.id)"
-    >
-      <div class="icon-container">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-        </svg>
-      </div>
-    </button>
-  </div>
+  </nav>
 </template>
 
 <style scoped>
 .activity-bar {
-  width: 44px;
+  width: 72px;
   height: 100vh;
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border-subtle);
+  padding: 12px 8px 10px;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  color: var(--content-secondary);
+  background:
+    linear-gradient(180deg, var(--accent-bg-subtle), transparent 110px),
+    var(--surface-panel);
+  border-right: 1px solid var(--line-default);
+  z-index: 200;
+}
+
+.brand-mark {
+  width: 52px;
+  min-height: 56px;
+  padding: 7px 0 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 14px 0;
-  gap: 2px;
-  z-index: 200;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 3px;
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background: var(--accent-bg-subtle);
+}
+
+.brand-glyph {
+  display: grid;
+  place-items: center;
+}
+
+.brand-type {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+
+.rail-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .activity-btn {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  width: 54px;
+  min-height: 52px;
+  padding: 6px 2px 5px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
+  gap: 4px;
+  color: var(--content-muted);
   background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  opacity: 0.8;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast);
-  position: relative;
-  flex-shrink: 0;
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .activity-btn::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 22%;
-  height: 56%;
+  top: 8px;
+  bottom: 8px;
+  left: -9px;
   width: 2px;
-  background: var(--accent);
-  border-radius: 0 2px 2px 0;
+  background: var(--catalog-spine);
   transform: scaleY(0);
+  transform-origin: center;
   transition: transform var(--transition-base);
 }
 
 .activity-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-overlay-soft);
+  color: var(--content-primary);
+  background: var(--surface-hover);
+  border-color: var(--line-subtle);
 }
 
 .activity-btn.active {
   color: var(--accent);
   background: var(--accent-bg-subtle);
+  border-color: var(--accent-border);
 }
 
 .activity-btn.active::before {
@@ -118,20 +159,39 @@ const settingsItem = { id: 'settings', label: '設定' };
 }
 
 .icon-container {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
 }
 
-.icon-container svg {
-  width: 100%;
-  height: 100%;
-  fill: currentColor;
-  display: block;
+.source-status {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px var(--surface-panel);
 }
 
-.spacer { flex: 1; }
+.activity-label {
+  font-family: var(--font-jp);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.rail-rule {
+  width: 22px;
+  height: 1px;
+  margin-top: auto;
+  background: var(--line-default);
+}
+
+.settings-button {
+  flex: 0 0 auto;
+}
 </style>
