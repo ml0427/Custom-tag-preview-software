@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 describe('Archive Workbench Inspector', () => {
   const gallery = readFileSync(new URL('./ItemGallery.vue', import.meta.url), 'utf8');
   const preview = readFileSync(new URL('./PreviewPane.vue', import.meta.url), 'utf8');
+  const detailForm = readFileSync(new URL('./DetailFormLayout.vue', import.meta.url), 'utf8');
   const modalSources = [
     'MetadataLookupModal.vue',
     'ItemDetailModal.vue',
@@ -33,5 +34,10 @@ describe('Archive Workbench Inspector', () => {
     for (const source of modalSources) {
       expect(source).toContain('workbench-modal');
     }
+  });
+
+  it('forwards detail modal attributes to the dialog surface instead of the backdrop', () => {
+    expect(detailForm).toContain('defineOptions({ inheritAttrs: false })');
+    expect(detailForm).toContain('class="modal-content workbench-modal" v-bind="$attrs"');
   });
 });

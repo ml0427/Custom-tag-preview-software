@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false });
+
 defineProps<{
   title: string;
   subtitle?: string;
@@ -12,7 +14,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-content workbench-modal">
+    <div class="modal-content workbench-modal" v-bind="$attrs">
       <button v-if="showClose !== false" class="close-btn" @click="emit('close')">✖</button>
       
       <div class="modal-body">
