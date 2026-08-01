@@ -9,6 +9,7 @@ type ReaderPage =
   | { kind: 'file'; path: string; label: string };
 
 const WHEEL_TARGET_SETTLE_MS = 200;
+const CHROME_HIDE_DELAY_MS = 160;
 
 const props = defineProps<{
   item: Item | null;
@@ -112,7 +113,7 @@ const scheduleChromeHide = () => {
   chromeHideTimer = window.setTimeout(() => {
     readerChromeVisible.value = false;
     chromeHideTimer = null;
-  }, 1800);
+  }, CHROME_HIDE_DELAY_MS);
 };
 
 const showReaderChrome = () => {
@@ -155,7 +156,8 @@ const toggleAutoplay = () => {
 
 const syncFullscreenState = () => {
   isFullscreen.value = document.fullscreenElement === readerShellRef.value;
-  showReaderChrome();
+  clearChromeHideTimer();
+  readerChromeVisible.value = !isFullscreen.value;
 };
 
 const enterFullscreen = async () => {
@@ -345,12 +347,8 @@ watch(() => props.item, item => {
 }, { immediate: true });
 watch([isAutoplaying, autoplaySeconds, pageIndex, canAutoplay], scheduleAutoplay);
 watch(isFullscreen, fullscreen => {
-  if (fullscreen) {
-    showReaderChrome();
-    return;
-  }
   clearChromeHideTimer();
-  readerChromeVisible.value = true;
+  readerChromeVisible.value = !fullscreen;
 });
 
 onUnmounted(() => {
@@ -377,7 +375,7 @@ onUnmounted(() => {
     >
       <div class="reader-chrome-zone reader-chrome-zone-top" @mouseenter="showReaderChrome"></div>
       <div class="reader-chrome-zone reader-chrome-zone-bottom" @mouseenter="showReaderChrome"></div>
-      <div class="reader-topbar" @click.stop @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
+      <div class="reader-topbar" @click.stop @mousemove.stop="holdReaderChrome" @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
         <div class="reader-title">
           <span class="reader-kicker">{{ readerModeLabel }}</span>
           <strong>{{ item.name }}</strong>
@@ -435,7 +433,7 @@ onUnmounted(() => {
         />
       </main>
 
-      <div class="reader-bottombar" @click.stop @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
+      <div class="reader-bottombar" @click.stop @mousemove.stop="holdReaderChrome" @mouseenter="holdReaderChrome" @mouseleave="scheduleChromeHide">
         <span>{{ bottomPageLabel }}</span>
         <span class="reader-hint">{{ footerHint }}</span>
       </div>
