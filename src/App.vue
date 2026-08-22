@@ -47,6 +47,13 @@ const loadGlobalTags = async () => {
   allTags.value = await api.getTags()
 }
 
+const loadInitialSource = async () => {
+  const sources = await api.getSources()
+  if (selectedSourcePath.value === null && sources.length > 0) {
+    selectedSourcePath.value = sources[0].path
+  }
+}
+
 const handleTagsChanged = async () => {
   const tags = await api.getTags()
   allTags.value = tags
@@ -99,6 +106,7 @@ const handleCancelScan = async () => {
 onMounted(async () => {
   loadGlobalTags()
   loadItemTypes()
+  loadInitialSource()
   unlistenScan = await listen<{ current: number; name: string; cancelled?: boolean }>('scan-progress', ({ payload }) => {
     scanProgress.value = { active: true, current: payload.current, name: payload.name }
     if (payload.cancelled) {

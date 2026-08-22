@@ -14,6 +14,9 @@ describe('Archive Workbench application shell', () => {
   it('starts in the workspace with the Library sidebar collapsed', () => {
     expect(app).toContain("const activePanel = ref<string | null>(null)");
     expect(app).toContain("!activePanel && lastMainView === 'workspace'");
+    expect(app).toContain('const sources = await api.getSources()');
+    expect(app).toContain('selectedSourcePath.value = sources[0].path');
+    expect(app).toContain('loadInitialSource()');
   });
 
   it('gives primary destinations visible labels', () => {
