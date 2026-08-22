@@ -25,6 +25,14 @@ describe('Archive Workbench Inspector', () => {
     expect(gallery).toContain('<AppIcon');
   });
 
+  it('keeps the Inspector toggle centered on the right edge', () => {
+    const toggleStyles = gallery.match(/\.inspector-toggle\s*\{(?<body>[\s\S]*?)\}/)?.groups?.body;
+
+    expect(toggleStyles).toContain('right: 0');
+    expect(toggleStyles).toContain('top: 50%');
+    expect(toggleStyles).toContain('transform: translateY(-50%)');
+  });
+
   it('wires the resizer active state from the preview resize composable', () => {
     const match = gallery.match(/const\s*\{(?<body>[\s\S]*?)\}\s*=\s*useGalleryPreviewResize\(\)/);
     expect(match?.groups?.body).toContain('isResizing');

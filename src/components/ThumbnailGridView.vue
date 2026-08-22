@@ -401,6 +401,7 @@ const startRenameCtx = () => {
   padding: 14px 2px 24px;
   box-sizing: border-box;
   background: var(--surface-canvas);
+  container-type: inline-size;
 }
 
 .thumb-grid-outer::-webkit-scrollbar { width: 8px; }
@@ -411,8 +412,28 @@ const startRenameCtx = () => {
 
 .thumb-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+@container (min-width: 642px) {
+  .thumb-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@container (min-width: 970px) {
+  .thumb-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+@container (min-width: 1298px) {
+  .thumb-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+
+@container (min-width: 1626px) {
+  .thumb-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+}
+
+@container (min-width: 1954px) {
+  .thumb-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
 }
 
 .context-menu {

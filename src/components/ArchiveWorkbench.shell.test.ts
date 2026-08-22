@@ -11,6 +11,11 @@ describe('Archive Workbench application shell', () => {
     expect(app).toContain('class="content-stage"');
   });
 
+  it('starts in the workspace with the Library sidebar collapsed', () => {
+    expect(app).toContain("const activePanel = ref<string | null>(null)");
+    expect(app).toContain("!activePanel && lastMainView === 'workspace'");
+  });
+
   it('gives primary destinations visible labels', () => {
     for (const label of ['工作目錄', '標籤', '健檢', '設定']) {
       expect(rail).toContain(label);

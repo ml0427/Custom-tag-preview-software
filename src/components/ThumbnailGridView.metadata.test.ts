@@ -21,4 +21,13 @@ describe('ThumbnailGridView metadata loading', () => {
     expect(source).toContain(':showOpenCount="showOpenCount"');
     expect(source).toContain(':openCount="getDbItem(item, itemByPath)?.openCount ?? 0"');
   });
+
+  it('keeps every responsive thumbnail row at an even column count', () => {
+    const columnCounts = [...source.matchAll(/grid-template-columns:\s*repeat\((\d+),/g)]
+      .map(match => Number(match[1]));
+
+    expect(columnCounts.length).toBeGreaterThan(0);
+    expect(columnCounts.every(count => count % 2 === 0)).toBe(true);
+    expect(source).not.toContain('repeat(auto-fill');
+  });
 });

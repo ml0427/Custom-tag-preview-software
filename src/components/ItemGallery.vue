@@ -949,14 +949,15 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .inspector-toggle {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
-  width: 36px;
-  height: 36px;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 60px;
   padding: 0;
   background: var(--surface-raised);
   border: 1px solid var(--line-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
   color: var(--content-muted);
   cursor: pointer;
   z-index: 110;
@@ -964,7 +965,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   align-items: center;
   justify-content: center;
   transition: background 0.2s, color 0.2s;
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--shadow-sm);
 }
 .inspector-toggle:hover,
 .inspector-toggle[aria-pressed="true"] {

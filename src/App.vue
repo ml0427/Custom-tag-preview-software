@@ -12,7 +12,7 @@ import FileHealthView from './components/FileHealthView.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
-const activePanel = ref<string | null>('workspace')
+const activePanel = ref<string | null>(null)
 const selectedTagId = ref<number | null>(null)
 const selectedSourcePath = ref<string | null>(null)
 const allTags = ref<Tag[]>([])
