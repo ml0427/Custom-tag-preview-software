@@ -47,11 +47,11 @@ const mainItems: Array<{
 
     <button
       class="activity-btn theme-button"
-      :title="themeStore.current === 'dark' ? '切換為淺色主題' : '切換為深色主題'"
+      title="切換下一個主題；可在設定選擇指定配色"
       @click="themeStore.toggleTheme()"
     >
       <AppIcon name="theme" :size="19" />
-      <span class="activity-label">{{ themeStore.current === 'dark' ? '淺色' : '深色' }}</span>
+      <span class="activity-label">主題</span>
     </button>
 
     <button

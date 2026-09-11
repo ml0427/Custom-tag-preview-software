@@ -101,6 +101,10 @@ const fontSizes: { id: FontSize; label: string; detail: string }[] = [
 const themes: { id: ThemeId; label: string; detail: string; color: string }[] = [
   { id: 'light', label: 'Light · 清爽', detail: '淺色畫布，適合長時間整理', color: '#315fc7' },
   { id: 'dark', label: 'Dark · 深色', detail: '深色畫布，降低環境光干擾', color: '#a5beff' },
+  { id: 'obsidian', label: 'Obsidian · 琥珀', detail: '原有配色：深黑與琥珀金', color: '#d8a646' },
+  { id: 'forge', label: 'Forge · 工業橘', detail: '原有配色：深灰與亮橘', color: '#ff6b35' },
+  { id: 'parchment', label: 'Parchment · 暖紙色', detail: '原有配色：米色與磚紅', color: '#b0431e' },
+  { id: 'phosphor', label: 'Phosphor · 螢光綠', detail: '原有配色：黑底與終端機綠', color: '#00ff41' },
 ];
 
 const settingsSections: { id: SettingsSectionId; eyebrow: string; title: string; description: string }[] = [

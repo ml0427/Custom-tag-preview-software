@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { normalizeTheme, THEME_IDS, type ThemeId } from '../utils/theme';
+import { isThemeId, normalizeTheme, THEME_IDS, type ThemeId } from '../utils/theme';
 
 export type { ThemeId } from '../utils/theme';
 
@@ -30,14 +30,16 @@ export const useThemeStore = defineStore('theme', {
       setTimeout(() => root.classList.remove('disable-transitions'), TRANSITION_DISABLE_MS);
     },
     toggleTheme() {
-      this.setTheme(this.current === 'light' ? 'dark' : 'light');
+      const nextIndex = (THEME_IDS.indexOf(this.current) + 1) % THEME_IDS.length;
+      this.setTheme(THEME_IDS[nextIndex]!);
     },
     /**
      * 啟動時呼叫。data-theme 已由 index.html head script 設置（避免 FOUC），
      * 此處只同步 store state 與 DOM，不重新呼叫 setTheme。
      */
     init() {
-      const fromDom = normalizeTheme(document.documentElement.getAttribute('data-theme'));
+      const domTheme = document.documentElement.getAttribute('data-theme');
+      const fromDom = isThemeId(domTheme) ? domTheme : this.current;
       this.current = fromDom;
       document.documentElement.setAttribute('data-theme', fromDom);
       localStorage.setItem(STORAGE_KEY, fromDom);
