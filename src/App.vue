@@ -125,7 +125,7 @@ onUnmounted(() => {
 
 <template>
   <div class="app-shell" @contextmenu.prevent>
-    <ActivityBar :active="activePanel" :hasSource="selectedSourcePath !== null" @select="handleActivitySelect" />
+    <ActivityBar :active="activePanel" @select="handleActivitySelect" />
 
     <transition name="panel-slide">
       <aside v-if="activePanel && activePanel !== 'file-health' && activePanel !== 'settings'" class="context-sidebar">
@@ -216,7 +216,7 @@ onUnmounted(() => {
 }
 
 .context-sidebar {
-  width: 260px;
+  width: 232px;
   height: 100vh;
   flex: 0 0 auto;
   background: var(--surface-panel);
@@ -247,7 +247,7 @@ onUnmounted(() => {
 
 .panel-slide-enter-to,
 .panel-slide-leave-from {
-  width: 260px;
+  width: 232px;
   opacity: 1;
 }
 
@@ -334,9 +334,9 @@ onUnmounted(() => {
     position: fixed;
     top: 0;
     bottom: 0;
-    left: 64px;
+    left: 60px;
     z-index: 300;
-    width: min(260px, calc(100vw - 64px));
+    width: min(260px, calc(100vw - 60px));
     box-shadow: var(--shadow-modal);
   }
 }

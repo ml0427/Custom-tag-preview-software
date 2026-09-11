@@ -8,7 +8,7 @@ import { useThumbnailLoader } from '../composables/useThumbnailLoader';
 import { useFolderRuleActions } from '../composables/useFolderRuleActions';
 import { isReadableFileItem } from '../utils/readableItem';
 import { pathKey } from '../utils/pathKey';
-import { useVirtualGrid } from '../composables/useVirtualGrid';
+import { DEFAULT_GRID_INFO_HEIGHT, useVirtualGrid } from '../composables/useVirtualGrid';
 import ThumbnailCard from './ThumbnailCard.vue';
 
 const props = defineProps<{
@@ -384,6 +384,7 @@ const startRenameCtx = () => {
       :style="{
         gridTemplateColumns: `repeat(${virtualColumnCount}, minmax(0, 1fr))`,
         '--thumb-cell-height': `${virtualRowHeight - 14}px`,
+        '--thumb-info-height': `${DEFAULT_GRID_INFO_HEIGHT}px`,
       }"
     >
       <div

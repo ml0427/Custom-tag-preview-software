@@ -371,7 +371,6 @@ onMounted(() => {
   <div ref="panelRef" class="panel" @contextmenu.prevent>
     <div class="panel-header">
       <div>
-        <span class="panel-kicker">Library</span>
         <h2>工作目錄</h2>
       </div>
       <span class="panel-count">{{ sources.length }}</span>
@@ -526,7 +525,7 @@ onMounted(() => {
 }
 
 .panel-header {
-  padding: 22px 16px 14px;
+  padding: 20px 16px 16px;
   border-bottom: 1px solid var(--line-default);
   flex-shrink: 0;
   display: flex;
@@ -535,20 +534,12 @@ onMounted(() => {
 }
 
 .panel-header h2 {
-  margin-top: 5px;
+  margin: 0;
   color: var(--content-primary);
   font-family: var(--font-jp);
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-
-.panel-kicker {
-  color: var(--content-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
 }
 
 .panel-count {

@@ -481,9 +481,9 @@ void colPickerRef;
   height: 100%; /* 改用 100% 配合父層 flex */
   overflow-y: auto;
   outline: none;
-  background: var(--surface-panel);
-  border: 1px solid var(--line-default);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   position: relative;
   isolation: isolate; /* 隔離 sticky-header stacking context，避免 row hit-test 穿透 */
 }
@@ -507,10 +507,10 @@ void colPickerRef;
 .comic-table th {
   position: sticky;
   top: 0;
-  background: var(--surface-panel);
+  background: var(--surface-canvas);
   background-clip: padding-box;
-  height: 38px;
-  padding: 0 10px;
+  height: 40px;
+  padding: 0 12px;
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 600;
@@ -526,7 +526,7 @@ void colPickerRef;
   position: sticky;
   top: 0;
   z-index: 50;
-  background: var(--surface-panel);
+  background: var(--surface-canvas);
 }
 .comic-table th.sortable { cursor: pointer; user-select: none; }
 .comic-table th.sortable:hover { color: var(--text-primary); background: var(--bg-overlay-soft); }
@@ -570,10 +570,10 @@ tr:hover .row-read-btn {
 }
 
 .comic-table td {
-  height: 52px;
-  padding: 6px 12px;
+  height: 56px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--line-subtle);
-  font-size: 0.92rem;
+  font-size: 0.875rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -584,10 +584,10 @@ tr:hover .row-read-btn {
 .comic-table tr:hover { background: var(--surface-hover); }
 .comic-table tr.selected { background: var(--accent-bg-subtle) !important; }
 .spacer-row td { padding: 0; border: none; }
-.comic-table tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+.comic-table tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 
 /* Column widths */
-.col-thumb    { width: 5%; min-width: 52px; padding: 8px; }
+.col-thumb    { width: 5%; min-width: 52px; padding: 7px; }
 .col-name     { width: 38%; }
 .col-tags     { width: 22%; }
 .col-size     { width: 10%; min-width: 64px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
@@ -641,11 +641,12 @@ tr:hover .row-read-btn {
 
 /* Thumbnail */
 .thumb-wrap {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 40px;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-overlay-soft);
+  background: var(--bg-image-placeholder);
+  border: 1px solid var(--line-default);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -749,7 +750,7 @@ tr:hover .row-read-btn {
 .ctx-danger:hover { background: var(--color-danger-bg-subtle); color: var(--color-danger); }
 
 :deep(mark) {
-  background: var(--color-warning);
+  background: var(--color-warning-bg-subtle);
   color: var(--text-primary);
   border-radius: 2px;
   padding: 0 1px;

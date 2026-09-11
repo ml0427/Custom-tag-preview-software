@@ -122,28 +122,23 @@ const tags = props.dbItem?.tags ?? [];
 <style scoped>
 .thumb-card {
   position: relative;
-  background: var(--surface-panel);
-  border: 1px solid var(--line-default);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
   cursor: default;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-base), background var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+  transition: opacity var(--transition-base);
   display: flex;
   flex-direction: column;
 }
 
 .thumb-card:hover {
-  transform: translateY(-2px);
-  background: var(--surface-raised);
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow-md);
+  background: transparent;
 }
 
 .thumb-card.selected {
-  background: var(--accent-bg-subtle) !important;
-  border-color: var(--accent) !important;
-  box-shadow: inset 2px 0 0 var(--catalog-spine), var(--shadow-md);
+  background: transparent !important;
+  box-shadow: none;
 }
 
 .thumb-cover {
@@ -152,7 +147,25 @@ const tags = props.dbItem?.tags ?? [];
   aspect-ratio: 3 / 4;
   background: var(--bg-image-placeholder);
   overflow: hidden;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
   flex-shrink: 0;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+.thumb-card:hover .thumb-cover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.thumb-card.selected .thumb-cover {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: var(--shadow-md);
 }
 
 .thumb-img {
@@ -189,7 +202,7 @@ const tags = props.dbItem?.tags ?? [];
   place-items: center;
   color: var(--text-on-accent);
   background: var(--accent);
-  border: 2px solid var(--surface-panel);
+  border: 2px solid var(--bg-image-placeholder);
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-sm);
   z-index: 4;
@@ -209,10 +222,10 @@ const tags = props.dbItem?.tags ?? [];
   left: 8px;
   right: 8px;
   height: 30px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
-  background: var(--bg-scrim);
-  color: var(--text-primary);
+  background: var(--surface-panel);
+  color: var(--content-primary);
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
@@ -241,24 +254,25 @@ const tags = props.dbItem?.tags ?? [];
 }
 
 .thumb-info {
-  min-height: 88px;
-  padding: 10px 11px 11px;
+  height: var(--thumb-info-height, 74px);
+  min-height: var(--thumb-info-height, 74px);
+  padding: 9px 2px 0;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  flex: 1;
+  flex: none;
 }
 
 .thumb-name {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: block;
   line-height: 1.35;
-  word-break: break-all;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .thumb-meta {
@@ -338,7 +352,7 @@ const tags = props.dbItem?.tags ?? [];
 }
 
 :deep(mark) {
-  background: var(--color-warning);
+  background: var(--color-warning-bg-subtle);
   color: var(--text-primary);
   border-radius: 2px;
   padding: 0 1px;

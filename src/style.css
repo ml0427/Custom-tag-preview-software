@@ -21,12 +21,17 @@ html {
 
 body {
   font-family: var(--font-sans);
-  background: var(--bg-app);
-  color: var(--text-primary);
+  background: var(--surface-canvas);
+  color: var(--content-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   overflow-x: hidden;
+}
+
+html,
+#app {
+  background: var(--surface-canvas);
 }
 
 /* Scrollbar styling */
@@ -35,14 +40,14 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-app);
+  background: var(--surface-canvas);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-default);
+  background: var(--line-default);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
+  background: var(--line-strong);
 }
 
 /* Reusable Glass Panel */

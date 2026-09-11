@@ -23,6 +23,12 @@ describe('useGalleryViewState scroll memory', () => {
     expect(workspaceState.getScrollTop('source:B|grid')).toBe(0);
   });
 
+  it('starts new galleries in cover view while preserving a saved list preference', () => {
+    expect(useGalleryViewState('new-gallery').viewMode.value).toBe('grid');
+    localStorage.setItem('gallery:existing-gallery:view-mode', 'list');
+    expect(useGalleryViewState('existing-gallery').viewMode.value).toBe('list');
+  });
+
   it('normalizes invalid scroll positions to the top', () => {
     const state = useGalleryViewState('workspace-invalid-scroll-test');
 

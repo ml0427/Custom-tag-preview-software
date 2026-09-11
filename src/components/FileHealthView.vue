@@ -34,7 +34,6 @@ const hasAny = computed(() => changes.value.length > 0);
   <div class="health-view page-shell">
     <header class="health-hero page-header">
       <div>
-        <span class="page-kicker">System integrity</span>
         <h1 class="page-title">檔案健檢</h1>
         <p class="page-copy">比對磁碟與資料庫狀態，集中處理新增、遺失與內容變更。</p>
       </div>

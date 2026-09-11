@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getEvenColumnCount, getEstimatedRowHeight, getVirtualGridRange } from './useVirtualGrid';
+import {
+  DEFAULT_GRID_INFO_HEIGHT,
+  getEvenColumnCount,
+  getEstimatedRowHeight,
+  getVirtualGridRange,
+} from './useVirtualGrid';
 
 describe('useVirtualGrid helpers', () => {
   it('keeps responsive column counts even and aligned with the grid breakpoints', () => {
@@ -30,5 +35,12 @@ describe('useVirtualGrid helpers', () => {
   it('estimates a positive row pitch from the measured container width', () => {
     expect(getEstimatedRowHeight(1200, 6)).toBeGreaterThan(220);
     expect(getEstimatedRowHeight(0, 2)).toBe(220);
+  });
+
+  it('uses the compact card metadata height when estimating the row pitch', () => {
+    const gap = 14;
+    const cardWidth = (642 - gap * 3) / 4;
+    expect(getEstimatedRowHeight(642, 4, gap))
+      .toBe(Math.ceil(cardWidth * 4 / 3 + DEFAULT_GRID_INFO_HEIGHT + gap));
   });
 });

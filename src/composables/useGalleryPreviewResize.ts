@@ -2,7 +2,7 @@ import { onBeforeUnmount, ref } from 'vue';
 
 export function useGalleryPreviewResize() {
   const isPreviewOpen = ref(false);
-  const previewWidth = ref(350);
+  const previewWidth = ref(300);
   const isResizing = ref(false);
 
   const togglePreview = () => {

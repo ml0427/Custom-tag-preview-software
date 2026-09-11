@@ -99,28 +99,26 @@ const fontSizes: { id: FontSize; label: string; detail: string }[] = [
 ];
 
 const themes: { id: ThemeId; label: string; detail: string; color: string }[] = [
-  { id: 'obsidian',  label: 'Obsidian · Amber',    detail: '暗色琥珀，高對比工作台', color: '#f0b429' },
-  { id: 'forge',     label: 'Forge · Industrial',  detail: '工業深灰，銳利邊界', color: '#ff6b35' },
-  { id: 'parchment', label: 'Parchment · Archive', detail: '暖色紙本，適合長時間整理', color: '#b0431e' },
-  { id: 'phosphor',  label: 'Phosphor · Terminal', detail: '終端機綠光，極簡資訊密度', color: '#00ff41' },
+  { id: 'light', label: 'Light · 清爽', detail: '淺色畫布，適合長時間整理', color: '#315fc7' },
+  { id: 'dark', label: 'Dark · 深色', detail: '深色畫布，降低環境光干擾', color: '#a5beff' },
 ];
 
 const settingsSections: { id: SettingsSectionId; eyebrow: string; title: string; description: string }[] = [
   {
     id: 'automation',
-    eyebrow: 'Tags & automation',
+    eyebrow: '標籤與自動化',
     title: '標籤與自動化',
     description: '維護標籤規則集、清理空標籤；規則只負責輔助套標，不改變資料夾本身。',
   },
   {
     id: 'appearance',
-    eyebrow: 'Appearance',
+    eyebrow: '外觀',
     title: '外觀與閱讀密度',
     description: '調整字型大小與主題，讓資料整理介面符合你的工作距離。',
   },
   {
     id: 'system',
-    eyebrow: 'System',
+    eyebrow: '系統',
     title: '系統與診斷',
     description: '語言、Debug log 與低階診斷入口。',
   },
@@ -138,7 +136,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
   <div class="settings-panel page-shell">
     <header class="settings-hero page-header">
       <div class="hero-copy">
-        <span class="eyebrow page-kicker">Settings</span>
+        <span class="eyebrow page-kicker">設定</span>
         <h2 class="page-title">設定中心</h2>
         <p class="page-copy">把外觀、標籤規則集與診斷工具分開管理；資料夾維持單純容器，語意交給標籤。</p>
       </div>
@@ -175,7 +173,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card featured-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">Automation library</span>
+                <span class="card-kicker">規則集</span>
                 <h4>標籤規則集</h4>
               </div>
               <span class="card-count">{{ ruleSetCount }}</span>
@@ -196,7 +194,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">Tag hygiene</span>
+                <span class="card-kicker">標籤整理</span>
                 <h4>清理空標籤</h4>
               </div>
             </div>
@@ -218,7 +216,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">Density</span>
+                <span class="card-kicker">密度</span>
                 <h4>字型大小</h4>
               </div>
             </div>
@@ -240,7 +238,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card wide-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">Theme</span>
+                <span class="card-kicker">主題</span>
                 <h4>主題風格</h4>
               </div>
             </div>
@@ -268,7 +266,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">Language</span>
+                <span class="card-kicker">語言</span>
                 <h4>語言</h4>
               </div>
             </div>
@@ -283,7 +281,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card wide-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">Diagnostics</span>
+                <span class="card-kicker">診斷</span>
                 <h4>Debug 模式</h4>
               </div>
               <span class="status-pill" :class="{ active: debugMode }">{{ debugMode ? 'ON' : 'OFF' }}</span>
@@ -808,6 +806,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 
   .settings-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .settings-rail {
@@ -819,7 +818,8 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
   }
 
   .rail-item {
-    flex: 1 0 auto;
+    width: auto;
+    flex: 1 1 0;
   }
 
   .settings-content {

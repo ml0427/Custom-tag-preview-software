@@ -16,6 +16,9 @@ export interface VirtualGridOptions {
   minRowHeight?: number;
 }
 
+/** Height reserved below the 3:4 cover for the compact card metadata. */
+export const DEFAULT_GRID_INFO_HEIGHT = 74;
+
 export const getEvenColumnCount = (containerWidth: number): number => {
   if (!Number.isFinite(containerWidth) || containerWidth < 1) return 2;
   if (containerWidth >= 1954) return 12;
@@ -28,8 +31,8 @@ export const getEvenColumnCount = (containerWidth: number): number => {
 
 export const getEstimatedRowHeight = (containerWidth: number, columnCount: number, gap = 14): number => {
   const cardWidth = Math.max(1, (containerWidth - gap * (columnCount - 1)) / columnCount);
-  // ThumbnailCard keeps a 3:4 cover and an 88px information block.
-  return Math.max(220, Math.ceil(cardWidth * 4 / 3 + 88 + gap));
+  // ThumbnailCard keeps a 3:4 cover and a compact fixed-height information block.
+  return Math.max(220, Math.ceil(cardWidth * 4 / 3 + DEFAULT_GRID_INFO_HEIGHT + gap));
 };
 
 export const getVirtualGridRange = (

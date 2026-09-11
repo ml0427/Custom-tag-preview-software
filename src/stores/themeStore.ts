@@ -1,21 +1,16 @@
 import { defineStore } from 'pinia';
+import { normalizeTheme, THEME_IDS, type ThemeId } from '../utils/theme';
 
-export type ThemeId = 'obsidian' | 'forge' | 'parchment' | 'phosphor';
+export type { ThemeId } from '../utils/theme';
 
 const STORAGE_KEY = 'app-theme';
 const TRANSITION_DISABLE_MS = 50;
-
-const VALID_THEMES: ThemeId[] = ['obsidian', 'forge', 'parchment', 'phosphor'];
-
-function isValidTheme(v: string | null): v is ThemeId {
-  return v !== null && (VALID_THEMES as string[]).includes(v);
-}
 
 export const useThemeStore = defineStore('theme', {
   state: () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return {
-      current: (isValidTheme(saved) ? saved : 'obsidian') as ThemeId,
+      current: normalizeTheme(saved),
     };
   },
   actions: {
@@ -34,20 +29,20 @@ export const useThemeStore = defineStore('theme', {
       void root.offsetHeight;
       setTimeout(() => root.classList.remove('disable-transitions'), TRANSITION_DISABLE_MS);
     },
+    toggleTheme() {
+      this.setTheme(this.current === 'light' ? 'dark' : 'light');
+    },
     /**
      * 啟動時呼叫。data-theme 已由 index.html head script 設置（避免 FOUC），
      * 此處只同步 store state 與 DOM，不重新呼叫 setTheme。
      */
     init() {
-      const fromDom = document.documentElement.getAttribute('data-theme');
-      if (isValidTheme(fromDom)) {
-        this.current = fromDom;
-      } else {
-        // DOM 沒有合法 data-theme（理論不應發生）→ 補套用 store 既有值
-        this.setTheme(this.current);
-      }
+      const fromDom = normalizeTheme(document.documentElement.getAttribute('data-theme'));
+      this.current = fromDom;
+      document.documentElement.setAttribute('data-theme', fromDom);
+      localStorage.setItem(STORAGE_KEY, fromDom);
     },
   },
 });
 
-export const ALL_THEMES = VALID_THEMES;
+export const ALL_THEMES = THEME_IDS;

@@ -107,15 +107,12 @@ const gallerySearch = computed({
 <style scoped>
 .gallery-command-bar {
   min-width: 0;
-  min-height: 54px;
-  padding: 8px;
+  min-height: 42px;
+  padding: 0 0 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--surface-panel);
-  border: 1px solid var(--line-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  background: transparent;
 }
 
 .navigation-controls,
@@ -169,7 +166,7 @@ const gallerySearch = computed({
 
 .command-search {
   min-width: 180px;
-  height: var(--control-height-md);
+  height: 40px;
   padding: 0 9px 0 11px;
   flex: 1 1 320px;
   display: flex;
@@ -219,7 +216,7 @@ const gallerySearch = computed({
 
 .sort-controls,
 .view-segment {
-  height: var(--control-height-md);
+  height: 40px;
   padding: 3px;
   background: var(--surface-raised);
   border: 1px solid var(--line-default);
@@ -227,7 +224,7 @@ const gallerySearch = computed({
 }
 
 .sort-select {
-  height: 28px;
+  height: 34px;
   padding: 0 22px 0 8px;
   color: var(--content-secondary);
   background: transparent;
@@ -240,7 +237,7 @@ const gallerySearch = computed({
 
 .sort-direction {
   width: 28px;
-  height: 28px;
+  height: 34px;
   padding: 0;
   border-left-color: var(--line-default);
   border-radius: var(--radius-sm);

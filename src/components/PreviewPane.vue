@@ -91,10 +91,10 @@ const openItem = async () => {
     <div class="preview-pane inspector-panel" :class="{ 'empty': !item }" aria-label="項目 Inspector">
         <div class="pane-header inspector-identity">
             <div>
-                <span class="pane-kicker">Record inspector</span>
-                <span class="pane-title">項目資料</span>
+                <span class="pane-kicker">選取項目</span>
+                <span class="pane-title">項目詳情</span>
             </div>
-            <button class="pane-close" @click="emit('close')" title="關閉 Inspector" aria-label="關閉 Inspector">
+            <button class="pane-close" @click="emit('close')" title="關閉詳情" aria-label="關閉詳情">
                 <AppIcon name="x" :size="15" />
             </button>
         </div>
@@ -164,15 +164,15 @@ const openItem = async () => {
 
         <div v-else class="empty-state">
             <span class="empty-icon"><AppIcon name="panel-right" :size="26" /></span>
-            <span class="pane-kicker">No record selected</span>
-            <p>選取一個項目，在這裡查看內容、Metadata 與標籤。</p>
+            <span class="pane-kicker">尚未選取項目</span>
+            <p>選取一個項目，在這裡查看內容、資料與標籤。</p>
         </div>
     </div>
 </template>
 
 <style scoped>
 .preview-pane {
-    width: 350px;
+    width: 300px;
     height: 100%;
     background: var(--surface-panel);
     border-left: 1px solid var(--line-default);
@@ -185,10 +185,9 @@ const openItem = async () => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 68px;
-    padding: 13px 16px;
+    min-height: 62px;
+    padding: 12px 18px;
     border-bottom: 1px solid var(--line-default);
-    border-top: 2px solid var(--catalog-spine);
     flex-shrink: 0;
 }
 
@@ -197,18 +196,17 @@ const openItem = async () => {
     margin-top: 4px;
     color: var(--content-primary);
     font-family: var(--font-jp);
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 600;
 }
 
 .pane-kicker {
     display: block;
-    font-family: var(--font-mono);
-    font-size: 8px;
+    font-family: var(--font-jp);
+    font-size: 0.72rem;
     font-weight: 500;
-    letter-spacing: 0.15em;
+    letter-spacing: 0;
     color: var(--content-muted);
-    text-transform: uppercase;
 }
 
 .pane-close {
@@ -270,14 +268,14 @@ const openItem = async () => {
 }
 
 .inspector-media {
-    padding: 12px 14px 0;
+    padding: 16px 18px 0;
 }
 
 .pane-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px;
-    padding: 10px 14px 0;
+    padding: 12px 18px 0;
     flex-shrink: 0;
 }
 
@@ -307,7 +305,7 @@ const openItem = async () => {
 .pane-footer {
     display: flex;
     gap: 8px;
-    padding: 14px 16px;
+    padding: 12px 18px;
     border-top: 1px solid var(--line-default);
     flex-shrink: 0;
 }
@@ -315,10 +313,8 @@ const openItem = async () => {
 .footer-btn {
     flex: 1;
     padding: 8px 10px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-family: var(--font-jp);
+    font-size: 0.76rem;
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all var(--transition-fast);
@@ -342,7 +338,7 @@ const openItem = async () => {
         right: 0;
         bottom: 0;
         z-index: 320;
-        width: min(360px, calc(100vw - 64px)) !important;
+        width: min(360px, calc(100vw - 60px)) !important;
         min-width: 0 !important;
         box-shadow: var(--shadow-modal);
     }

@@ -457,14 +457,12 @@ const workspaceTitle = computed(() => {
   return '典藏工作台';
 });
 
-const workspaceKicker = computed(() => (
-  props.selectedTagId != null ? 'Tag index' : props.sourcePath ? 'Library location' : 'Archive workbench'
-));
-
-const workspacePathLabel = computed(() => {
-  if (props.sourcePath) return props.sourcePath;
-  if (props.selectedTagId != null) return '跨工作目錄檢視符合標籤的內容';
-  return '選擇一個來源，開始整理你的本地典藏。';
+const workspaceBreadcrumb = computed(() => {
+  if (props.sourcePath) {
+    const parts = props.sourcePath.replace(/\\/g, '/').split('/').filter(Boolean);
+    return parts.length > 2 ? `… / ${parts.slice(-2).join(' / ')}` : parts.join(' / ');
+  }
+  return props.selectedTagId != null ? '跨工作目錄 / 標籤結果' : '';
 });
 
 const emptyStateHint = computed(() => (
@@ -535,11 +533,21 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       <div class="header">
         <div class="workspace-heading">
           <div class="workspace-title-block">
-            <span class="workspace-kicker">{{ workspaceKicker }}</span>
+            <p class="workspace-breadcrumb">{{ workspaceBreadcrumb }}</p>
             <h1>{{ workspaceTitle }}</h1>
-            <p>{{ workspacePathLabel }}</p>
+            <span class="workspace-count">{{ filteredFileItems.length }} 個項目</span>
           </div>
-          <span class="workspace-index">{{ String(filteredFileItems.length).padStart(3, '0') }}</span>
+          <button
+            class="details-button"
+            :class="{ active: isPreviewOpen }"
+            @click="togglePreview"
+            :title="isPreviewOpen ? '收起詳情' : '查看詳情'"
+            aria-label="切換詳情"
+            :aria-pressed="isPreviewOpen"
+          >
+            <AppIcon name="panel-right" :size="16" />
+            <span>詳情</span>
+          </button>
         </div>
 
         <GalleryToolbar
@@ -710,16 +718,6 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       </div>
     </div>
 
-    <button
-      class="inspector-toggle"
-      @click="togglePreview"
-      :title="isPreviewOpen ? '收起 Inspector' : '展開 Inspector'"
-      aria-label="切換 Inspector"
-      :aria-pressed="isPreviewOpen"
-    >
-      <AppIcon name="panel-right" :size="16" />
-    </button>
-
     <div
       v-if="isPreviewOpen"
       class="inspector-resizer"
@@ -765,7 +763,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .gallery-container {
   flex: 1;
   min-width: 0;
-  padding: 16px 16px 0;
+  padding: 14px 22px 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -787,13 +785,13 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   box-shadow: 0 0 10px var(--accent);
 }
 
-.header { margin-bottom: 10px; }
+.header { margin-bottom: 12px; }
 
 .workspace-heading {
   min-width: 0;
-  padding: 0 2px 13px;
+  padding: 2px 2px 12px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
@@ -802,7 +800,6 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   min-width: 0;
 }
 
-.workspace-kicker,
 .state-kicker {
   color: var(--content-muted);
   font-family: var(--font-mono);
@@ -813,35 +810,56 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 }
 
 .workspace-title-block h1 {
-  margin-top: 4px;
+  margin: 3px 0 2px;
   color: var(--content-primary);
   font-family: var(--font-sans);
-  font-size: clamp(1.2rem, 2vw, 1.65rem);
-  font-weight: 700;
-  letter-spacing: -0.035em;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   line-height: 1.1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.workspace-title-block p {
-  margin-top: 4px;
+.workspace-breadcrumb {
+  margin: 0;
   color: var(--content-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font-family: var(--font-jp);
+  font-size: 0.72rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.workspace-index {
-  color: var(--line-strong);
-  font-family: var(--font-mono);
-  font-size: clamp(1.4rem, 3vw, 2.35rem);
-  font-weight: 500;
-  letter-spacing: -0.08em;
-  line-height: 0.9;
+.workspace-count {
+  color: var(--content-muted);
+  font-size: 0.72rem;
+}
+
+.details-button {
+  margin-left: auto;
+  min-height: var(--control-height-md);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--content-secondary);
+  background: var(--surface-panel);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-jp);
+  font-size: 0.76rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.details-button:hover,
+.details-button.active {
+  color: var(--accent);
+  background: var(--accent-bg-subtle);
+  border-color: var(--accent-border);
 }
 
 .external-change-banner {
@@ -968,33 +986,6 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 .page-btn:hover:not(:disabled) { background: var(--bg-overlay-soft); color: var(--text-primary); }
 
 .page-info { font-family: var(--font-mono); font-size: 0.75rem; }
-
-.inspector-toggle {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 60px;
-  padding: 0;
-  background: var(--surface-raised);
-  border: 1px solid var(--line-default);
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
-  color: var(--content-muted);
-  cursor: pointer;
-  z-index: 110;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s, color 0.2s;
-  box-shadow: var(--shadow-sm);
-}
-.inspector-toggle:hover,
-.inspector-toggle[aria-pressed="true"] {
-  background: var(--accent-bg-subtle);
-  border-color: var(--accent-border);
-  color: var(--accent);
-}
 
 .selection-command-bar {
   position: relative;

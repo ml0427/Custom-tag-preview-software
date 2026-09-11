@@ -15,22 +15,27 @@ describe('Archive Workbench Inspector', () => {
   ].map(file => readFileSync(new URL(`./${file}`, import.meta.url), 'utf8'));
 
   it('names and exposes the Inspector region', () => {
-    expect(gallery).toContain('class="inspector-resizer"');
+    expect(gallery).toContain('class="details-button"');
     expect(preview).toContain('class="preview-pane inspector-panel"');
     expect(preview).toContain('aria-label="項目 Inspector"');
   });
 
   it('uses an accessible Inspector toggle', () => {
-    expect(gallery).toContain('aria-label="切換 Inspector"');
+    expect(gallery).toContain('aria-label="切換詳情"');
     expect(gallery).toContain('<AppIcon');
   });
 
-  it('keeps the Inspector toggle centered on the right edge', () => {
-    const toggleStyles = gallery.match(/\.inspector-toggle\s*\{(?<body>[\s\S]*?)\}/)?.groups?.body;
+  it('places the Inspector toggle in the compact header', () => {
+    expect(gallery).toContain('<button\n            class="details-button"');
+    expect(gallery).toContain('<span>詳情</span>');
+    expect(gallery).not.toContain('class="inspector-toggle"');
+  });
 
-    expect(toggleStyles).toContain('right: 0');
-    expect(toggleStyles).toContain('top: 50%');
-    expect(toggleStyles).toContain('transform: translateY(-50%)');
+  it('keeps the gallery header compact and contextual', () => {
+    expect(gallery).toContain('class="workspace-breadcrumb"');
+    expect(gallery).toContain('class="workspace-count"');
+    expect(gallery).not.toContain('class="workspace-index"');
+    expect(gallery).not.toContain('class="workspace-kicker"');
   });
 
   it('wires the resizer active state from the preview resize composable', () => {

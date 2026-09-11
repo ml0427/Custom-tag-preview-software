@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 describe('ThumbnailGridView metadata loading', () => {
   const source = readFileSync(new URL('./ThumbnailGridView.vue', import.meta.url), 'utf8');
+  const cardSource = readFileSync(new URL('./ThumbnailCard.vue', import.meta.url), 'utf8');
+  const tableSource = readFileSync(new URL('./FileExplorerTable.vue', import.meta.url), 'utf8');
 
   it('loads archive page counts lazily for visible thumbnail cards', () => {
     expect(source).toContain('archivePageCounts');
@@ -29,5 +31,19 @@ describe('ThumbnailGridView metadata loading', () => {
     expect(columnCounts.length).toBeGreaterThan(0);
     expect(columnCounts.every(count => count % 2 === 0)).toBe(true);
     expect(source).not.toContain('repeat(auto-fill');
+  });
+
+  it('keeps the gallery cover independent from card chrome and uses token based selection', () => {
+    expect(cardSource).toContain('aspect-ratio: 3 / 4');
+    expect(cardSource).toContain('background: transparent');
+    expect(cardSource).toContain('outline: 2px solid var(--accent)');
+    expect(cardSource).toContain('height: var(--thumb-info-height, 74px)');
+    expect(cardSource).toContain('font-size: 0.875rem');
+  });
+
+  it('keeps the file list aligned with comfortable row spacing', () => {
+    expect(tableSource).toContain('height: 56px');
+    expect(tableSource).toContain('font-size: 0.875rem');
+    expect(tableSource).toContain('background: transparent');
   });
 });

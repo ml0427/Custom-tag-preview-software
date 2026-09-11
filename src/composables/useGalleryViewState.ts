@@ -71,7 +71,7 @@ export function useGalleryViewState(viewStateKey: string) {
     readStoredValue(`${storagePrefix}:sort-dir`, VALID_SORT_DIR, 'asc')
   );
   const viewMode = ref<ViewMode>(
-    readStoredValue(`${storagePrefix}:view-mode`, VALID_VIEW_MODE, 'list')
+    readStoredValue(`${storagePrefix}:view-mode`, VALID_VIEW_MODE, 'grid')
   );
   const frequentMode = ref(
     readStoredBoolean(`${storagePrefix}:frequent-mode`, false)

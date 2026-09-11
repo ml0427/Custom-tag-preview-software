@@ -4,11 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Custom Tag Preview v0.142 · 2026-09-12 00:08</title>
+    <title>Custom Tag Preview v0.143 · 2026-09-12 00:48</title>
     <script>
       // FOUC 防閃爍：在 Vue 掛載前同步注入 data-theme 與字型大小，避免先閃預設值
       (function () {
-        var t = localStorage.getItem('app-theme') || 'obsidian';
+        var savedTheme = localStorage.getItem('app-theme');
+        var legacyThemes = { parchment: 'light', obsidian: 'dark', forge: 'dark', phosphor: 'dark' };
+        var t = savedTheme === 'light' || savedTheme === 'dark'
+          ? savedTheme
+          : legacyThemes[savedTheme] || 'light';
         document.documentElement.setAttribute('data-theme', t);
 
         var f = localStorage.getItem('app-font-size') || 'medium';

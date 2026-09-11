@@ -38,6 +38,7 @@ describe('useGalleryPreviewResize', () => {
     const { isResizing, previewWidth, startResizing, stopResizing } = useGalleryPreviewResize();
 
     expect(isResizing.value).toBe(false);
+    expect(previewWidth.value).toBe(300);
     startResizing();
     expect(isResizing.value).toBe(true);
     expect(documentStub.body.style.cursor).toBe('col-resize');

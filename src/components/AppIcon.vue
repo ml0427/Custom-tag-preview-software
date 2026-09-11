@@ -21,7 +21,8 @@ export type AppIconName =
   | 'more'
   | 'trash'
   | 'check'
-  | 'alert';
+  | 'alert'
+  | 'theme';
 
 export default defineComponent({
   name: 'AppIcon',
@@ -55,7 +56,11 @@ export default defineComponent({
     stroke-linejoin="round"
     aria-hidden="true"
   >
-    <template v-if="name === 'archive'">
+    <template v-if="name === 'theme'">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'archive'">
       <rect x="4" y="4" width="16" height="16" rx="2" />
       <path d="M4 9h16M9 13h6" />
     </template>

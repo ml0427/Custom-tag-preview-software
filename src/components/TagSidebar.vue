@@ -114,7 +114,6 @@ onUnmounted(() => {
   <div class="panel">
     <div class="panel-header">
       <div>
-        <span class="panel-kicker">Index</span>
         <h2>標籤篩選</h2>
       </div>
       <span class="panel-count">{{ tags.length }}</span>
@@ -194,7 +193,7 @@ onUnmounted(() => {
 }
 
 .panel-header {
-  padding: 22px 16px 14px;
+  padding: 20px 16px 16px;
   border-bottom: 1px solid var(--line-default);
   flex-shrink: 0;
   display: flex;
@@ -203,20 +202,12 @@ onUnmounted(() => {
 }
 
 .panel-header h2 {
-  margin-top: 5px;
+  margin: 0;
   color: var(--content-primary);
   font-family: var(--font-jp);
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-
-.panel-kicker {
-  color: var(--content-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
 }
 
 .panel-count {
