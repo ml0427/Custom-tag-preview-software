@@ -4,6 +4,7 @@ import { api, type FolderRulePreset, type Item, type Tag } from '../api';
 import { useItemTypes } from '../composables/useItemTypes';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
+import { useRenameTagSync } from '../composables/useRenameTagSync';
 import { getPreviewEditCapabilities } from '../utils/previewEdit';
 import TagEditorField from './TagEditorField.vue';
 
@@ -18,6 +19,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast } = useToast();
+const { syncTagsAfterRename } = useRenameTagSync();
 const { itemTypes, load: loadItemTypes, getTypeConfig } = useItemTypes();
 
 const editName = ref('');
@@ -116,9 +118,12 @@ const saveName = async () => {
   if (!newName || newName === props.item.name || isSavingName.value) return;
   isSavingName.value = true;
   try {
-    await api.setItemDisplayName(props.item.id, newName);
+    const item = props.item;
+    await api.setItemDisplayName(item.id, newName);
     showToast('名稱已更新', 'success');
+    await syncTagsAfterRename(item, { ...item, name: newName });
     emit('updated');
+    emit('tagsChanged');
   } catch (e) {
     showToast('儲存名稱失敗: ' + String(e), 'error');
     editName.value = props.item.name;

@@ -12,6 +12,8 @@ interface ConfirmState {
   visible: boolean;
   message: string;
   resolve: ((v: boolean) => void) | null;
+  confirmLabel?: string;
+  cancelLabel?: string;
 }
 
 let _id = 0;
@@ -25,10 +27,12 @@ export function useToast() {
     setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, duration);
   };
 
-  const confirm = (message: string): Promise<boolean> =>
+  const confirm = (message: string, labels?: { confirmLabel: string; cancelLabel: string }): Promise<boolean> =>
     new Promise(resolve => {
       confirmState.visible = true;
       confirmState.message = message;
+      confirmState.confirmLabel = labels?.confirmLabel;
+      confirmState.cancelLabel = labels?.cancelLabel;
       confirmState.resolve = resolve;
     });
 

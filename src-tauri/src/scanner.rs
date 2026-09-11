@@ -379,8 +379,8 @@ pub async fn incremental_scan_directory(
     Ok((added, updated, removed, false))
 }
 
-pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str) -> Result<i64> {
-    let mut count = 0;
+pub(crate) fn extract_filename_tags(title: &str) -> Result<Vec<String>> {
+    let mut tags = Vec::new();
     let re = Regex::new(r"^\s*[\[【](.*?)[\]】]")?;
     if let Some(caps) = re.captures(title) {
         let content = &caps[1];
@@ -394,14 +394,30 @@ pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str
                 continue;
             }
 
-            let tag_id = if let Some(tag) = db::find_tag_by_name(pool, clean_name).await? {
-                tag.id
-            } else {
-                db::create_tag(pool, clean_name).await?.id
-            };
-
-            count += db::add_tag_to_item(pool, item_id, tag_id).await? as i64;
+            if !tags.iter().any(|tag| tag == clean_name) {
+                tags.push(clean_name.to_string());
+            }
         }
+    }
+    Ok(tags)
+}
+
+pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str) -> Result<i64> {
+    let mut count = 0;
+    for name in extract_filename_tags(title)? {
+        let tag_id = if let Some(tag) = db::find_tag_by_name(pool, &name).await? {
+            tag.id
+        } else {
+            db::create_tag(pool, &name).await?.id
+        };
+        count += sqlx::query(
+            "INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) VALUES (?, ?, 'filename')",
+        )
+        .bind(item_id)
+        .bind(tag_id)
+        .execute(pool)
+        .await?
+        .rows_affected() as i64;
     }
     Ok(count)
 }

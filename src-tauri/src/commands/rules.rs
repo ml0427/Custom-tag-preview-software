@@ -177,6 +177,83 @@ pub async fn preview_tag_scan(
     Ok(results)
 }
 
+fn collect_item_rule_tags(name: &str, rules: &[crate::models::TagRuleInput]) -> Result<Vec<String>, String> {
+    let mut tags = scanner::extract_filename_tags(name).map_err(|e| e.to_string())?;
+    for rule in rules {
+        let (rule_tags, error) = evaluate_rule_for_name(name, rule);
+        if let Some(error) = error {
+            return Err(format!("規則「{}」無效: {}", rule.name, error));
+        }
+        for tag in rule_tags {
+            if !tags.contains(&tag) {
+                tags.push(tag);
+            }
+        }
+    }
+    Ok(tags)
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenameTagChanges {
+    added: Vec<String>,
+    removed: Vec<String>,
+}
+
+// None 只預覽；false 只新增；true 只同步這次新舊名稱的差異（包含舊版 direct 標籤）。
+async fn sync_renamed_item_tags_inner(
+    pool: &SqlitePool,
+    item_id: i64,
+    previous_name: &str,
+    expected_name: &str,
+    rules: &[crate::models::TagRuleInput],
+    apply_mode: Option<bool>,
+) -> Result<RenameTagChanges, String> {
+    let old_tags = collect_item_rule_tags(previous_name, rules)?;
+    let new_tags = collect_item_rule_tags(expected_name, rules)?;
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    let current_name: String = sqlx::query_scalar("SELECT name FROM items WHERE id = ?")
+        .bind(item_id).fetch_one(&mut *tx).await.map_err(|e| e.to_string())?;
+    if current_name != expected_name {
+        return Err("名稱已再次變更，請重新檢查標籤".into());
+    }
+    let current_tags: Vec<String> = sqlx::query_scalar(
+        "SELECT t.name FROM tags t JOIN item_tags it ON it.tag_id = t.id WHERE it.item_id = ?",
+    ).bind(item_id).fetch_all(&mut *tx).await.map_err(|e| e.to_string())?;
+    let changes = RenameTagChanges {
+        added: new_tags.iter().filter(|tag| !current_tags.contains(tag)).cloned().collect(),
+        removed: old_tags.iter().filter(|tag| !new_tags.contains(tag) && current_tags.contains(tag)).cloned().collect(),
+    };
+    if let Some(remove_obsolete) = apply_mode {
+        if remove_obsolete {
+            for name in &changes.removed {
+                sqlx::query("DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE name = ?)")
+                    .bind(item_id).bind(name).execute(&mut *tx).await.map_err(|e| e.to_string())?;
+            }
+        }
+        for name in &changes.added {
+            sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
+                .bind(name).execute(&mut *tx).await.map_err(|e| e.to_string())?;
+            sqlx::query("INSERT OR IGNORE INTO item_tags (item_id, tag_id, source) SELECT ?, id, 'rule' FROM tags WHERE name = ?")
+                .bind(item_id).bind(name).execute(&mut *tx).await.map_err(|e| e.to_string())?;
+        }
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(changes)
+}
+
+#[tauri::command]
+pub async fn sync_renamed_item_tags(
+    item_id: i64,
+    previous_name: String,
+    expected_name: String,
+    rules: Vec<crate::models::TagRuleInput>,
+    apply_mode: Option<bool>,
+    pool: State<'_, SqlitePool>,
+) -> Result<RenameTagChanges, String> {
+    sync_renamed_item_tags_inner(&pool, item_id, &previous_name, &expected_name, &rules, apply_mode).await
+}
+
 /// 對單一 item 套用 tag rules：① 重跑檔名標籤擷取 ② 套用自定義類別規則。
 /// 純資料層動作，不碰檔案系統同步。
 async fn apply_rules_to_item_inner(
@@ -185,21 +262,26 @@ async fn apply_rules_to_item_inner(
     name: &str,
     rules: &[crate::models::TagRuleInput],
 ) -> Result<i32, String> {
-    let mut tagged = 0i32;
+    // 先完成擷取與規則驗證，再原子替換，避免錯誤規則或寫入失敗清掉舊結果。
+    let tags = collect_item_rule_tags(name, rules)?;
 
-    if let Ok(c) = scanner::extract_and_apply_tags(pool, item_id, name).await {
-        tagged += c as i32;
-    }
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    // 舊版的 direct 也可能來自檔名，但無法與手動標籤區分，保留以免誤刪。
+    sqlx::query("DELETE FROM item_tags WHERE item_id = ? AND source IN ('rule', 'filename')")
+        .bind(item_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    for tag_name in apply_rules_to_name(name, rules) {
+    for tag_name in &tags {
         sqlx::query("INSERT OR IGNORE INTO tags (name) VALUES (?)")
             .bind(&tag_name)
-            .execute(pool)
+            .execute(&mut *tx)
             .await
             .map_err(|e| e.to_string())?;
         let tag_id: i64 = sqlx::query("SELECT id FROM tags WHERE name = ?")
             .bind(&tag_name)
-            .fetch_one(pool)
+            .fetch_one(&mut *tx)
             .await
             .map_err(|e| e.to_string())?
             .get("id");
@@ -208,13 +290,13 @@ async fn apply_rules_to_item_inner(
         )
         .bind(item_id)
         .bind(tag_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
-        tagged += 1;
     }
 
-    Ok(tagged)
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(tags.len() as i32)
 }
 
 /// 套用 tag rules。後端自己判斷 scope_path 是檔案還是目錄：
@@ -317,4 +399,119 @@ pub async fn apply_rules_to_item(
     Ok(serde_json::json!({
         "added": 0, "updated": 0, "removed": 0, "tagged": tagged
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{db, models::TagRuleInput};
+
+    async fn fixture() -> (tempfile::TempDir, SqlitePool, i64) {
+        let dir = tempfile::tempdir().unwrap();
+        let pool = db::init_db(dir.path()).await.unwrap();
+        let id = db::insert_item(
+            &pool, "C:/Library/book.zip", "file", "book", None, None,
+            "2026-09-11T00:00:00Z", None,
+        ).await.unwrap();
+        (dir, pool, id)
+    }
+
+    fn capture_rule() -> Vec<TagRuleInput> {
+        vec![TagRuleInput {
+            name: "author".into(), match_type: "regex_capture".into(),
+            pattern: r"^\[(.*?)\]".into(), tag_name: String::new(),
+        }]
+    }
+
+    async fn names(pool: &SqlitePool, id: i64) -> Vec<String> {
+        sqlx::query_scalar(
+            "SELECT t.name FROM tags t JOIN item_tags it ON t.id = it.tag_id WHERE it.item_id = ? ORDER BY t.name",
+        ).bind(id).fetch_all(pool).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn reapply_replaces_imported_filename_tags_after_rename() {
+        let (_dir, pool, id) = fixture().await;
+        scanner::extract_and_apply_tags(&pool, id, "[デコ助18号] Book").await.unwrap();
+        apply_rules_to_item_inner(&pool, id, "[デコ助18号] Book", &capture_rule()).await.unwrap();
+        let count = apply_rules_to_item_inner(&pool, id, "[デコ助] Book", &capture_rule()).await.unwrap();
+        assert_eq!(names(&pool, id).await, vec!["デコ助"]);
+        assert_eq!(count, 1);
+        apply_rules_to_item_inner(&pool, id, "[デコ助] Book", &capture_rule()).await.unwrap();
+        assert_eq!(names(&pool, id).await, vec!["デコ助"]);
+    }
+
+    #[tokio::test]
+    async fn reapply_removes_unmatched_rules_and_preserves_manual_tags_and_other_items() {
+        let (_dir, pool, id) = fixture().await;
+        let manual = db::create_tag(&pool, "Keep").await.unwrap();
+        db::add_tag_to_item(&pool, id, manual.id).await.unwrap();
+        let other = db::insert_item(&pool, "C:/Library/other.zip", "file", "other", None, None, "now", None).await.unwrap();
+        let rules = vec![TagRuleInput {
+            name: "rule".into(), match_type: "contains".into(),
+            pattern: "Book".into(), tag_name: "Old rule".into(),
+        }];
+        apply_rules_to_item_inner(&pool, id, "[Keep] Book", &rules).await.unwrap();
+        apply_rules_to_item_inner(&pool, other, "Book", &rules).await.unwrap();
+        apply_rules_to_item_inner(&pool, id, "Renamed", &rules).await.unwrap();
+        assert_eq!(names(&pool, id).await, vec!["Keep"]);
+        assert_eq!(names(&pool, other).await, vec!["Old rule"]);
+        apply_rules_to_item_inner(&pool, other, "Book", &[]).await.unwrap();
+        assert!(names(&pool, other).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn failed_reapply_rolls_back_tag_replacement() {
+        let (_dir, pool, id) = fixture().await;
+        apply_rules_to_item_inner(&pool, id, "[Old] Book", &capture_rule()).await.unwrap();
+        sqlx::query("CREATE TRIGGER reject_new_tag BEFORE INSERT ON tags WHEN NEW.name = 'New' BEGIN SELECT RAISE(ABORT, 'test write failure'); END")
+            .execute(&pool).await.unwrap();
+        assert!(apply_rules_to_item_inner(&pool, id, "[New] Book", &capture_rule()).await.is_err());
+        assert_eq!(names(&pool, id).await, vec!["Old"]);
+    }
+
+    #[tokio::test]
+    async fn rename_preview_and_both_choices_handle_legacy_tags_without_touching_unrelated_tags() {
+        let (_dir, pool, id) = fixture().await;
+        for name in ["デコ助18号", "Keep"] {
+            let tag = db::create_tag(&pool, name).await.unwrap();
+            db::add_tag_to_item(&pool, id, tag.id).await.unwrap();
+        }
+        let old_name = "[デコ助18号] Book";
+        let new_name = "[デコ助] Book";
+        db::update_item_name(&pool, id, new_name).await.unwrap();
+        let preview = sync_renamed_item_tags_inner(&pool, id, old_name, new_name, &capture_rule(), None).await.unwrap();
+        assert_eq!(preview.added, vec!["デコ助"]);
+        assert_eq!(preview.removed, vec!["デコ助18号"]);
+        assert_eq!(names(&pool, id).await, vec!["Keep", "デコ助18号"]);
+
+        sync_renamed_item_tags_inner(&pool, id, old_name, new_name, &capture_rule(), Some(false)).await.unwrap();
+        assert_eq!(names(&pool, id).await, vec!["Keep", "デコ助", "デコ助18号"]);
+
+        sync_renamed_item_tags_inner(&pool, id, old_name, new_name, &capture_rule(), Some(true)).await.unwrap();
+        assert_eq!(names(&pool, id).await, vec!["Keep", "デコ助"]);
+        let again = sync_renamed_item_tags_inner(&pool, id, old_name, new_name, &capture_rule(), None).await.unwrap();
+        assert!(again.added.is_empty() && again.removed.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rename_sync_rejects_stale_name_and_rolls_back_write_failures() {
+        let (_dir, pool, id) = fixture().await;
+        scanner::extract_and_apply_tags(&pool, id, "[Old] Book").await.unwrap();
+        assert!(sync_renamed_item_tags_inner(&pool, id, "[Old] Book", "[New] Book", &[], Some(true)).await.is_err());
+        db::update_item_name(&pool, id, "[New] Book").await.unwrap();
+        sqlx::query("CREATE TRIGGER reject_rename_tag BEFORE INSERT ON tags WHEN NEW.name = 'New' BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+            .execute(&pool).await.unwrap();
+        assert!(sync_renamed_item_tags_inner(&pool, id, "[Old] Book", "[New] Book", &[], Some(true)).await.is_err());
+        assert_eq!(names(&pool, id).await, vec!["Old"]);
+    }
+
+    #[tokio::test]
+    async fn invalid_rules_do_not_clear_existing_tags() {
+        let (_dir, pool, id) = fixture().await;
+        apply_rules_to_item_inner(&pool, id, "[Old] Book", &[]).await.unwrap();
+        let rules = vec![TagRuleInput { name: "broken".into(), match_type: "regex_capture".into(), pattern: "[".into(), tag_name: String::new() }];
+        assert!(apply_rules_to_item_inner(&pool, id, "Book", &rules).await.is_err());
+        assert_eq!(names(&pool, id).await, vec!["Old"]);
+    }
 }

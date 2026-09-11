@@ -424,6 +424,10 @@ export const api = {
         return await invoke('apply_rules_to_item', { itemId, rules });
     },
 
+    async syncRenamedItemTags(itemId: number, previousName: string, expectedName: string, rules: TagRuleInput[], applyMode: boolean | null = null): Promise<{ added: string[]; removed: string[] }> {
+        return await invoke('sync_renamed_item_tags', { itemId, previousName, expectedName, rules, applyMode });
+    },
+
     // ── Folder default rule presets ───────────────────────────────────────────
     async getFolderRulePresets(): Promise<FolderRulePreset[]> {
         return await invoke<FolderRulePreset[]>('get_folder_rule_presets');

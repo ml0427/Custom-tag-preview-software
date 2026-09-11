@@ -142,6 +142,7 @@ fn main() {
             commands::preview_tag_scan,
             commands::apply_tag_scan,
             commands::apply_rules_to_item,
+            commands::sync_renamed_item_tags,
             commands::get_folder_rule_presets,
             commands::get_folder_rule_preset,
             commands::set_folder_rule_preset,

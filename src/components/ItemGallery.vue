@@ -10,6 +10,7 @@ import GalleryInfoBar from './GalleryInfoBar.vue';
 import MetadataLookupModal from './MetadataLookupModal.vue';
 import AppIcon from './AppIcon.vue';
 import { useToast } from '../composables/useToast';
+import { useRenameTagSync } from '../composables/useRenameTagSync';
 import { useGalleryData } from '../composables/useGalleryData';
 import { useGallerySelection } from '../composables/useGallerySelection';
 import { buildGalleryScrollContextKey, useGalleryViewState } from '../composables/useGalleryViewState';
@@ -36,6 +37,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
+const { syncTagsAfterRename } = useRenameTagSync();
 
 const { sortBy, sortDir, viewMode, frequentMode, gallerySearch, getScrollTop, setScrollTop } = useGalleryViewState(
   props.viewStateKey ?? 'default'
@@ -320,7 +322,9 @@ const handleContextRename = async (fileItem: FileItem, newName: string) => {
   }
   try {
     const updated = await api.renameItem(dbItem.id, newName);
-    handleRenamed(updated);
+    await syncTagsAfterRename(dbItem, updated);
+    await handleRenamed(updated);
+    emit('tagsChanged');
   } catch (e: any) {
     showToast('重新命名失敗：' + (e?.message ?? e), 'error');
   }

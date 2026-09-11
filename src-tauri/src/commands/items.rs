@@ -188,7 +188,7 @@ pub async fn untag_item(
     tag_id: i64,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
-    sqlx::query("DELETE FROM item_tags WHERE item_id = ? AND tag_id = ? AND source = 'direct'")
+    sqlx::query("DELETE FROM item_tags WHERE item_id = ? AND tag_id = ?")
         .bind(item_id)
         .bind(tag_id)
         .execute(&*pool)

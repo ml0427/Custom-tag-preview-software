@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { api, type Item, type Tag, type FolderRulePreset } from '../api';
 import { useTagManager } from '../composables/useTagManager';
 import { useToast } from '../composables/useToast';
+import { useRenameTagSync } from '../composables/useRenameTagSync';
 import { useItemTypes } from '../composables/useItemTypes';
 import DetailFormLayout from './DetailFormLayout.vue';
 import MetadataLookupModal from './MetadataLookupModal.vue';
@@ -21,6 +22,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
+const { syncTagsAfterRename } = useRenameTagSync();
 const { itemTypes, load: loadItemTypes } = useItemTypes();
 const editName = ref('');
 const editNote = ref('');
@@ -110,8 +112,11 @@ const saveChanges = async () => {
     const item = props.item;
     const newName = editName.value.trim();
     const newNote = editNote.value.trim();
+    if (newName !== item.name) {
+      await api.setItemDisplayName(item.id, newName);
+      await syncTagsAfterRename(item, { ...item, name: newName });
+    }
     await Promise.all([
-      newName !== item.name ? api.setItemDisplayName(item.id, newName) : Promise.resolve(),
       newNote !== (item.note ?? '') ? api.setItemNote(item.id, newNote) : Promise.resolve(),
     ]);
     emit('updated');

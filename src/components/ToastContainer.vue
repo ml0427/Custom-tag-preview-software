@@ -27,8 +27,8 @@ const toastIcon = (type: string): AppIconName => {
         <span class="confirm-kicker">Confirm action</span>
         <p class="confirm-message">{{ confirmState.message }}</p>
         <div class="confirm-actions">
-          <button class="btn-cancel" @click="resolveConfirm(false)">取消</button>
-          <button class="btn-ok" @click="resolveConfirm(true)">確定</button>
+          <button class="btn-cancel" @click="resolveConfirm(false)">{{ confirmState.cancelLabel ?? '取消' }}</button>
+          <button class="btn-ok" @click="resolveConfirm(true)">{{ confirmState.confirmLabel ?? '確定' }}</button>
         </div>
       </div>
     </div>
