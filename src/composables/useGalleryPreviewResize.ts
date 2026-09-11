@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 
 export function useGalleryPreviewResize() {
   const isPreviewOpen = ref(false);
@@ -23,6 +23,8 @@ export function useGalleryPreviewResize() {
     document.body.style.userSelect = '';
   };
 
+  onBeforeUnmount(stopResizing);
+
   const startResizing = () => {
     isResizing.value = true;
     document.addEventListener('mousemove', handleMouseMove);
@@ -34,6 +36,7 @@ export function useGalleryPreviewResize() {
   return {
     isPreviewOpen,
     previewWidth,
+    isResizing,
     togglePreview,
     startResizing,
     stopResizing,

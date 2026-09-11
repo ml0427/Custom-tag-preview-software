@@ -1,8 +1,36 @@
-use sqlx::{sqlite::SqliteConnectOptions, Executor, Row, Sqlite, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, Executor, Row, Sqlite, SqlitePool, SqliteConnection};
 use std::fs;
 use std::path::{Path, PathBuf};
 use anyhow::Result;
 use crate::models::{Tag, Source};
+
+pub fn path_key(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_lowercase()
+}
+
+pub fn escape_like(value: &str) -> String {
+    value.replace('!', "!!").replace('%', "!%").replace('_', "!_")
+}
+
+pub async fn backup_database(pool: &SqlitePool, directory: &Path, reason: &str) -> Result<PathBuf> {
+    let backups = directory.join("backups");
+    fs::create_dir_all(&backups)?;
+    let path = backups.join(format!("comic-{}-{}.db", reason, chrono::Utc::now().format("%Y%m%dT%H%M%S%.9f")));
+    sqlx::query("VACUUM INTO ?").bind(path.to_string_lossy().as_ref()).execute(pool).await?;
+    Ok(path)
+}
+
+async fn column_exists(conn: &mut SqliteConnection, table: &str, column: &str) -> Result<bool> {
+    let rows = sqlx::query(&format!("PRAGMA table_info({table})")).fetch_all(conn).await?;
+    Ok(rows.iter().any(|row| row.get::<String, _>("name") == column))
+}
+
+async fn ensure_column(conn: &mut SqliteConnection, table: &str, column: &str, definition: &str) -> Result<()> {
+    if !column_exists(&mut *conn, table, column).await? {
+        sqlx::query(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}")).execute(conn).await?;
+    }
+    Ok(())
+}
 
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     if !app_data_dir.exists() {
@@ -10,13 +38,19 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     }
 
     let db_path = app_data_dir.join("comic.db");
+    let existed = db_path.exists();
     let options = SqliteConnectOptions::new()
-        .filename(db_path)
+        .filename(&db_path)
         .create_if_missing(true);
 
     let pool = SqlitePool::connect_with(options).await?;
 
-    backup_legacy_tables(&pool).await?;
+    let version: i64 = sqlx::query_scalar("PRAGMA user_version").fetch_one(&pool).await?;
+    if version > 1 { anyhow::bail!("資料庫版本較新，請使用較新版應用程式"); }
+    if version == 1 { return Ok(pool); }
+    if existed { backup_database(&pool, app_data_dir, "before-migration").await?; }
+    let mut tx = pool.begin().await?;
+    backup_legacy_tables(&mut tx).await?;
 
     // ── Shared lookup tables ─────────────────────────────────────────────────
     sqlx::query(
@@ -24,7 +58,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sources (
@@ -32,7 +66,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             path TEXT NOT NULL UNIQUE,
             last_sync DATETIME
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     // ── Unified item tables ──────────────────────────────────────────────────
     sqlx::query(
@@ -53,7 +87,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             open_count      INTEGER NOT NULL DEFAULT 0,
             import_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS item_tags (
@@ -65,7 +99,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
             FOREIGN KEY (tag_id)  REFERENCES tags(id)  ON DELETE CASCADE
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS tag_rules (
@@ -78,7 +112,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             tag_name          TEXT,
             auto_apply_on_scan INTEGER NOT NULL DEFAULT 0
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     // ── Custom item types ────────────────────────────────────────────────────
     sqlx::query(
@@ -91,60 +125,49 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             example      TEXT NOT NULL DEFAULT '',
             is_builtin   INTEGER NOT NULL DEFAULT 0
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
-    // Add color column if upgrading from previous version
-    let _ = sqlx::query("ALTER TABLE item_types ADD COLUMN color TEXT")
-        .execute(&pool).await;
-    let _ = sqlx::query("ALTER TABLE item_types ADD COLUMN example TEXT NOT NULL DEFAULT ''")
-        .execute(&pool).await;
-    let _ = sqlx::query("ALTER TABLE tags ADD COLUMN color TEXT")
-        .execute(&pool).await;
-    let _ = sqlx::query("ALTER TABLE items ADD COLUMN exists_on_disk INTEGER NOT NULL DEFAULT 1")
-        .execute(&pool).await;
-    let _ = sqlx::query("ALTER TABLE items ADD COLUMN missing_since TEXT")
-        .execute(&pool).await;
-    let _ = sqlx::query("ALTER TABLE items ADD COLUMN last_seen_at TEXT")
-        .execute(&pool).await;
-    let _ = sqlx::query("ALTER TABLE items ADD COLUMN open_count INTEGER NOT NULL DEFAULT 0")
-        .execute(&pool).await;
-    let _ = sqlx::query(
-        "UPDATE items SET last_seen_at = COALESCE(last_seen_at, import_at), exists_on_disk = COALESCE(exists_on_disk, 1)"
-    ).execute(&pool).await;
+    for (table, name, definition) in [
+        ("item_types", "color", "TEXT"), ("item_types", "example", "TEXT NOT NULL DEFAULT ''"),
+        ("tags", "color", "TEXT"), ("items", "exists_on_disk", "INTEGER NOT NULL DEFAULT 1"),
+        ("items", "missing_since", "TEXT"), ("items", "last_seen_at", "TEXT"),
+        ("items", "open_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("items", "category", "TEXT DEFAULT 'default'"),
+    ] { ensure_column(&mut tx, table, name, definition).await?; }
+    sqlx::query("UPDATE items SET last_seen_at = COALESCE(last_seen_at, import_at), exists_on_disk = COALESCE(exists_on_disk, 1)")
+        .execute(&mut *tx).await?;
 
     // Normalize legacy tag.color rows to canonical #rrggbb (idempotent).
     // Mirrors src/utils/color.ts normalizeHex; anything unparseable becomes NULL.
-    let _ = sqlx::query(
+    sqlx::query(
         "UPDATE tags SET color = '#'
          || lower(substr(color, 2, 1)) || lower(substr(color, 2, 1))
          || lower(substr(color, 3, 1)) || lower(substr(color, 3, 1))
          || lower(substr(color, 4, 1)) || lower(substr(color, 4, 1))
          WHERE color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]' AND length(color) = 4"
-    ).execute(&pool).await;
-    let _ = sqlx::query(
+    ).execute(&mut *tx).await?;
+    sqlx::query(
         "UPDATE tags SET color = '#' || lower(substr(color, 2))
          WHERE color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'
          AND length(color) = 7 AND color != lower(color)"
-    ).execute(&pool).await;
-    let _ = sqlx::query(
+    ).execute(&mut *tx).await?;
+    sqlx::query(
         "UPDATE tags SET color = '#' || lower(color)
          WHERE color GLOB '[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'
          AND length(color) = 6"
-    ).execute(&pool).await;
-    let _ = sqlx::query(
+    ).execute(&mut *tx).await?;
+    sqlx::query(
         "UPDATE tags SET color = NULL
          WHERE color IS NOT NULL
          AND color NOT GLOB '#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'"
-    ).execute(&pool).await;
-    let _ = sqlx::query("UPDATE tags SET color = NULL WHERE color = ''")
-        .execute(&pool).await;
+    ).execute(&mut *tx).await?;
+    sqlx::query("UPDATE tags SET color = NULL WHERE color = ''")
+        .execute(&mut *tx).await?;
 
-    // Rename folder_type → category (idempotent)
-    let _ = sqlx::query("ALTER TABLE items ADD COLUMN category TEXT DEFAULT 'default'")
-        .execute(&pool).await;
-    let _ = sqlx::query(
-        "UPDATE items SET category = folder_type WHERE folder_type IS NOT NULL AND folder_type != 'default' AND (category IS NULL OR category = 'default')"
-    ).execute(&pool).await;
+    if column_exists(&mut tx, "items", "folder_type").await? {
+        sqlx::query("UPDATE items SET category = folder_type WHERE folder_type IS NOT NULL AND folder_type != 'default' AND (category IS NULL OR category = 'default')")
+            .execute(&mut *tx).await?;
+    }
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS type_extensions (
@@ -152,7 +175,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             extension TEXT NOT NULL,
             PRIMARY KEY (type_id, extension)
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS category_tag_rules (
@@ -162,7 +185,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             pattern       TEXT NOT NULL,
             tag_name      TEXT NOT NULL DEFAULT ''
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS folder_rule_presets (
@@ -174,12 +197,12 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
             created_at          TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
         );"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     sqlx::query(
         "INSERT OR IGNORE INTO item_types (name, icon, display_name, is_builtin)
          VALUES ('default','📁','一般資料夾',1), ('comic','📚','漫畫',1)"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
     sqlx::query(
         "INSERT OR IGNORE INTO type_extensions (type_id, extension)
@@ -188,21 +211,31 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
          UNION ALL SELECT id,'7z'  FROM item_types WHERE name='comic'
          UNION ALL SELECT id,'cbz' FROM item_types WHERE name='comic'
          UNION ALL SELECT id,'cbr' FROM item_types WHERE name='comic'"
-    ).execute(&pool).await?;
+    ).execute(&mut *tx).await?;
 
+    sqlx::query("UPDATE items SET fingerprint = NULL WHERE fingerprint IS NOT NULL AND fingerprint NOT LIKE 'sha256:%'")
+        .execute(&mut *tx).await?;
+    for sql in [
+        "CREATE INDEX IF NOT EXISTS idx_item_tags_tag_item ON item_tags(tag_id, item_id)",
+        "CREATE INDEX IF NOT EXISTS idx_items_fingerprint ON items(fingerprint)",
+        "CREATE INDEX IF NOT EXISTS idx_items_import ON items(import_at, id)",
+        "CREATE INDEX IF NOT EXISTS idx_items_open_count ON items(open_count, id)",
+        "PRAGMA user_version = 1",
+    ] { sqlx::query(sql).execute(&mut *tx).await?; }
+    tx.commit().await?;
     Ok(pool)
 }
 
-async fn backup_legacy_tables(pool: &SqlitePool) -> Result<()> {
+async fn backup_legacy_tables(pool: &mut SqliteConnection) -> Result<()> {
     for table in ["comics", "folders", "comic_tags", "folder_tags"] {
-        backup_legacy_table(pool, table).await?;
+        backup_legacy_table(&mut *pool, table).await?;
     }
     Ok(())
 }
 
-async fn backup_legacy_table(pool: &SqlitePool, table: &str) -> Result<()> {
+async fn backup_legacy_table(pool: &mut SqliteConnection, table: &str) -> Result<()> {
     let backup = format!("_legacy_{}_backup", table);
-    if !table_exists(pool, table).await? || table_exists(pool, &backup).await? {
+    if !table_exists(&mut *pool, table).await? || table_exists(&mut *pool, &backup).await? {
         return Ok(());
     }
 
@@ -211,7 +244,7 @@ async fn backup_legacy_table(pool: &SqlitePool, table: &str) -> Result<()> {
     Ok(())
 }
 
-async fn table_exists(pool: &SqlitePool, table: &str) -> Result<bool> {
+async fn table_exists<'e, E: Executor<'e, Database = Sqlite>>(pool: E, table: &str) -> Result<bool> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
     )
@@ -219,16 +252,6 @@ async fn table_exists(pool: &SqlitePool, table: &str) -> Result<bool> {
     .fetch_one(pool)
     .await?;
     Ok(count > 0)
-}
-
-// Clear file items only (used by full-scan)
-pub async fn clear_database(pool: &SqlitePool) -> Result<()> {
-    sqlx::query(
-        "DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE item_type = 'file')"
-    ).execute(pool).await?;
-    sqlx::query("DELETE FROM items WHERE item_type = 'file'").execute(pool).await?;
-    sqlx::query("DELETE FROM tags").execute(pool).await?;
-    Ok(())
 }
 
 pub async fn get_tags(pool: &SqlitePool) -> Result<Vec<Tag>> {
@@ -473,15 +496,16 @@ pub async fn update_item_path_prefix<'e, E>(
     executor: E,
     old_prefix: &str,
     new_prefix: &str,
-    like_pattern: &str,
+    _like_pattern: &str,
 ) -> Result<()>
 where
     E: Executor<'e, Database = Sqlite>,
 {
-    sqlx::query("UPDATE items SET path = ? || SUBSTR(path, LENGTH(?) + 1) WHERE path LIKE ?")
+    let normalized_prefix = format!("{}/", path_key(old_prefix));
+    sqlx::query("UPDATE items SET path = ? || SUBSTR(path, LENGTH(?) + 1) WHERE REPLACE(path, '\\', '/') LIKE ? ESCAPE '!'")
         .bind(new_prefix)
         .bind(old_prefix)
-        .bind(like_pattern)
+        .bind(format!("{}%", escape_like(&normalized_prefix)))
         .execute(executor)
         .await?;
     Ok(())
@@ -512,7 +536,9 @@ pub async fn update_item_size_mtime<'e, E>(
 where
     E: Executor<'e, Database = Sqlite>,
 {
-    sqlx::query("UPDATE items SET file_size = ?, file_modified_at = ?, exists_on_disk = 1, missing_since = NULL, last_seen_at = datetime('now') WHERE id = ?")
+    sqlx::query("UPDATE items SET fingerprint = CASE WHEN file_size IS NOT ? OR file_modified_at IS NOT ? THEN NULL ELSE fingerprint END, file_size = ?, file_modified_at = ?, exists_on_disk = 1, missing_since = NULL, last_seen_at = datetime('now') WHERE id = ?")
+        .bind(file_size)
+        .bind(file_modified_at)
         .bind(file_size)
         .bind(file_modified_at)
         .bind(id)
@@ -592,21 +618,14 @@ pub async fn delete_item_by_path_with_cache(
     cache_dir: &Path,
     path: &str,
 ) -> Result<DeleteOutcome> {
-    let id: Option<i64> = sqlx::query_scalar("SELECT id FROM items WHERE path = ?")
-        .bind(path)
+    let id: Option<i64> = sqlx::query_scalar("SELECT id FROM items WHERE REPLACE(path, '\\', '/') = ? COLLATE NOCASE")
+        .bind(path_key(path))
         .fetch_optional(pool)
         .await?;
 
-    let result = sqlx::query("DELETE FROM items WHERE path = ?")
-        .bind(path)
-        .execute(pool)
-        .await?;
-
-    if let Some(item_id) = id {
-        let _ = fs::remove_file(thumbnail_cache_path(cache_dir, item_id));
-    }
+    let affected_rows = delete_items_under_path_with_cache(pool, cache_dir, path).await?;
     Ok(DeleteOutcome {
-        affected_rows: result.rows_affected(),
+        affected_rows,
         item_id: id,
     })
 }
@@ -616,27 +635,27 @@ pub async fn delete_items_under_path_with_cache(
     cache_dir: &Path,
     root_path: &str,
 ) -> Result<u64> {
-    let trimmed_root = root_path.trim_end_matches(['\\', '/']);
-    let forward_pattern = format!("{}/%", trimmed_root);
-    let backward_pattern = format!("{}\\%", trimmed_root);
-    let rows = sqlx::query("SELECT id FROM items WHERE path = ? OR path LIKE ? OR path LIKE ?")
-        .bind(root_path)
-        .bind(&forward_pattern)
-        .bind(&backward_pattern)
-        .fetch_all(pool)
+    let root = path_key(root_path);
+    let pattern = format!("{}/%", escape_like(&root));
+    let mut tx = pool.begin().await?;
+    let rows = sqlx::query("SELECT id FROM items WHERE REPLACE(path, '\\', '/') = ? COLLATE NOCASE OR REPLACE(path, '\\', '/') LIKE ? ESCAPE '!'")
+        .bind(&root)
+        .bind(&pattern)
+        .fetch_all(&mut *tx)
         .await?;
-
+    let result = sqlx::query("DELETE FROM items WHERE REPLACE(path, '\\', '/') = ? COLLATE NOCASE OR REPLACE(path, '\\', '/') LIKE ? ESCAPE '!'")
+        .bind(root)
+        .bind(pattern)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     for row in &rows {
         let id: i64 = row.get("id");
-        let _ = fs::remove_file(thumbnail_cache_path(cache_dir, id));
+        let cache = thumbnail_cache_path(cache_dir, id);
+        let _ = fs::remove_file(cache.with_extension("version.json"));
+        let _ = fs::remove_file(cache);
     }
 
-    let result = sqlx::query("DELETE FROM items WHERE path = ? OR path LIKE ? OR path LIKE ?")
-        .bind(root_path)
-        .bind(forward_pattern)
-        .bind(backward_pattern)
-        .execute(pool)
-        .await?;
     Ok(result.rows_affected())
 }
 
@@ -645,6 +664,48 @@ mod tests {
     use super::*;
     use sqlx::Row;
     use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn rename_and_delete_trees_treat_wildcards_literally() {
+        let dir = tempdir().unwrap(); let pool = init_db(dir.path()).await.unwrap();
+        for path in ["C:\\Library\\A_", "C:\\Library\\A_\\one.zip", "C:\\Library\\AB\\two.zip", "C:\\Library\\A%\\three.zip"] {
+            insert_item(&pool, path, "file", "item", None, None, "now", None).await.unwrap();
+        }
+        update_item_path_prefix(&pool, "C:\\Library\\A_\\", "C:\\Library\\New\\", "unused").await.unwrap();
+        let paths: Vec<String> = sqlx::query_scalar("SELECT path FROM items ORDER BY id").fetch_all(&pool).await.unwrap();
+        assert_eq!(paths[1], "C:\\Library\\New\\one.zip");
+        assert_eq!(paths[2], "C:\\Library\\AB\\two.zip");
+        let removed = delete_items_under_path_with_cache(&pool, dir.path(), "c:/library/A%").await.unwrap();
+        assert_eq!(removed, 1);
+        let removed = delete_item_by_path_with_cache(&pool, dir.path(), "c:/library/new").await.unwrap();
+        assert_eq!(removed.affected_rows, 1);
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT COUNT(*) FROM items").fetch_one(&pool).await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn changed_content_invalidates_fingerprint_but_unchanged_open_preserves_it() {
+        let dir = tempdir().unwrap(); let pool = init_db(dir.path()).await.unwrap();
+        let id = insert_item(&pool, "book.zip", "file", "book", Some(1), Some(10), "now", Some("sha256:old")).await.unwrap();
+        update_item_size_mtime(&pool, id, Some(1), 10).await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,Option<String>>("SELECT fingerprint FROM items WHERE id=?").bind(id).fetch_one(&pool).await.unwrap().as_deref(), Some("sha256:old"));
+        update_item_size_mtime(&pool, id, Some(2), 10).await.unwrap();
+        assert!(sqlx::query_scalar::<_,Option<String>>("SELECT fingerprint FROM items WHERE id=?").bind(id).fetch_one(&pool).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn failed_migration_rolls_back_and_keeps_readable_backup() {
+        let dir = tempdir().unwrap();
+        let pool = SqlitePool::connect_with(SqliteConnectOptions::new().filename(dir.path().join("comic.db")).create_if_missing(true)).await.unwrap();
+        sqlx::query("CREATE TABLE tags(id INTEGER PRIMARY KEY, name TEXT, color TEXT)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO tags VALUES (1,'keep','#ABC')").execute(&pool).await.unwrap();
+        sqlx::query("CREATE TRIGGER reject_upgrade BEFORE UPDATE ON tags BEGIN SELECT RAISE(ABORT,'blocked'); END").execute(&pool).await.unwrap();
+        assert!(init_db(dir.path()).await.is_err());
+        assert_eq!(sqlx::query_scalar::<_,i64>("PRAGMA user_version").fetch_one(&pool).await.unwrap(), 0);
+        assert!(!table_exists(&pool, "items").await.unwrap());
+        let backup = fs::read_dir(dir.path().join("backups")).unwrap().next().unwrap().unwrap().path();
+        let saved = SqlitePool::connect_with(SqliteConnectOptions::new().filename(backup).read_only(true)).await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,String>("SELECT color FROM tags").fetch_one(&saved).await.unwrap(), "#ABC");
+    }
 
     #[tokio::test]
     async fn init_db_creates_core_tables_and_builtin_types() {

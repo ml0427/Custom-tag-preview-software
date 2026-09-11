@@ -2,6 +2,7 @@ import { ref, computed } from 'vue';
 import { api, type FileItem, type Item, type ItemType } from '../api';
 import { pathKey } from '../utils/pathKey';
 import { useToast } from './useToast';
+import { resolveEffectiveItemRules } from '../utils/effectiveItemRules';
 
 export type ExternalChangeKind = 'untracked' | 'missing' | 'modified';
 
@@ -25,18 +26,25 @@ const parentDir = (path: string): string => {
   return idx > 0 ? normalized.slice(0, idx) : normalized;
 };
 
-const findNearestParentFolder = (targetPath: string, dbItems: Item[]): Item | null => {
-  const itemByPath = new Map(dbItems.map(item => [pathKey(item.path), item]));
-  let current = pathKey(targetPath);
+const isSameOrDescendantPath = (candidate: string, ancestor: string): boolean => {
+  const candidateKey = pathKey(candidate);
+  const ancestorKey = pathKey(ancestor);
+  return candidateKey === ancestorKey || candidateKey.startsWith(`${ancestorKey}\\`);
+};
 
-  while (true) {
-    const separatorIndex = current.lastIndexOf('\\');
-    if (separatorIndex <= 0) return null;
-
-    current = current.slice(0, separatorIndex);
-    const parent = itemByPath.get(current);
-    if (parent?.itemType === 'folder') return parent;
+export const getDistinctModifiedDirectories = (changes: readonly ExternalChange[]): string[] => {
+  const directories = new Map<string, string>();
+  for (const change of changes) {
+    if (change.kind !== 'modified') continue;
+    const directory = parentDir(change.path);
+    if (directory) directories.set(pathKey(directory), directory);
   }
+
+  return [...directories.values()]
+    .sort((a, b) => pathKey(a).length - pathKey(b).length || pathKey(a).localeCompare(pathKey(b)))
+    .filter((directory, index, all) => (
+      !all.slice(0, index).some(ancestor => isSameOrDescendantPath(directory, ancestor))
+    ));
 };
 
 const DB_PAGE_SIZE = 1000;
@@ -126,8 +134,8 @@ export function useExternalChanges(sourcePath: () => string | null) {
   const isFixing = ref(false);
   const lastFixResult = ref<{ added: number; updated: number; removed: number } | null>(null);
   const dismissedKeys = ref<Set<string>>(new Set());
-  const latestDbItems = ref<Item[]>([]);
   let itemTypesCache: ItemType[] | null = null;
+  let refreshToken = 0;
 
   const counts = computed(() => ({
     untracked: changes.value.filter(c => c.kind === 'untracked').length,
@@ -142,30 +150,19 @@ export function useExternalChanges(sourcePath: () => string | null) {
     return itemTypesCache;
   };
 
-  const applyParentFolderPresetRules = async (item: Item, parentFolder: Item | null) => {
-    if (item.itemType === 'folder' || !parentFolder) return;
-
-    const preset = await api.getFolderRulePreset(parentFolder.id);
-    if (!preset) return;
-
-    const types = await getItemTypes();
-    const type = types.find(t => t.id === preset.presetTypeId);
-    if (!type?.tagRules?.length) return;
-
-    await api.applyRulesToItem(item.id, type.tagRules);
-  };
-
   const importUntrackedItem = async (path: string): Promise<void> => {
-    const parentFolder = findNearestParentFolder(path, latestDbItems.value);
     const item = await api.quickImportItem(path);
-    await applyParentFolderPresetRules(item, parentFolder);
+    const types = await getItemTypes();
+    const rules = await resolveEffectiveItemRules(item, types);
+    if (rules.length > 0) await api.applyRulesToItem(item.id, rules);
   };
 
   const refresh = async () => {
+    const token = ++refreshToken;
     const path = sourcePath();
     if (!path) {
       changes.value = [];
-      latestDbItems.value = [];
+      isLoading.value = false;
       return;
     }
     isLoading.value = true;
@@ -174,15 +171,15 @@ export function useExternalChanges(sourcePath: () => string | null) {
         api.listDirFiles(path),
         loadAllDbItems(path),
       ]);
-      latestDbItems.value = dbItems;
+      if (token !== refreshToken || sourcePath() !== path) return;
       const detected = computeExternalChanges(path, fileItems, dbItems);
       changes.value = detected.filter(c => !dismissedKeys.value.has(changeKey(c)));
     } catch (e) {
+      if (token !== refreshToken || sourcePath() !== path) return;
       console.error('[useExternalChanges] refresh failed', e);
       changes.value = [];
-      latestDbItems.value = [];
     } finally {
-      isLoading.value = false;
+      if (token === refreshToken) isLoading.value = false;
     }
   };
 
@@ -193,8 +190,9 @@ export function useExternalChanges(sourcePath: () => string | null) {
 
     let added = 0, removed = 0, updated = 0, errors = 0;
     const snapshot = [...changes.value];
+    const modifiedDirectories = getDistinctModifiedDirectories(snapshot);
     try {
-      await runInBatches(snapshot, FIX_CONCURRENCY, async change => {
+      await runInBatches(snapshot.filter(change => change.kind !== 'modified'), FIX_CONCURRENCY, async change => {
         try {
           if (change.kind === 'untracked') {
             await importUntrackedItem(change.path);
@@ -202,13 +200,6 @@ export function useExternalChanges(sourcePath: () => string | null) {
           } else if (change.kind === 'missing') {
             await api.untrackItem(change.path, { allowMissing: true });
             removed++;
-          } else if (change.kind === 'modified') {
-            // 用 incrementalScan 同步所在資料夾（只更新已追蹤項目，不碰白名單限制）
-            const dir = parentDir(change.path);
-            if (dir) {
-              const result = await api.incrementalScan(dir);
-              if ((result.updated ?? 0) > 0) updated++;
-            }
           }
         } catch (e) {
           errors++;
@@ -216,10 +207,22 @@ export function useExternalChanges(sourcePath: () => string | null) {
         }
       });
 
+      for (const directory of modifiedDirectories) {
+        try {
+          const result = await api.incrementalScan(directory);
+          added += result.added ?? 0;
+          updated += result.updated ?? 0;
+          removed += result.removed ?? 0;
+        } catch (e) {
+          errors++;
+          console.error(`[useExternalChanges] fixAll directory failed: ${directory}`, e);
+        }
+      }
+
       lastFixResult.value = { added, updated, removed };
       dismissedKeys.value.clear();
       const errMsg = errors > 0 ? `（${errors} 項失敗）` : '';
-      show(`已修復：新增 ${added}、更新 ${updated}、移除 ${removed}${errMsg}`, errors > added + removed ? 'error' : 'success');
+      show(`已修復：新增 ${added}、更新 ${updated}、移除 ${removed}${errMsg}`, errors > 0 ? 'error' : 'success');
       await refresh();
     } catch (e) {
       console.error('[useExternalChanges] fixAll failed', e);

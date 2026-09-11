@@ -16,6 +16,7 @@ const item = (overrides: Partial<Item>): Item => ({
   existsOnDisk: true,
   missingSince: null,
   lastSeenAt: '2026-05-28T10:00:00Z',
+  openCount: 0,
   importAt: '2026-05-28T10:00:00Z',
   tags: [],
   ...overrides,

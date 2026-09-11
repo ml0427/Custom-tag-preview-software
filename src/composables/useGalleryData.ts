@@ -11,31 +11,52 @@ const formatLocalMinute = (timestampSeconds: number): string => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+type GallerySortBy = 'name' | 'size' | 'date';
+type GallerySortDir = 'asc' | 'desc';
+
+interface GalleryLoadContext {
+  generation: number;
+  path: string | null;
+  tagId: number | null | undefined;
+  search: string;
+  sortBy: GallerySortBy;
+  sortDir: GallerySortDir;
+  frequentMode: boolean;
+}
+
+interface ItemPageResult {
+  content: Item[];
+  page: number;
+  totalPages: number;
+}
+
+interface FileItemsResult {
+  content: FileItem[];
+  error: unknown | null;
+}
+
+const EXTERNAL_CHANGE_CONCURRENCY = 4;
+
 export function useGalleryData(
   sourcePath: () => string | null,
   selectedTagId: () => number | null | undefined,
   gallerySearch: () => string,
-  sortBy: () => 'name' | 'size' | 'date',
-  sortDir: () => 'asc' | 'desc',
+  sortBy: () => GallerySortBy,
+  sortDir: () => GallerySortDir,
   frequentMode: () => boolean = () => false,
 ) {
   const itemsData = ref<Item[]>([]);
   const externalChangeItemsData = ref<Item[]>([]);
   const fileItems = ref<FileItem[]>([]);
   const isLoading = ref(false);
+  const loadError = ref<string | null>(null);
   const externalChanges = ref<ExternalChange[]>([]);
   const externalChangesReady = ref(false);
   const tagPage = ref(0);
   const tagTotalPages = ref(1);
   const TAG_PAGE_SIZE = 200;
   const EXTERNAL_CHANGE_PAGE_SIZE = 1000;
-  let loadAllToken = 0;
-
-  interface ItemPageResult {
-    content: Item[];
-    page: number;
-    totalPages: number;
-  }
+  let loadGeneration = 0;
 
   const itemByPath = computed(() => {
     const hasTagFilter = selectedTagId() != null;
@@ -60,9 +81,26 @@ export function useGalleryData(
       })
       : fileItems.value;
 
+    // The backend has already filtered and sorted the complete tag result
+    // before pagination. Preserve that page order exactly.
+    if (sTagId != null) return base;
+
     let items = [...base];
     const q = gallerySearch().trim().toLowerCase();
-    if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
+    if (q && sTagId == null) {
+      // Filesystem mode keeps the real directory listing, but lets database
+      // metadata make an otherwise unsearchable placeholder visible.
+      items = items.filter(fileItem => {
+        const dbItem = itemByPath.value.get(pathKey(fileItem.path));
+        const searchable = [
+          fileItem.name,
+          dbItem?.name,
+          dbItem?.note,
+          ...(dbItem?.tags.map(tag => tag.name) ?? []),
+        ];
+        return searchable.some(value => value?.toLowerCase().includes(q));
+      });
+    }
 
     if (frequentMode()) {
       items = items
@@ -76,7 +114,7 @@ export function useGalleryData(
       return items;
     }
 
-    // 排序邏輯也應該在這裡執行，確保 grid view 也是排序過的
+    // Filesystem mode still sorts the current directory listing locally.
     const by = sortBy();
     const dir = sortDir();
     items.sort((a, b) => {
@@ -94,37 +132,75 @@ export function useGalleryData(
     return items;
   });
 
-  const fetchFileItems = async (path: string | null): Promise<FileItem[]> => {
-    if (!path) return [];
+  const beginLoad = (): GalleryLoadContext => {
+    const context: GalleryLoadContext = {
+      generation: ++loadGeneration,
+      path: sourcePath(),
+      tagId: selectedTagId(),
+      search: gallerySearch().trim(),
+      sortBy: sortBy(),
+      sortDir: sortDir(),
+      frequentMode: frequentMode(),
+    };
+    isLoading.value = true;
+    loadError.value = null;
+    externalChangesReady.value = false;
+    externalChanges.value = [];
+    return context;
+  };
+
+  const isCurrent = (context: GalleryLoadContext): boolean => context.generation === loadGeneration;
+
+  const fetchFileItems = async (path: string | null): Promise<FileItemsResult> => {
+    if (!path) return { content: [], error: null };
     try {
-      return await api.listDirFiles(path);
-    } catch {
-      return [];
+      return { content: await api.listDirFiles(path), error: null };
+    } catch (error) {
+      console.error('❌ [useGalleryData] directory read error:', error);
+      return { content: [], error };
     }
   };
 
   const fetchItemsPage = async (
+    context: GalleryLoadContext,
     page = 0,
-    path: string | null = sourcePath(),
-    tagId: number | null | undefined = selectedTagId(),
   ): Promise<ItemPageResult> => {
-    try {
-      const sTagIds = tagId != null ? [tagId] : undefined;
-      const pageSize = TAG_PAGE_SIZE;
-      const res = await api.getItems(page, pageSize, sTagIds, 'importAt', 'desc', sTagIds ? undefined : (path ?? undefined));
-      return {
-        content: res.content,
-        page,
-        totalPages: Math.max(1, res.totalPages),
-      };
-    } catch (e) {
-      console.error('❌ [useGalleryData] API getItems error:', e);
-      return {
-        content: [],
-        page,
-        totalPages: 1,
-      };
-    }
+    const sTagIds = context.tagId != null ? [context.tagId] : undefined;
+    const serverSortBy = context.tagId != null
+        ? context.frequentMode
+          ? 'openCount'
+          : context.sortBy === 'size'
+            ? 'fileSize'
+            : context.sortBy === 'date'
+              ? 'fileModifiedAt'
+              : 'name'
+        : 'importAt';
+    const res = context.tagId != null
+        ? await api.getItems(
+          page,
+          TAG_PAGE_SIZE,
+          sTagIds,
+          serverSortBy,
+          context.frequentMode ? 'desc' : context.sortDir,
+          undefined,
+          undefined,
+          false,
+          context.search || undefined,
+          context.frequentMode ? true : undefined,
+        )
+        : await api.getItems(
+          page,
+          TAG_PAGE_SIZE,
+          undefined,
+          serverSortBy,
+          'desc',
+          context.path ?? undefined,
+        );
+    return {
+      content: res.content,
+      page,
+      totalPages: Math.max(1, res.totalPages),
+    };
   };
 
   const publishItemsPage = (result: ItemPageResult) => {
@@ -133,32 +209,41 @@ export function useGalleryData(
     tagTotalPages.value = result.totalPages;
   };
 
-  const loadItemsBackground = async (page = 0) => {
-    publishItemsPage(await fetchItemsPage(page));
-  };
-
   const fetchExternalChangeItems = async (
     path: string | null,
     tagId: number | null | undefined,
-  ): Promise<Item[]> => {
-    if (tagId != null || !path) return [];
+  ): Promise<ItemPageResult> => {
+    if (tagId != null || !path) return { content: [], page: 0, totalPages: 1 };
 
-    const firstPage = await api.getItems(0, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', path, undefined, true);
-    const allItems = [...firstPage.content];
-    if (firstPage.totalPages > 1) {
-      const pages = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 1);
-      const nextPages = await Promise.all(
-        pages.map(page => api.getItems(page, EXTERNAL_CHANGE_PAGE_SIZE, undefined, 'importAt', 'desc', path, undefined, true))
-      );
-      allItems.push(...nextPages.flatMap(page => page.content));
-    }
-    return allItems;
+    const firstPage = await api.getItems(
+      0,
+      EXTERNAL_CHANGE_PAGE_SIZE,
+      undefined,
+      'importAt',
+      'desc',
+      path,
+      undefined,
+      true,
+    );
+    return {
+      content: firstPage.content,
+      page: 0,
+      totalPages: Math.max(1, firstPage.totalPages),
+    };
   };
 
   const detectExternalChanges = (
-    path: string | null = sourcePath(),
-    tagId: number | null | undefined = selectedTagId(),
+    path: string | null,
+    tagId: number | null | undefined,
+    directoryReadFailed = false,
   ) => {
+    if (directoryReadFailed) {
+      // An unreadable directory is an unknown state. Treating it as an empty
+      // directory would manufacture missing entries and hide the real error.
+      externalChanges.value = [];
+      externalChangesReady.value = false;
+      return;
+    }
     if (tagId != null || !path) {
       externalChanges.value = [];
       externalChangesReady.value = true;
@@ -168,47 +253,107 @@ export function useGalleryData(
     externalChangesReady.value = true;
   };
 
+  const loadExternalItemsBackground = async (
+    context: GalleryLoadContext,
+    firstPage: ItemPageResult,
+  ) => {
+    if (!context.path || context.tagId != null || firstPage.totalPages <= 1) return;
+    for (let start = 1; start < firstPage.totalPages; start += EXTERNAL_CHANGE_CONCURRENCY) {
+      const pages = Array.from(
+        { length: Math.min(EXTERNAL_CHANGE_CONCURRENCY, firstPage.totalPages - start) },
+        (_, index) => start + index,
+      );
+      try {
+        const nextPages = await Promise.all(pages.map(page => api.getItems(
+          page,
+          EXTERNAL_CHANGE_PAGE_SIZE,
+          undefined,
+          'importAt',
+          'desc',
+          context.path ?? undefined,
+          undefined,
+          true,
+        )));
+        if (!isCurrent(context)) return;
+        externalChangeItemsData.value = [
+          ...externalChangeItemsData.value,
+          ...nextPages.flatMap(page => page.content),
+        ];
+      } catch (error) {
+        if (isCurrent(context)) {
+          console.error('❌ [useGalleryData] external change load error:', error);
+          loadError.value = error instanceof Error ? `外部變更載入失敗：${error.message}` : `外部變更載入失敗：${String(error)}`;
+          externalChanges.value = [];
+          externalChangesReady.value = false;
+        }
+        return;
+      }
+    }
+    if (isCurrent(context)) detectExternalChanges(context.path, context.tagId);
+  };
+
   const loadAll = async () => {
-    const token = ++loadAllToken;
-    const path = sourcePath();
-    const tagId = selectedTagId();
-    isLoading.value = true;
-    externalChangesReady.value = false;
-    externalChanges.value = [];
-    // 不在開始時清空資料，避免 computed selectedItem 瞬間變 null 造成預覽閃爍
-    // 直接用新資料覆蓋舊資料
+    const context = beginLoad();
     try {
       const [nextFileItems, nextItemsPage, nextExternalItems] = await Promise.all([
-        fetchFileItems(path),
-        fetchItemsPage(0, path, tagId),
-        fetchExternalChangeItems(path, tagId),
+        fetchFileItems(context.path),
+        fetchItemsPage(context),
+        fetchExternalChangeItems(context.path, context.tagId),
       ]);
-      if (token !== loadAllToken) return;
-      fileItems.value = nextFileItems;
+      if (!isCurrent(context)) return;
+      fileItems.value = nextFileItems.content;
+      if (nextFileItems.error) {
+        const message = nextFileItems.error instanceof Error
+          ? nextFileItems.error.message
+          : String(nextFileItems.error);
+        loadError.value = `無法讀取目錄：${message}`;
+      }
       publishItemsPage(nextItemsPage);
-      externalChangeItemsData.value = nextExternalItems;
-      detectExternalChanges(path, tagId);
-    } catch (e) {
-      if (token === loadAllToken) console.error('Gallery load error:', e);
-    } finally {
-      if (token === loadAllToken) isLoading.value = false;
+      externalChangeItemsData.value = nextExternalItems.content;
+      if (nextFileItems.error) {
+        detectExternalChanges(context.path, context.tagId, true);
+      } else if (nextExternalItems.totalPages <= 1) {
+        detectExternalChanges(context.path, context.tagId);
+      } else {
+        // Until every DB page is available, change detection would report
+        // false missing or untracked entries from the partial cache.
+        externalChanges.value = [];
+        externalChangesReady.value = false;
+      }
+      isLoading.value = false;
+      if (!nextFileItems.error) void loadExternalItemsBackground(context, nextExternalItems);
+    } catch (error) {
+      if (isCurrent(context)) {
+        console.error('Gallery load error:', error);
+        loadError.value = error instanceof Error ? error.message : String(error);
+        externalChanges.value = [];
+        externalChangesReady.value = false;
+        isLoading.value = false;
+      }
     }
   };
 
-
   const gotoTagPage = async (page: number) => {
-    isLoading.value = true;
-    try { await loadItemsBackground(page); }
-    catch (e) { console.error(e); }
-    finally { isLoading.value = false; }
+    const context = beginLoad();
+    try {
+      const result = await fetchItemsPage(context, page);
+      if (!isCurrent(context)) return;
+      publishItemsPage(result);
+    } catch (error) {
+      if (isCurrent(context)) {
+        console.error(error);
+        loadError.value = error instanceof Error ? error.message : String(error);
+      }
+    } finally {
+      if (isCurrent(context)) isLoading.value = false;
+    }
   };
-
-  // Watchers moved to ItemGallery for better control over related states (like selected items)
 
   return {
     itemsData,
     fileItems,
     isLoading,
+    loadError,
     externalChanges,
     externalChangesReady,
     tagPage,

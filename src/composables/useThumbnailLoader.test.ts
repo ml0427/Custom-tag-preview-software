@@ -22,6 +22,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('../api', () => ({
   api: {
     getArchiveImagesByPath: vi.fn(),
+    getZipCoverByPath: vi.fn(),
+    getImageBase64ByPath: vi.fn(),
+    ensureThumbCache: vi.fn(),
+    getCoverBase64: vi.fn(),
   },
 }));
 
@@ -52,6 +56,7 @@ const dbItem = (path: string): Item => ({
   lastSeenAt: '2026-05-21T10:00:00Z',
   importAt: '2026-05-21T10:00:00Z',
   tags: [{ id: 7, name: 'Action', color: '#f0b229' }],
+  openCount: 0,
 });
 
 describe('useThumbnailLoader', () => {
@@ -95,6 +100,43 @@ describe('useThumbnailLoader', () => {
     expect(url).toBe(
       'http://comic-cache.localhost/326.jpg?v=001.webp%7C1779340800%7CC%3A%2FLibrary%2Fbook.zip'
     );
+  });
+
+  it('uses the validated cache for tracked image and archive items without a custom cover', async () => {
+    const loader = useThumbnailLoader();
+    const item = fileItem('C:/Library/book.zip');
+    const db = dbItem(item.path);
+    const itemByPath = new Map<string, Item>([[pathKey(item.path), db]]);
+
+    const url = await loader.loadThumbUrl(item, itemByPath);
+
+    expect(apiMock.ensureThumbCache).toHaveBeenCalledWith(db.id);
+    expect(apiMock.getCoverBase64).not.toHaveBeenCalled();
+    expect(url).toContain('comic-cache.localhost/42.jpg?v=');
+  });
+
+  it('changes the cache URL when the content fingerprint changes', () => {
+    const loader = useThumbnailLoader();
+    const first = loader.buildThumbCacheUrl({ ...dbItem('C:/Library/book.zip'), fingerprint: 'fp-a' });
+    const second = loader.buildThumbCacheUrl({ ...dbItem('C:/Library/book.zip'), fingerprint: 'fp-b' });
+
+    expect(first).not.toBe(second);
+    expect(first).toContain('fp-a');
+    expect(second).toContain('fp-b');
+  });
+
+  it('loads the original path when no exact normalized DB path exists', async () => {
+    apiMock.getZipCoverByPath.mockResolvedValueOnce('data:image/webp;base64,original');
+    const loader = useThumbnailLoader();
+    const itemByPath = new Map<string, Item>([
+      [pathKey('C:/Other/book.zip'), dbItem('C:/Other/book.zip')],
+    ]);
+
+    const url = await loader.loadThumbUrl(fileItem('C:/Library/book.zip'), itemByPath);
+
+    expect(apiMock.getZipCoverByPath).toHaveBeenCalledWith('C:/Library/book.zip');
+    expect(apiMock.getCoverBase64).not.toHaveBeenCalled();
+    expect(url).toBe('data:image/webp;base64,original');
   });
 
   it('counts readable zip archive pages from the archive image list', async () => {

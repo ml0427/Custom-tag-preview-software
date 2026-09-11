@@ -39,14 +39,17 @@ fn scan_cancelled(cancel: Option<&ScanCancelState>) -> bool {
 
 pub fn compute_file_fingerprint(path: &Path) -> Option<String> {
     let mut file = fs::File::open(path).ok()?;
+    let before = file.metadata().ok()?;
     let mut hasher = Sha256::new();
-    let mut buf = [0u8; 65536]; // first 64 KB
-    let n = file.read(&mut buf).ok()?;
-    if n == 0 {
-        return None;
+    let mut buf = [0u8; 65536];
+    loop {
+        let n = file.read(&mut buf).ok()?;
+        if n == 0 { break; }
+        hasher.update(&buf[..n]);
     }
-    hasher.update(&buf[..n]);
-    Some(format!("{:x}", hasher.finalize()))
+    let after = fs::metadata(path).ok()?;
+    if before.len() != after.len() || before.modified().ok() != after.modified().ok() { return None; }
+    Some(format!("sha256:{:x}", hasher.finalize()))
 }
 
 pub async fn full_rescan_with_clear(
@@ -56,83 +59,24 @@ pub async fn full_rescan_with_clear(
     app: &AppHandle,
     cancel: Option<&ScanCancelState>,
 ) -> Result<(i32, bool)> {
+    if !Path::new(path_str).is_dir() { anyhow::bail!("重掃需要有效的目錄路徑"); }
+    if scan_cancelled(cancel) { return Ok((0, true)); }
     prepare_full_rescan(pool, cache_dir).await?;
-    let scannable_exts = load_scannable_extensions(pool).await;
-    scan_scannable_files(pool, path_str, cache_dir, app, &scannable_exts, cancel).await
+    // 重掃保留人工標籤、備註、ID 與其他來源；取消時已完成的同步仍可續跑。
+    let (added, _, _, cancelled) = incremental_scan_directory(pool, path_str, cache_dir, app, cancel).await?;
+    Ok((added, cancelled))
 }
 
 async fn prepare_full_rescan(pool: &SqlitePool, cache_dir: &Path) -> Result<()> {
-    db::clear_database(pool).await?;
-    if cache_dir.exists() {
-        let _ = fs::remove_dir_all(cache_dir);
-    }
+    db::backup_database(pool, cache_dir.parent().unwrap_or(cache_dir), "before-rescan").await?;
     fs::create_dir_all(cache_dir)?;
     Ok(())
-}
-
-async fn load_scannable_extensions(pool: &SqlitePool) -> HashSet<String> {
-    sqlx::query_scalar::<_, String>("SELECT DISTINCT extension FROM type_extensions")
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .collect()
-}
-
-async fn scan_scannable_files(
-    pool: &SqlitePool,
-    path_str: &str,
-    cache_dir: &Path,
-    app: &AppHandle,
-    scannable_exts: &HashSet<String>,
-    cancel: Option<&ScanCancelState>,
-) -> Result<(i32, bool)> {
-    let mut added_count = 0;
-    let entries = WalkDir::new(path_str)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.file_type().is_file()
-                && e.path()
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
-                    .unwrap_or(false)
-        });
-
-    for entry in entries {
-        if scan_cancelled(cancel) {
-            let _ = app.emit(
-                "scan-progress",
-                serde_json::json!({
-                    "current": added_count,
-                    "name": "掃描已取消",
-                    "cancelled": true
-                }),
-            );
-            return Ok((added_count, true));
-        }
-        let name = entry
-            .path()
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        if process_zip_file(pool, entry.path(), cache_dir).await? {
-            added_count += 1;
-        }
-        let _ = app.emit(
-            "scan-progress",
-            serde_json::json!({ "current": added_count, "name": name }),
-        );
-    }
-
-    Ok((added_count, false))
 }
 
 async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> Result<bool> {
     let file_path = path.to_string_lossy().to_string();
     let title = path
-        .file_stem()
+        .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .to_string();
@@ -146,7 +90,6 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
         .unwrap_or(0);
     let import_at = Local::now().to_rfc3339();
 
-    let fingerprint = compute_file_fingerprint(path);
     let id = db::insert_item(
         pool,
         &file_path,
@@ -155,7 +98,7 @@ async fn process_zip_file(pool: &SqlitePool, path: &Path, cache_dir: &Path) -> R
         Some(file_size),
         Some(mtime_unix),
         &import_at,
-        fingerprint.as_deref(),
+        None,
     )
     .await?;
     if id == 0 {
@@ -229,19 +172,21 @@ pub async fn incremental_scan_directory(
 
     fs::create_dir_all(cache_dir)?;
 
-    let rows = sqlx::query("SELECT id, path, file_modified_at FROM items")
+    let rows = sqlx::query("SELECT id, path, file_modified_at, file_size FROM items")
         .fetch_all(pool)
         .await?;
 
-    let mut existing: HashMap<String, (i64, i64)> = HashMap::new();
+    let mut existing: HashMap<String, (i64, i64, Option<i64>)> = HashMap::new();
+    let root_key = db::path_key(path_str);
     for row in &rows {
         let path: String = row.get("path");
-        if !Path::new(&path).starts_with(scan_root) {
+        let key = db::path_key(&path);
+        if key != root_key && !key.starts_with(&format!("{root_key}/")) {
             continue;
         }
         let id: i64 = row.get("id");
         let mtime: i64 = row.try_get("file_modified_at").unwrap_or(0);
-        existing.insert(path, (id, mtime));
+        existing.insert(key, (id, mtime, row.try_get("file_size").ok().flatten()));
     }
 
     let scannable_exts: HashSet<String> =
@@ -255,7 +200,9 @@ pub async fn incremental_scan_directory(
     // 蒐集所有實體存在的路徑（不被 scannable_exts 過濾）。
     // 副檔名白名單只決定「要不要自動匯入」，不決定一筆 row 該不該被刪除。
     let mut all_entries = Vec::new();
-    for entry in WalkDir::new(path_str).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(path_str) {
+        // 不把無法讀取的子目錄誤當成整個子樹遺失。
+        let entry = entry?;
         if scan_cancelled(cancel) {
             let _ = app.emit(
                 "scan-progress",
@@ -272,7 +219,7 @@ pub async fn incremental_scan_directory(
 
     let mut found_paths: HashSet<String> = HashSet::new();
     for entry in &all_entries {
-        found_paths.insert(entry.path().to_string_lossy().to_string());
+        found_paths.insert(db::path_key(&entry.path().to_string_lossy()));
     }
 
     let mut added = 0i32;
@@ -291,6 +238,7 @@ pub async fn incremental_scan_directory(
             return Ok((added, updated, 0, true));
         }
         let file_path = entry.path().to_string_lossy().to_string();
+        let file_key = db::path_key(&file_path);
 
         // 跳過根目錄本身（避免把工作目錄當成 folder 匯入）
         if entry.path() == scan_root {
@@ -307,7 +255,7 @@ pub async fn incremental_scan_directory(
                 .and_then(|ext| ext.to_str())
                 .map(|ext| scannable_exts.contains(&ext.to_lowercase()))
                 .unwrap_or(false);
-            if !scannable && !existing.contains_key(&file_path) {
+            if !scannable && !existing.contains_key(&file_key) {
                 continue;
             }
         }
@@ -334,9 +282,10 @@ pub async fn incremental_scan_directory(
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        if let Some((existing_id, db_mtime)) = existing.get(&file_path) {
-            if (mtime_unix - db_mtime).abs() > 2 {
+        if let Some((existing_id, db_mtime, db_size)) = existing.get(&file_key) {
+            if mtime_unix != *db_mtime || file_size != *db_size {
                 db::update_item_size_mtime(pool, *existing_id, file_size, mtime_unix).await?;
+                let _ = fs::remove_file(thumbnail_cache::cache_path(cache_dir, *existing_id));
                 updated += 1;
             } else {
                 db::mark_item_seen(pool, *existing_id, &Local::now().to_rfc3339()).await?;
@@ -358,7 +307,7 @@ pub async fn incremental_scan_directory(
     }
 
     let mut removed = 0i32;
-    for (path, (id, _)) in &existing {
+    for (path, (id, _, _)) in &existing {
         if scan_cancelled(cancel) {
             let _ = app.emit(
                 "scan-progress",
@@ -425,24 +374,42 @@ pub async fn extract_and_apply_tags(pool: &SqlitePool, item_id: i64, title: &str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn rescan_preparation_preserves_metadata_and_creates_readable_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let pool = db::init_db(dir.path()).await.unwrap();
+        let id = db::insert_item(&pool, "C:/Other/book.zip", "file", "Custom name", None, None, "now", None).await.unwrap();
+        sqlx::query("UPDATE items SET note='Keep note' WHERE id=?").bind(id).execute(&pool).await.unwrap();
+        let tag = db::create_tag(&pool, "Manual").await.unwrap();
+        db::add_tag_to_item(&pool, id, tag.id).await.unwrap();
+        prepare_full_rescan(&pool, &dir.path().join("thumb_cache")).await.unwrap();
+        let row = sqlx::query("SELECT id,name,note FROM items").fetch_one(&pool).await.unwrap();
+        assert_eq!(row.get::<i64,_>("id"), id);
+        assert_eq!(row.get::<String,_>("name"), "Custom name");
+        assert_eq!(row.get::<String,_>("note"), "Keep note");
+        let backup = fs::read_dir(dir.path().join("backups")).unwrap().next().unwrap().unwrap().path();
+        let options = sqlx::sqlite::SqliteConnectOptions::new().filename(backup).read_only(true);
+        let snapshot = sqlx::sqlite::SqlitePoolOptions::new().connect_with(options).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM item_tags WHERE item_id=?").bind(id).fetch_one(&snapshot).await.unwrap();
+        assert_eq!(count, 1);
+        snapshot.close().await;
+        pool.close().await;
+    }
     use tempfile::tempdir;
 
     #[test]
-    fn compute_file_fingerprint_uses_first_64kb_and_skips_empty_files() {
+    fn full_fingerprint_includes_tail_and_empty_content() {
         let dir = tempdir().unwrap();
-        let empty_path = dir.path().join("empty.zip");
-        let file_path = dir.path().join("book.zip");
-
-        fs::write(&empty_path, []).unwrap();
-        fs::write(&file_path, vec![b'a'; 70 * 1024]).unwrap();
-
-        let actual = compute_file_fingerprint(&file_path).unwrap();
-        let mut hasher = Sha256::new();
-        hasher.update(vec![b'a'; 64 * 1024]);
-        let expected = format!("{:x}", hasher.finalize());
-
-        assert_eq!(compute_file_fingerprint(&empty_path), None);
-        assert_eq!(actual, expected);
+        let first = dir.path().join("first.zip");
+        let second = dir.path().join("second.zip");
+        let empty = dir.path().join("empty.zip");
+        let mut bytes = vec![b'a'; 70 * 1024];
+        fs::write(&first, &bytes).unwrap();
+        bytes[69 * 1024] = b'b'; fs::write(&second, &bytes).unwrap();
+        fs::write(&empty, []).unwrap();
+        assert_ne!(compute_file_fingerprint(&first), compute_file_fingerprint(&second));
+        assert_eq!(compute_file_fingerprint(&empty), Some(format!("sha256:{:x}", Sha256::digest([]))));
     }
 
     #[test]

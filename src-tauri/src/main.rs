@@ -165,6 +165,7 @@ fn main() {
             // Duplicate detection
             commands::get_duplicate_groups,
             commands::compute_fingerprints,
+            commands::trash_verified_duplicates,
             // File system
             commands::quick_import_item,
             commands::record_item_open,

@@ -36,7 +36,7 @@ export function useDuplicateScanner() {
     }
   };
 
-  const trashItemInGroup = async (item: DuplicateItem, gi: number) => {
+  const trashItemInGroup = async (item: DuplicateItem, _gi: number) => {
     if (!item.pathExists) {
       showToast('檔案已不存在，請用「清理失效紀錄」移除紀錄', 'error');
       return false;
@@ -55,23 +55,19 @@ export function useDuplicateScanner() {
 
   const keepNewestInGroup = async (gi: number) => {
     const group = groups.value[gi];
-    const existing = group.items.filter(i => i.pathExists);
+    const existing = group.items.filter(i => i.pathExists)
+      .sort((a, b) => (a.fileModifiedAt ?? 0) - (b.fileModifiedAt ?? 0) || a.id - b.id);
     const toDelete = existing.slice(0, -1);
     if (toDelete.length === 0) return;
-    if (!await confirmDialog(`將保留最新版本，刪除另外 ${toDelete.length} 個重複項目？`)) return;
-    let failed = 0;
-    for (const item of toDelete) {
-      try {
-        await api.trashItem(item.path);
-      } catch {
-        failed += 1;
-      }
-    }
-    await loadGroups();
-    if (failed > 0) {
-      showToast(`已刪除 ${toDelete.length - failed} 個，${failed} 個失敗`, 'error');
-    } else {
+    const keep = existing[existing.length - 1]!;
+    if (!await confirmDialog(`將保留最後修改時間最新的「${keep.name}」，確認完整內容一致後，移除另外 ${toDelete.length} 個重複項目？`)) return;
+    try {
+      await api.trashVerifiedDuplicates(keep.path, toDelete.map(item => item.path));
       showToast(`已刪除 ${toDelete.length} 個重複項目`, 'success');
+    } catch (e) {
+      showToast(`批次移除未全部完成：${String(e)}`, 'error');
+    } finally {
+      await loadGroups();
     }
   };
 

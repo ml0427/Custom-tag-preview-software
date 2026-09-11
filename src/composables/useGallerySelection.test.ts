@@ -26,6 +26,7 @@ const item = (path: string): Item => ({
   existsOnDisk: true,
   missingSince: null,
   lastSeenAt: '2026-05-21T10:00:00Z',
+  openCount: 0,
   importAt: '2026-05-21T10:00:00Z',
   tags: [],
 });

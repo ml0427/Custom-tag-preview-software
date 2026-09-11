@@ -40,7 +40,7 @@ const selectedRulePreset = computed(() => (
 ));
 
 const { localTags, tagInput, suggestions: tagInputSuggestions, showSuggestions: showTagInputSuggestions,
-    initTags, onInputChange: onTagInputChange, submitInput: submitTagInput,
+    initTags, submitInput: submitTagInput,
     selectSuggestion: selectTagSuggestion, removeTagById: removeTag, hideSuggestions: hideTagSuggestions,
 } = useTagManager({
     getEntityId: () => props.item?.id ?? null,

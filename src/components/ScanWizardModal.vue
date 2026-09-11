@@ -5,6 +5,7 @@ import { useToast } from '../composables/useToast';
 import TagRuleEditor from './TagRuleEditor.vue';
 import RuleTester from './RuleTester.vue';
 import ScanPreviewList from './ScanPreviewList.vue';
+import { applyReviewedScanPlan, scanPlanHasChanges } from './scanPlan';
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{
@@ -23,6 +24,8 @@ const rules = ref<TagRuleInput[]>([]);
 const previewItems = ref<ScanPreviewItem[]>([]);
 const isLoading = ref(false);
 const errorMsg = ref('');
+const previewContext = ref<{ scopePath: string; rulesKey: string } | null>(null);
+let previewRequestGeneration = 0;
 
 const MATCH_TYPES = [
   { value: 'prefix',        label: '前綴' },
@@ -76,11 +79,26 @@ const relPath = computed(() => {
   return norm === root ? '/（根目錄）' : norm.slice(root.length);
 });
 
+const validRules = (): TagRuleInput[] => rules.value.filter(r => r.pattern && (r.matchType === 'regex_capture' || r.tagName));
+const rulesKey = computed(() => JSON.stringify(validRules()));
+const previewIsStale = computed(() => (
+  previewContext.value === null
+  || previewContext.value.scopePath !== selectedPath.value
+  || previewContext.value.rulesKey !== rulesKey.value
+));
+const hasPlanChanges = computed(() => scanPlanHasChanges(previewItems.value));
+
 watch(() => props.visible, async (v) => {
-  if (!v) return;
+  if (!v) {
+    previewRequestGeneration += 1;
+    isLoading.value = false;
+    return;
+  }
   step.value = 1;
   errorMsg.value = '';
   previewItems.value = [];
+  previewContext.value = null;
+  previewRequestGeneration += 1;
   subdirs.value = [];
   try {
     const [srcs, savedRules] = await Promise.all([api.getSources(), api.getTagRules()]);
@@ -107,28 +125,39 @@ const goToPreview = async () => {
   errorMsg.value = '';
   isLoading.value = true;
   step.value = 3;
+  const requestGeneration = ++previewRequestGeneration;
+  const requestScopePath = selectedPath.value;
+  const requestRules = validRules();
+  const requestRulesKey = JSON.stringify(requestRules);
   try {
-    const validRules = rules.value.filter(r => r.pattern && (r.matchType === 'regex_capture' || r.tagName));
-    previewItems.value = await api.previewTagScan(selectedPath.value, validRules);
+    const result = await api.previewTagScan(requestScopePath, requestRules);
+    if (requestGeneration !== previewRequestGeneration || selectedPath.value !== requestScopePath || rulesKey.value !== requestRulesKey) return;
+    previewItems.value = result;
+    previewContext.value = { scopePath: requestScopePath, rulesKey: requestRulesKey };
   } catch (e) {
-    errorMsg.value = String(e);
+    if (requestGeneration === previewRequestGeneration) errorMsg.value = String(e);
   } finally {
-    isLoading.value = false;
+    if (requestGeneration === previewRequestGeneration) isLoading.value = false;
   }
 };
 
 const applyAndClose = async () => {
+  if (!selectedPath.value || previewIsStale.value) {
+    errorMsg.value = '規則或範圍已變更，請重新預覽';
+    return;
+  }
+  if (!hasPlanChanges.value) return;
   isLoading.value = true;
   errorMsg.value = '';
   try {
-    const validRules = rules.value.filter(r => r.pattern && (r.matchType === 'regex_capture' || r.tagName));
-    await api.saveTagRules(validRules);
-    const result = await api.applyTagScan(selectedPath.value, validRules);
+    const currentRules = validRules();
+    const result = await applyReviewedScanPlan(api, selectedPath.value, currentRules, previewItems.value);
     showToast(`完成！新增 ${result.added}、更新 ${result.updated}、移除 ${result.removed}，標籤套用 ${result.tagged} 次`, 'success', 5000);
     emit('completed');
     emit('close');
   } catch (e) {
     errorMsg.value = String(e);
+    previewContext.value = null;
   } finally {
     isLoading.value = false;
   }
@@ -230,6 +259,7 @@ const applyAndClose = async () => {
         <div v-else-if="step === 3" class="step-body">
           <h2>預覽結果</h2>
           <p class="sub">以下項目將被套用標籤（共 {{ previewItems.length }} 項）</p>
+          <p v-if="previewIsStale && previewItems.length" class="stale-hint">規則或範圍已變更，請重新預覽。</p>
 
           <ScanPreviewList
             :previewItems="previewItems"
@@ -239,7 +269,7 @@ const applyAndClose = async () => {
           <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
           <div class="footer-btns">
             <button class="btn-ghost" :disabled="isLoading" @click="step = 2">← 上一步</button>
-            <button class="btn-confirm" :disabled="isLoading || previewItems.length === 0" @click="applyAndClose">
+            <button class="btn-confirm" :disabled="isLoading || previewIsStale || !hasPlanChanges" @click="applyAndClose">
               {{ isLoading ? '處理中...' : '確認存入' }}
             </button>
           </div>
@@ -326,6 +356,7 @@ const applyAndClose = async () => {
 
 h2 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 .sub { font-size: 0.9rem; color: var(--text-secondary); margin: 0; }
+.stale-hint { color: var(--color-danger); font-size: 0.82rem; margin: -8px 0 0; }
 
 .source-list { display: flex; flex-direction: column; gap: 8px; }
 .source-item {

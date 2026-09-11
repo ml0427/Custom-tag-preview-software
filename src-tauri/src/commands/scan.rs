@@ -22,7 +22,7 @@ pub async fn scan_directory(
 ) -> Result<serde_json::Value, String> {
     if !confirm_full_rescan {
         return Err(
-            "scan_directory 會清空資料庫後重掃，必須明確傳入 confirmFullRescan: true".to_string(),
+            "重掃會備份資料庫並同步目錄，必須明確傳入 confirmFullRescan: true".to_string(),
         );
     }
 

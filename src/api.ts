@@ -84,6 +84,10 @@ export interface ScanPreviewItem {
     name: string;
     isDir: boolean;
     proposedTags: string[];
+    addedTags: string[];
+    removedTags: string[];
+    isNew: boolean;
+    snapshot: string;
 }
 
 export interface ScanResult {
@@ -222,8 +226,21 @@ export const api = {
         sourcePath?: string,
         itemType?: string,
         includeMissing = false,
+        search?: string,
+        frequentOnly?: boolean,
     ): Promise<Page<Item>> {
-        return await invoke<Page<Item>>('get_items', { page, size, tagIds, sortBy, sortDir, sourcePath, itemType, includeMissing });
+        return await invoke<Page<Item>>('get_items', {
+            page,
+            size,
+            tagIds,
+            sortBy,
+            sortDir,
+            sourcePath,
+            itemType,
+            includeMissing,
+            ...(search !== undefined ? { search } : {}),
+            ...(frequentOnly !== undefined ? { frequentOnly } : {}),
+        });
     },
 
     async getItem(id: number): Promise<Item> {
@@ -417,8 +434,8 @@ export const api = {
     async previewTagScan(scopePath: string, rules: TagRuleInput[]): Promise<ScanPreviewItem[]> {
         return await invoke<ScanPreviewItem[]>('preview_tag_scan', { scopePath, rules });
     },
-    async applyTagScan(scopePath: string, rules: TagRuleInput[]): Promise<{ added: number; updated: number; removed: number; tagged: number }> {
-        return await invoke('apply_tag_scan', { scopePath, rules });
+    async applyTagScan(scopePath: string, rules: TagRuleInput[], expectedPlan: ScanPreviewItem[]): Promise<{ added: number; updated: number; removed: number; tagged: number }> {
+        return await invoke('apply_tag_scan', { scopePath, rules, expectedPlan });
     },
     async applyRulesToItem(itemId: number, rules: TagRuleInput[]): Promise<{ added: number; updated: number; removed: number; tagged: number }> {
         return await invoke('apply_rules_to_item', { itemId, rules });
@@ -451,6 +468,10 @@ export const api = {
     },
     async computeFingerprints(): Promise<number> {
         return await invoke('compute_fingerprints');
+    },
+
+    async trashVerifiedDuplicates(keepPath: string, paths: string[]): Promise<void> {
+        await invoke('trash_verified_duplicates', { keepPath, paths });
     },
 
     // ── Item Types ────────────────────────────────────────────────────────────

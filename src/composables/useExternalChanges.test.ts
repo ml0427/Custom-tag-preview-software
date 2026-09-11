@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type FileItem, type FolderRulePreset, type Item, type ItemType, type Page, type TagRuleInput } from '../api';
-import { computeExternalChanges, useExternalChanges } from './useExternalChanges';
+import { computeExternalChanges, getDistinctModifiedDirectories, useExternalChanges } from './useExternalChanges';
 
 vi.mock('../api', async importOriginal => {
   const actual = await importOriginal<typeof import('../api')>();
@@ -56,6 +56,7 @@ const dbItem = (overrides: Partial<Item>): Item => ({
   lastSeenAt: '2026-05-21T10:00:00Z',
   importAt: '2026-05-21T10:00:00Z',
   tags: [],
+  openCount: 0,
   ...overrides,
 });
 
@@ -167,6 +168,22 @@ describe('computeExternalChanges', () => {
   });
 });
 
+describe('getDistinctModifiedDirectories', () => {
+  it('deduplicates directories and removes descendants covered by an ancestor scan', () => {
+    const changes = [
+      { kind: 'modified', path: 'C:/Library/Series/one.zip', name: 'one.zip', itemType: 'file', message: '' },
+      { kind: 'modified', path: 'C:/Library/Series/two.zip', name: 'two.zip', itemType: 'file', message: '' },
+      { kind: 'modified', path: 'C:/Library/Series/Nested/three.zip', name: 'three.zip', itemType: 'file', message: '' },
+      { kind: 'modified', path: 'C:/Library/Other/four.zip', name: 'four.zip', itemType: 'file', message: '' },
+    ] as const;
+
+    expect(getDistinctModifiedDirectories(changes)).toEqual([
+      'C:/Library/Other',
+      'C:/Library/Series',
+    ]);
+  });
+});
+
 describe('useExternalChanges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -219,9 +236,10 @@ describe('useExternalChanges', () => {
     await externalChanges.importOne('C:/Library/new.zip');
 
     expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
-    expect(apiMock.getItemByPath).not.toHaveBeenCalled();
+    expect(apiMock.getItemByPath).toHaveBeenCalledWith('C:/Library');
     expect(apiMock.setItemCategory).not.toHaveBeenCalled();
-    expect(apiMock.getItemTypes).not.toHaveBeenCalled();
+    expect(apiMock.getItemTypes).toHaveBeenCalledTimes(1);
+    expect(apiMock.getFolderRulePreset).toHaveBeenCalledWith(10);
     expect(apiMock.applyRulesToItem).not.toHaveBeenCalled();
   });
 
@@ -253,6 +271,7 @@ describe('useExternalChanges', () => {
       .mockResolvedValueOnce(page([parentFolder]))
       .mockResolvedValueOnce(page([parentFolder, importedItem]));
     apiMock.quickImportItem.mockResolvedValueOnce(importedItem);
+    apiMock.getItemByPath.mockResolvedValueOnce(parentFolder);
     apiMock.getFolderRulePreset.mockResolvedValueOnce(folderPreset({ folderItemId: 10, presetTypeId: 7 }));
     apiMock.getItemTypes.mockResolvedValueOnce([
       itemType({ id: 1, name: 'default', tagRules: [] }),
@@ -265,6 +284,7 @@ describe('useExternalChanges', () => {
     await externalChanges.fixAll();
 
     expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
+    expect(apiMock.getItemByPath).toHaveBeenCalledWith('C:/Library');
     expect(apiMock.getFolderRulePreset).toHaveBeenCalledWith(10);
     expect(apiMock.getItemTypes).toHaveBeenCalledTimes(1);
     expect(apiMock.applyRulesToItem).toHaveBeenCalledWith(20, tagRules);
@@ -294,7 +314,61 @@ describe('useExternalChanges', () => {
 
     expect(apiMock.quickImportItem).toHaveBeenCalledWith('C:/Library/new.zip');
     expect(apiMock.setItemCategory).not.toHaveBeenCalled();
-    expect(apiMock.getItemTypes).not.toHaveBeenCalled();
+    expect(apiMock.getItemTypes).toHaveBeenCalledTimes(1);
+    expect(apiMock.getItemByPath).toHaveBeenCalledWith('C:/Library');
+    expect(apiMock.getFolderRulePreset).toHaveBeenCalledWith(10);
     expect(apiMock.applyRulesToItem).not.toHaveBeenCalled();
+  });
+
+  it('scans each modified directory once and aggregates scan result counts', async () => {
+    apiMock.listDirFiles.mockResolvedValue([]);
+    apiMock.getItems.mockResolvedValue(page([]));
+    apiMock.incrementalScan.mockResolvedValue({ message: 'ok', added: 1, updated: 2, removed: 3, cancelled: false });
+
+    const externalChanges = useExternalChanges(() => 'C:/Library');
+    externalChanges.changes.value = [
+      { kind: 'modified', path: 'C:/Library/Series/one.zip', name: 'one.zip', itemType: 'file', message: '' },
+      { kind: 'modified', path: 'C:/Library/Series/two.zip', name: 'two.zip', itemType: 'file', message: '' },
+      { kind: 'modified', path: 'C:/Library/Series/Nested/three.zip', name: 'three.zip', itemType: 'file', message: '' },
+      { kind: 'modified', path: 'C:/Library/Other/four.zip', name: 'four.zip', itemType: 'file', message: '' },
+    ];
+
+    await externalChanges.fixAll();
+
+    expect(apiMock.incrementalScan).toHaveBeenCalledTimes(2);
+    expect(apiMock.incrementalScan).toHaveBeenNthCalledWith(1, 'C:/Library/Other');
+    expect(apiMock.incrementalScan).toHaveBeenNthCalledWith(2, 'C:/Library/Series');
+    expect(externalChanges.lastFixResult.value).toEqual({ added: 2, updated: 4, removed: 6 });
+  });
+
+  it('keeps newer source refresh results when an older refresh resolves later', async () => {
+    let currentPath = 'C:/Old';
+    let resolveOldFiles!: (items: FileItem[]) => void;
+    let resolveOldDb!: (result: Page<Item>) => void;
+    let resolveNewFiles!: (items: FileItem[]) => void;
+    let resolveNewDb!: (result: Page<Item>) => void;
+    const oldFiles = new Promise<FileItem[]>(resolve => { resolveOldFiles = resolve; });
+    const oldDb = new Promise<Page<Item>>(resolve => { resolveOldDb = resolve; });
+    const newFiles = new Promise<FileItem[]>(resolve => { resolveNewFiles = resolve; });
+    const newDb = new Promise<Page<Item>>(resolve => { resolveNewDb = resolve; });
+    apiMock.listDirFiles.mockImplementation(path => path === 'C:/Old' ? oldFiles : newFiles);
+    apiMock.getItems.mockImplementation((_page, _size, _tagIds, _sortBy, _sortDir, path) => (
+      path === 'C:/Old' ? oldDb : newDb
+    ));
+
+    const externalChanges = useExternalChanges(() => currentPath);
+    const oldRefresh = externalChanges.refresh();
+    currentPath = 'C:/New';
+    const newRefresh = externalChanges.refresh();
+
+    resolveNewFiles([fileItem({ path: 'C:/New/new.zip', name: 'new.zip' })]);
+    resolveNewDb(page([]));
+    await newRefresh;
+    expect(externalChanges.changes.value[0]?.path).toBe('C:/New/new.zip');
+
+    resolveOldFiles([fileItem({ path: 'C:/Old/old.zip', name: 'old.zip' })]);
+    resolveOldDb(page([]));
+    await oldRefresh;
+    expect(externalChanges.changes.value[0]?.path).toBe('C:/New/new.zip');
   });
 });

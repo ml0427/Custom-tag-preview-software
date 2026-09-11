@@ -48,6 +48,7 @@ const {
   itemsData,
   fileItems,
   isLoading,
+  loadError,
   externalChanges,
   externalChangesReady,
   tagPage,
@@ -410,7 +411,8 @@ const handlePreviewTagsChanged = async () => {
 };
 
 
-const handleSort = (col: 'name' | 'size' | 'date') => {
+const handleSort = (col: string) => {
+  if (col !== 'name' && col !== 'size' && col !== 'date') return;
   if (sortBy.value === col) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
   } else {
@@ -489,6 +491,13 @@ watch(() => props.sourcePath, () => {
 
 watch(() => props.selectedTagId, () => {
   loadAll();
+});
+
+watch([gallerySearch, sortBy, sortDir, frequentMode], () => {
+  // Filesystem mode derives these filters from the real directory listing.
+  // Tag mode must reload because filtering, ordering, and pagination happen
+  // over the complete database result on the backend.
+  if (props.selectedTagId != null) loadAll();
 });
 
 onMounted(() => {
@@ -628,6 +637,13 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           <div class="spinner"></div>
           <span class="state-kicker">Reading index</span>
           <h3>正在讀取內容</h3>
+        </div>
+
+        <div v-else-if="loadError" class="error-state">
+          <span class="state-kicker">Read error</span>
+          <h3>無法讀取這個目錄</h3>
+          <p>{{ loadError }}</p>
+          <button class="page-btn" @click="loadAll">重試</button>
         </div>
 
         <div v-else-if="filteredFileItems.length === 0" class="empty-state">
@@ -871,7 +887,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   flex-direction: column;
 }
 
-.no-workspace-state, .loader, .empty-state {
+.no-workspace-state, .loader, .empty-state, .error-state {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -896,14 +912,16 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
 
 .no-workspace-state h3,
 .loader h3,
-.empty-state h3 {
+.empty-state h3,
+.error-state h3 {
   color: var(--content-primary);
   font-size: 1rem;
   font-weight: 600;
 }
 
 .no-workspace-state p,
-.empty-state p {
+.empty-state p,
+.error-state p {
   max-width: 360px;
   color: var(--content-muted);
   font-family: var(--font-jp);

@@ -18,125 +18,74 @@ fn image_data_url(data: &[u8]) -> String {
 
 #[tauri::command]
 pub async fn get_items(
-    page: i64,
-    size: i64,
-    tag_ids: Option<Vec<i64>>,
-    sort_by: Option<String>,
-    sort_dir: Option<String>,
-    source_path: Option<String>,
-    item_type: Option<String>,
-    include_missing: Option<bool>,
+    page: i64, size: i64, tag_ids: Option<Vec<i64>>, sort_by: Option<String>,
+    sort_dir: Option<String>, source_path: Option<String>, item_type: Option<String>,
+    include_missing: Option<bool>, search: Option<String>, frequent_only: Option<bool>,
     pool: State<'_, SqlitePool>,
 ) -> Result<Page<Item>, String> {
-    let offset = page * size;
+    query_items(&pool, page, size, tag_ids, sort_by, sort_dir, source_path,
+        item_type, include_missing, search, frequent_only).await
+}
+
+pub(super) async fn query_items(
+    pool: &SqlitePool, page: i64, size: i64, tag_ids: Option<Vec<i64>>, sort_by: Option<String>,
+    sort_dir: Option<String>, source_path: Option<String>, item_type: Option<String>,
+    include_missing: Option<bool>, search: Option<String>, frequent_only: Option<bool>,
+) -> Result<Page<Item>, String> {
+    if page < 0 || !(1..=1000).contains(&size) { return Err("頁碼或每頁數量無效".into()); }
+    let offset = page.checked_mul(size).ok_or("頁碼過大")?;
     let col = match sort_by.as_deref() {
-        Some("name") => "i.name",
+        Some("name") => "i.name COLLATE NOCASE",
         Some("fileSize") => "i.file_size",
         Some("fileModifiedAt") => "i.file_modified_at",
+        Some("openCount") => "i.open_count",
         _ => "i.import_at",
     };
-    let dir = if sort_dir.as_deref() == Some("asc") {
-        "ASC"
-    } else {
-        "DESC"
-    };
-    let source_like = source_path.as_deref().map(|p| format!("{}%", p));
-    let source_like_alt = source_path.as_deref().map(|p| {
-        let alt = if p.contains('\\') {
-            p.replace('\\', "/")
-        } else {
-            p.replace('/', "\\")
-        };
-        format!("{}%", alt)
-    });
-    let active_tags: Vec<i64> = tag_ids.unwrap_or_default();
-    let with_tags = !active_tags.is_empty();
-    let has_source = source_path.is_some();
-    let include_missing = include_missing.unwrap_or(false);
-
-    // Build both data and count queries with the same conditions
+    let dir = if sort_dir.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+    let mut tags = tag_ids.unwrap_or_default();
+    tags.sort_unstable(); tags.dedup();
+    let search_pattern = search.as_deref().map(str::trim).filter(|q| !q.is_empty())
+        .map(|q| format!("%{}%", db::escape_like(q)));
     macro_rules! build_query {
         ($select:expr) => {{
-            let mut qb = sqlx::QueryBuilder::new($select);
-            // OR-logic multi-tag filter: show items that have ANY of the selected tags
-            if with_tags {
-                qb.push(" WHERE i.id IN (SELECT DISTINCT item_id FROM item_tags WHERE tag_id IN (");
-                let mut sep = qb.separated(", ");
-                for id in &active_tags {
-                    sep.push_bind(*id);
-                }
-                qb.push("))");
+            let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new($select);
+            qb.push(" WHERE 1=1");
+            if !tags.is_empty() {
+                qb.push(" AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id IN (");
+                let mut values = qb.separated(",");
+                for id in &tags { values.push_bind(*id); }
+                qb.push(") GROUP BY item_id HAVING COUNT(DISTINCT tag_id) = ");
+                qb.push_bind(tags.len() as i64); qb.push(")");
             }
-            let mut need_and = with_tags;
-            if has_source {
-                qb.push(if need_and { " AND" } else { " WHERE" });
-                qb.push(" (i.path LIKE ");
-                qb.push_bind(
-                    source_like
-                        .clone()
-                        .expect("source_like is Some when has_source is true"),
-                );
-                qb.push(" OR i.path LIKE ");
-                qb.push_bind(
-                    source_like_alt
-                        .clone()
-                        .expect("source_like_alt is Some when has_source is true"),
-                );
-                qb.push(")");
-                need_and = true;
-            } else if !with_tags {
-                qb.push(" WHERE EXISTS (SELECT 1 FROM sources s WHERE i.path LIKE s.path || '%')");
-                need_and = true;
+            if let Some(path) = &source_path {
+                let root = db::path_key(path);
+                qb.push(" AND (REPLACE(i.path, '\\', '/') = "); qb.push_bind(root.clone());
+                qb.push(" COLLATE NOCASE OR REPLACE(i.path, '\\', '/') LIKE ");
+                qb.push_bind(format!("{}/%", db::escape_like(&root))); qb.push(" ESCAPE '!')");
+            } else if tags.is_empty() {
+                qb.push(" AND EXISTS (SELECT 1 FROM sources s WHERE REPLACE(i.path, '\\', '/') = RTRIM(REPLACE(s.path, '\\', '/'), '/') COLLATE NOCASE OR SUBSTR(REPLACE(i.path, '\\', '/'), 1, LENGTH(RTRIM(REPLACE(s.path, '\\', '/'), '/')) + 1) = RTRIM(REPLACE(s.path, '\\', '/'), '/') || '/' COLLATE NOCASE)");
             }
-            if let Some(ref itype) = item_type {
-                qb.push(if need_and { " AND" } else { " WHERE" });
-                qb.push(" i.item_type = ");
-                qb.push_bind(itype.clone());
-                need_and = true;
-            }
-            if !include_missing {
-                qb.push(if need_and { " AND" } else { " WHERE" });
-                qb.push(" i.exists_on_disk = 1");
+            if let Some(kind) = &item_type { qb.push(" AND i.item_type = "); qb.push_bind(kind.clone()); }
+            if !include_missing.unwrap_or(false) { qb.push(" AND i.exists_on_disk = 1"); }
+            if frequent_only.unwrap_or(false) { qb.push(" AND i.open_count > 0"); }
+            if let Some(pattern) = &search_pattern {
+                qb.push(" AND (i.name LIKE "); qb.push_bind(pattern.clone()); qb.push(" ESCAPE '!' OR COALESCE(i.note, '') LIKE ");
+                qb.push_bind(pattern.clone()); qb.push(" ESCAPE '!' OR EXISTS (SELECT 1 FROM item_tags it JOIN tags t ON t.id = it.tag_id WHERE it.item_id = i.id AND t.name LIKE ");
+                qb.push_bind(pattern.clone()); qb.push(" ESCAPE '!'))");
             }
             qb
         }};
     }
-
     let mut qb = build_query!("SELECT i.* FROM items i");
-    qb.push(format!(" ORDER BY {} {} LIMIT ", col, dir));
-    qb.push_bind(size);
-    qb.push(" OFFSET ");
-    qb.push_bind(offset);
-
-    let mut count_qb = build_query!("SELECT COUNT(*) FROM items i");
-
-    let rows = qb
-        .build()
-        .fetch_all(&*pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    let mut items = Vec::new();
-    for row in rows {
-        let id: i64 = row.get("id");
-        let tags = fetch_item_tags(&pool, id).await?;
-        items.push(read_item_from_row(&row, tags));
-    }
-
-    let total_elements: i64 = count_qb
-        .build()
-        .fetch_one(&*pool)
-        .await
-        .map_err(|e| e.to_string())?
-        .get(0);
-
-    let total_pages = (total_elements as f64 / size as f64).ceil() as i64;
-    Ok(Page {
-        content: items,
-        total_pages,
-        total_elements,
-        number: page,
-        size,
-    })
+    qb.push(format!(" ORDER BY {col} {dir}, i.id ASC LIMIT "));
+    qb.push_bind(size); qb.push(" OFFSET "); qb.push_bind(offset);
+    let rows = qb.build().fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let ids: Vec<i64> = rows.iter().map(|row| row.get("id")).collect();
+    let mut tags_by_item = super::helpers::fetch_tags_for_items(pool, &ids).await?;
+    let items = rows.iter().map(|row| read_item_from_row(row, tags_by_item.remove(&row.get::<i64, _>("id")).unwrap_or_default())).collect();
+    let mut count = build_query!("SELECT COUNT(*) FROM items i");
+    let total: i64 = count.build_query_scalar().fetch_one(pool).await.map_err(|e| e.to_string())?;
+    Ok(Page { content: items, total_pages: (total + size - 1) / size, total_elements: total, number: page, size })
 }
 
 #[tauri::command]
@@ -155,8 +104,8 @@ pub async fn get_item_by_path(
     path: String,
     pool: State<'_, SqlitePool>,
 ) -> Result<Option<Item>, String> {
-    let row = sqlx::query("SELECT * FROM items WHERE path = ?")
-        .bind(&path)
+    let row = sqlx::query("SELECT * FROM items WHERE REPLACE(path, '\\', '/') = ? COLLATE NOCASE")
+        .bind(db::path_key(&path))
         .fetch_optional(&*pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -214,26 +163,19 @@ pub async fn rename_item(
     let old_path_str: String = row.get("path");
     let item_type: String = row.get("item_type");
     let old_path = std::path::Path::new(&old_path_str);
-    let extension = old_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let new_path = build_renamed_path(old_path, &name, &item_type)?;
+    if new_path == old_path { return get_item(id, pool).await; }
 
-    let new_file_name = if extension.is_empty() {
-        name.clone()
-    } else {
-        format!("{}.{}", name, extension)
-    };
-    let new_path = old_path.with_file_name(new_file_name);
-
-    if new_path.exists() {
+    if new_path.exists() && db::path_key(&new_path.to_string_lossy()) != db::path_key(&old_path_str) {
         return Err("A file with the same name already exists".to_string());
     }
-
-    fs::rename(old_path, &new_path).map_err(|e| format!("Failed to rename file: {}", e))?;
 
     let new_path_str = new_path.to_string_lossy().to_string();
 
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-    db::update_item_name_and_path(&mut *tx, id, &name, &new_path_str)
+    let display_name = new_path.file_name().unwrap().to_string_lossy();
+    db::update_item_name_and_path(&mut *tx, id, &display_name, &new_path_str)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -244,11 +186,71 @@ pub async fn rename_item(
         db::update_item_path_prefix(&mut *tx, &old_prefix, &new_prefix, &like_pattern)
             .await
             .map_err(|e| e.to_string())?;
+        for (table, column) in [("sources", "path"), ("tag_rules", "scope_path")] {
+            let sql = format!("UPDATE {table} SET {column} = ? || SUBSTR({column}, LENGTH(?) + 1) WHERE REPLACE({column}, '\\', '/') = ? COLLATE NOCASE OR REPLACE({column}, '\\', '/') LIKE ? ESCAPE '!'");
+            sqlx::query(&sql).bind(&new_path_str).bind(&old_path_str).bind(db::path_key(&old_path_str))
+                .bind(format!("{}/%", db::escape_like(&db::path_key(&old_path_str))))
+                .execute(&mut *tx).await.map_err(|e| e.to_string())?;
+        }
     }
 
-    tx.commit().await.map_err(|e| e.to_string())?;
+    fs::rename(old_path, &new_path).map_err(|e| format!("重新命名失敗：{e}"))?;
+    if let Err(error) = tx.commit().await {
+        let rollback = fs::rename(&new_path, old_path);
+        return Err(format!("資料庫更新失敗：{error}；檔案復原結果：{rollback:?}"));
+    }
 
     get_item(id, pool).await
+}
+
+fn build_renamed_path(old_path: &std::path::Path, name: &str, item_type: &str) -> Result<std::path::PathBuf, String> {
+    let name = name.trim();
+    if name.is_empty() || name == "." || name == ".." || name.ends_with('.')
+        || name.chars().any(|c| c.is_control() || "\\/<>:\"|?*".contains(c)) {
+        return Err("名稱無效，請只輸入檔名或資料夾名稱".into());
+    }
+    let new_name = if item_type == "file" && std::path::Path::new(name).extension().is_none() {
+        match old_path.extension().and_then(|ext| ext.to_str()) {
+            Some(ext) => format!("{name}.{ext}"), None => name.to_string(),
+        }
+    } else { name.to_string() };
+    Ok(old_path.with_file_name(new_name))
+}
+
+#[cfg(test)]
+mod query_tests {
+    use super::*;
+    #[test]
+    fn rename_accepts_full_names_and_keeps_folder_dots() {
+        use std::path::Path;
+        assert_eq!(build_renamed_path(Path::new("book.zip"), "new.zip", "file").unwrap(), Path::new("new.zip"));
+        assert_eq!(build_renamed_path(Path::new("book.zip"), "new", "file").unwrap(), Path::new("new.zip"));
+        assert_eq!(build_renamed_path(Path::new("folder.old"), "folder.new", "folder").unwrap(), Path::new("folder.new"));
+        assert!(build_renamed_path(Path::new("book.zip"), "../other", "file").is_err());
+    }
+    #[tokio::test]
+    async fn search_and_sort_run_before_pagination_and_obey_scope_boundaries() {
+        let dir = tempfile::tempdir().unwrap(); let pool = db::init_db(dir.path()).await.unwrap();
+        db::add_source(&pool, "C:\\Library\\A_").await.unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        for i in 0..10000 {
+            let id = db::insert_item(&mut *tx, &format!("C:\\Library\\A_\\{i}.zip"), "file", &format!("book {i:05}"), Some(i), Some(i), "now", None).await.unwrap();
+            if i == 9999 { db::update_item_note(&mut *tx, id, "unique needle").await.unwrap(); }
+        }
+        db::insert_item(&mut *tx, "C:\\Library\\AB\\wrong.zip", "file", "wrong", Some(99999), None, "now", None).await.unwrap();
+        tx.commit().await.unwrap();
+        let started = std::time::Instant::now();
+        let result = query_items(&pool, 0, 200, None, Some("fileSize".into()), Some("desc".into()), Some("C:/Library/A_".into()), None, None, Some("unique needle".into()), None).await.unwrap();
+        assert_eq!(result.total_elements, 1); assert_eq!(result.content[0].name, "book 09999");
+        let all = query_items(&pool, 0, 200, None, Some("fileSize".into()), Some("desc".into()), None, None, None, None, None).await.unwrap();
+        assert_eq!(all.total_elements, 10000); assert_eq!(all.content.len(), 200); assert_eq!(all.content[0].name, "book 09999");
+        println!("10k-row search + sorted first page: {:?}", started.elapsed());
+        let tag = db::create_tag(&pool, "tag needle").await.unwrap();
+        db::add_tag_to_item(&pool, result.content[0].id, tag.id).await.unwrap();
+        let tagged = query_items(&pool, 0, 200, Some(vec![tag.id]), None, None, None, None, None, Some("tag needle".into()), None).await.unwrap();
+        assert_eq!(tagged.content.len(),1);
+        assert!(query_items(&pool,0,0,None,None,None,None,None,None,None,None).await.is_err());
+    }
 }
 
 /// 副檔名是否為本專案 zip_utils 能解析的壓縮包。
@@ -421,12 +423,23 @@ pub async fn ensure_thumb_cache(
         .expect("failed to get app data dir")
         .join("thumb_cache");
     let cache_file = thumbnail_cache::cache_path(&cache_dir, id);
+    let row = sqlx::query("SELECT path, cover_cache_path FROM items WHERE id = ?")
+        .bind(id).fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+    let file_path: String = row.get("path");
+    let cover_cache_path: Option<String> = row.get("cover_cache_path");
+    let metadata = fs::metadata(&file_path).map_err(|e| e.to_string())?;
+    let source_version = serde_json::to_string(&json!({
+        "path": file_path, "size": metadata.len(), "cover": cover_cache_path,
+        "mtime": metadata.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos().to_string()),
+    })).map_err(|e| e.to_string())?;
+    let version_file = cache_file.with_extension("version.json");
 
     // 快取已存在且非空 → 直接回傳
     // 若檔案大小為 0（寫入中斷、磁碟滿等），視為無效快取，刪掉重建
     if cache_file.exists() {
         let meta = fs::metadata(&cache_file).map_err(|e| e.to_string())?;
-        if meta.len() > 0 && thumbnail_cache::is_valid_cache_file(&cache_file) {
+        if meta.len() > 0 && thumbnail_cache::is_valid_cache_file(&cache_file)
+            && fs::read_to_string(&version_file).ok().as_deref() == Some(&source_version) {
             let data = fs::read(&cache_file).map_err(|e| e.to_string())?;
             debug_state.log_info(
                 "thumbnail.ensure_cache.hit",
@@ -496,6 +509,7 @@ pub async fn ensure_thumb_cache(
 
     let written = thumbnail_cache::write_thumbnail_cache(&cache_dir, id, &image_data)
         .map_err(|e| e.to_string())?;
+    fs::write(&version_file, source_version).map_err(|e| e.to_string())?;
     debug_state.log_info(
         "thumbnail.ensure_cache.written",
         json!({

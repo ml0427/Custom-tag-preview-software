@@ -65,7 +65,7 @@ const item = (overrides: Partial<Item>): Item => ({
 
 describe('useGalleryData', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it('loads filesystem and database items, then sorts the visible list', async () => {
@@ -121,6 +121,26 @@ describe('useGalleryData', () => {
         isDir: false,
       },
     ]);
+  });
+
+  it('keeps the backend order for a tagged page', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([]);
+    apiMock.getItems.mockResolvedValueOnce(page([
+      item({ id: 1, name: 'z-last' }),
+      item({ id: 2, name: 'a-first' }),
+    ]));
+
+    const gallery = useGalleryData(
+      () => null,
+      () => 7,
+      () => '',
+      () => 'name',
+      () => 'asc',
+    );
+
+    await gallery.loadAll();
+
+    expect(gallery.filteredFileItems.value.map(value => value.name)).toEqual(['z-last', 'a-first']);
   });
 
   it('uses the full source item cache for path lookups in filesystem mode', async () => {
@@ -313,5 +333,217 @@ describe('useGalleryData', () => {
     expect(gallery.externalChangesReady.value).toBe(true);
     expect(gallery.externalChanges.value).toEqual([]);
     expect(gallery.filteredFileItems.value.map(item => item.name)).toEqual(['book.zip']);
+  });
+
+  it('does not let an older tag page overwrite a newer page request', async () => {
+    const firstPage = deferred<Page<Item>>();
+    const secondPage = deferred<Page<Item>>();
+    apiMock.getItems.mockImplementation(async (pageNumber = 0) => (
+      pageNumber === 1 ? firstPage.promise : secondPage.promise
+    ));
+
+    const gallery = useGalleryData(
+      () => null,
+      () => 7,
+      () => '',
+      () => 'name',
+      () => 'asc',
+    );
+
+    const firstLoad = gallery.gotoTagPage(1);
+    const secondLoad = gallery.gotoTagPage(2);
+    firstPage.resolve(page([item({ id: 1, name: 'old' })]));
+    await firstLoad;
+    expect(gallery.itemsData.value).toEqual([]);
+
+    secondPage.resolve(page([item({ id: 2, name: 'new' })]));
+    await secondLoad;
+    expect(gallery.itemsData.value.map(value => value.name)).toEqual(['new']);
+    expect(gallery.isLoading.value).toBe(false);
+  });
+
+  it('exposes directory failures without manufacturing missing entries', async () => {
+    apiMock.listDirFiles.mockRejectedValueOnce(new Error('permission denied'));
+    apiMock.getItems.mockResolvedValue(page([
+      item({ path: 'C:/Library/missing.zip', name: 'missing' }),
+    ]));
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => '',
+      () => 'name',
+      () => 'asc',
+    );
+
+    await gallery.loadAll();
+
+    expect(gallery.loadError.value).toBe('無法讀取目錄：permission denied');
+    expect(gallery.externalChanges.value).toEqual([]);
+    expect(gallery.externalChangesReady.value).toBe(false);
+  });
+
+  it('searches filesystem entries through database names, tags, and notes', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([file('placeholder.zip', 20, '2026-05-21 09:00')]);
+    apiMock.getItems
+      .mockResolvedValueOnce(page([item({
+        path: 'C:/Library/placeholder.zip',
+        name: 'archived-name',
+        note: 'needle in note',
+        tags: [{ id: 8, name: 'topic-tag', color: null }],
+      })]))
+      .mockResolvedValueOnce(page([]));
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => 'needle',
+      () => 'name',
+      () => 'asc',
+    );
+
+    await gallery.loadAll();
+
+    expect(gallery.filteredFileItems.value.map(value => value.name)).toEqual(['placeholder.zip']);
+  });
+
+  it('sends tag search and ordering to the backend before pagination', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([]);
+    apiMock.getItems.mockResolvedValueOnce({
+      ...page([item({ id: 3, name: 'unmatched-name', note: 'needle note', fileSize: 42 })]),
+      totalPages: 3,
+    });
+
+    const gallery = useGalleryData(
+      () => null,
+      () => 7,
+      () => 'needle',
+      () => 'size',
+      () => 'desc',
+    );
+
+    await gallery.loadAll();
+
+    expect(apiMock.getItems).toHaveBeenCalledWith(
+      0,
+      200,
+      [7],
+      'fileSize',
+      'desc',
+      undefined,
+      undefined,
+      false,
+      'needle',
+      undefined,
+    );
+    expect(gallery.filteredFileItems.value.map(value => value.name)).toEqual(['unmatched-name']);
+    expect(gallery.tagTotalPages.value).toBe(3);
+  });
+
+  it('asks the backend for descending open-count order in frequent tag mode', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([]);
+    apiMock.getItems.mockResolvedValueOnce(page([item({ id: 4, openCount: 2 })]));
+
+    const gallery = useGalleryData(
+      () => null,
+      () => 7,
+      () => '',
+      () => 'name',
+      () => 'asc',
+      () => true,
+    );
+
+    await gallery.loadAll();
+
+    expect(apiMock.getItems).toHaveBeenCalledWith(
+      0,
+      200,
+      [7],
+      'openCount',
+      'desc',
+      undefined,
+      undefined,
+      false,
+      undefined,
+      true,
+    );
+  });
+
+  it('publishes the first external page before bounded background completion', async () => {
+    const backgroundPage = deferred<Page<Item>>();
+    apiMock.listDirFiles.mockResolvedValueOnce([file('first.zip', 20, '2026-05-21 09:00')]);
+    apiMock.getItems.mockImplementation(async (pageNumber = 0, _size, _tags, _sortBy, _sortDir, _source, _itemType, includeMissing) => {
+      if (includeMissing) {
+        if (pageNumber === 0) return { ...page([]), totalPages: 2 };
+        return backgroundPage.promise;
+      }
+      return page([]);
+    });
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => '',
+      () => 'name',
+      () => 'asc',
+    );
+
+    await gallery.loadAll();
+    expect(gallery.isLoading.value).toBe(false);
+    expect(gallery.externalChangesReady.value).toBe(false);
+    expect(apiMock.getItems).toHaveBeenCalledWith(1, 1000, undefined, 'importAt', 'desc', 'C:/Library', undefined, true);
+
+    backgroundPage.resolve(page([item({ id: 9, path: 'C:/Library/later.zip', name: 'later' })]));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await nextTick();
+    expect(gallery.itemByPath.value.get('c:\\library\\later.zip')?.id).toBe(9);
+    expect(gallery.externalChangesReady.value).toBe(true);
+  });
+
+  it('surfaces a database page failure instead of treating it as an empty result', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([]);
+    apiMock.getItems.mockRejectedValue(new Error('database unavailable'));
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => '',
+      () => 'name',
+      () => 'asc',
+    );
+
+    await gallery.loadAll();
+
+    expect(gallery.loadError.value).toBe('database unavailable');
+    expect(gallery.externalChangesReady.value).toBe(false);
+  });
+
+  it('surfaces an external background failure and keeps changes unready', async () => {
+    const backgroundPage = deferred<Page<Item>>();
+    apiMock.listDirFiles.mockResolvedValueOnce([]);
+    apiMock.getItems.mockImplementation(async (pageNumber = 0, _size, _tags, _sortBy, _sortDir, _source, _itemType, includeMissing) => {
+      if (includeMissing) {
+        if (pageNumber === 0) return { ...page([]), totalPages: 2 };
+        return backgroundPage.promise;
+      }
+      return page([]);
+    });
+
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => '',
+      () => 'name',
+      () => 'asc',
+    );
+
+    await gallery.loadAll();
+    expect(gallery.externalChangesReady.value).toBe(false);
+
+    backgroundPage.reject(new Error('external page unavailable'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(gallery.loadError.value).toBe('外部變更載入失敗：external page unavailable');
+    expect(gallery.externalChangesReady.value).toBe(false);
   });
 });

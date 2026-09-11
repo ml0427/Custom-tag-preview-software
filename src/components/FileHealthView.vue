@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
-import { useExternalChanges, type ExternalChangeKind } from '../composables/useExternalChanges';
+import { useExternalChanges } from '../composables/useExternalChanges';
 import AppIcon from './AppIcon.vue';
 
 const props = defineProps<{
@@ -22,12 +22,6 @@ const {
 } = useExternalChanges(() => props.sourcePath);
 
 watch(() => props.sourcePath, () => { refresh(); }, { immediate: true });
-
-const kindLabel = (kind: ExternalChangeKind) => {
-  if (kind === 'untracked') return '未追蹤';
-  if (kind === 'missing') return '找不到';
-  return '已變更';
-};
 
 const untrackedList = computed(() => changes.value.filter(c => c.kind === 'untracked'));
 const missingList = computed(() => changes.value.filter(c => c.kind === 'missing'));
@@ -62,7 +56,7 @@ const hasAny = computed(() => changes.value.length > 0);
           >重新檢查</button>
           <button
             class="primary-btn"
-            :disabled="!props.sourcePath || !hasAny || isFixing"
+            :disabled="!props.sourcePath || isLoading || !hasAny || isFixing"
             @click="fixAll"
             title="對目前資料夾跑一次增量掃描，三類更動會一起處理"
           >

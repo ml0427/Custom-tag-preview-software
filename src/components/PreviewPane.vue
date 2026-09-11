@@ -24,7 +24,6 @@ const emit = defineEmits<{
 const coverUrl = ref('');
 const activeTab = ref<'info' | 'edit'>(props.initialTab ?? 'info');
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-const ZIP_EXTS = ['zip', 'cbz', 'cbr', 'rar', '7z'];
 
 const coverLoadToken = ref(0);
 

@@ -1,29 +1,6 @@
-import { api, type Item, type TagRuleInput } from '../api';
+import { api, type Item } from '../api';
 import { useToast } from './useToast';
-
-async function resolveRenameRules(item: Item): Promise<TagRuleInput[]> {
-  const types = await api.getItemTypes();
-  if (item.itemType === 'folder') {
-    const preset = await api.getFolderRulePreset(item.id);
-    return types.find(type => type.id === preset?.presetTypeId)?.tagRules ?? [];
-  }
-  const ownRules = types.find(type => type.name === (item.category ?? 'default'))?.tagRules;
-  if (ownRules?.length) return ownRules;
-
-  // 與右鍵套用規則一致：使用最近已追蹤父資料夾的預設規則。
-  let path = item.path;
-  while (true) {
-    const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-    if (index <= 0) return [];
-    path = path.slice(0, index);
-    const parentPath = /^[a-z]:$/i.test(path) ? `${path}\\` : path;
-    const parent = await api.getItemByPath(parentPath);
-    if (parent?.itemType === 'folder') {
-      const preset = await api.getFolderRulePreset(parent.id);
-      return types.find(type => type.id === preset?.presetTypeId)?.tagRules ?? [];
-    }
-  }
-}
+import { resolveEffectiveItemRules } from '../utils/effectiveItemRules';
 
 export function useRenameTagSync() {
   const { show, confirm } = useToast();
@@ -31,7 +8,8 @@ export function useRenameTagSync() {
   const syncTagsAfterRename = async (before: Item, after: Item): Promise<void> => {
     if (before.name === after.name) return;
     try {
-      const rules = await resolveRenameRules(after);
+      const types = await api.getItemTypes();
+      const rules = await resolveEffectiveItemRules(after, types);
       const changes = await api.syncRenamedItemTags(after.id, before.name, after.name, rules);
       if (!changes.added.length && !changes.removed.length) return;
       const lines = [

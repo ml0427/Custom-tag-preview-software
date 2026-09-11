@@ -9,6 +9,7 @@ vi.mock('../api', async importOriginal => {
     ...actual,
     api: {
       quickImportItem: vi.fn(),
+      getItemByPath: vi.fn(),
       getFolderRulePreset: vi.fn(),
       applyRulesToItem: vi.fn(),
     },
@@ -31,6 +32,7 @@ const item = (overrides: Partial<Item>): Item => ({
   existsOnDisk: true,
   missingSince: null,
   lastSeenAt: null,
+  openCount: 0,
   importAt: '2026-06-17T00:00:00Z',
   tags: [],
   ...overrides,
@@ -82,11 +84,11 @@ const folderPreset = (overrides: Partial<FolderRulePreset>): FolderRulePreset =>
 
 describe('useFolderRuleActions', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     apiMock.applyRulesToItem.mockResolvedValue({ added: 0, updated: 0, removed: 0, tagged: 2 });
   });
 
-  it('falls back to the nearest parent folder preset when a child ZIP has no category rule set', async () => {
+  it('falls back to the nearest tracked parent preset when the parent is not in the view cache', async () => {
     const parentFolder = item({ id: 10, path: 'C:/Library', itemType: 'folder' });
     const zipItem = item({
       id: 20,
@@ -95,16 +97,14 @@ describe('useFolderRuleActions', () => {
       name: 'book.zip',
       category: null,
     });
-    const items = new Map<string, Item>([
-      [pathKey(parentFolder.path), parentFolder],
-      [pathKey(zipItem.path), zipItem],
-    ]);
+    const items = new Map<string, Item>([[pathKey(zipItem.path), zipItem]]);
     const hideContextMenu = vi.fn();
     const showToast = vi.fn();
     const onApplied = vi.fn();
     const comicType = itemType({ id: 7, name: 'comic', tagRules });
 
     apiMock.getFolderRulePreset.mockResolvedValueOnce(folderPreset({ folderItemId: 10, presetTypeId: 7 }));
+    apiMock.getItemByPath.mockResolvedValueOnce(parentFolder);
 
     const { applyRulesForItem } = useFolderRuleActions(
       () => items,
@@ -117,6 +117,7 @@ describe('useFolderRuleActions', () => {
     await applyRulesForItem(fileItem({ path: 'C:/Library/book.zip' }));
 
     expect(hideContextMenu).toHaveBeenCalledTimes(1);
+    expect(apiMock.getItemByPath).toHaveBeenCalledWith('C:/Library');
     expect(apiMock.getFolderRulePreset).toHaveBeenCalledWith(10);
     expect(apiMock.applyRulesToItem).toHaveBeenCalledWith(20, tagRules);
     expect(showToast).toHaveBeenCalledWith('已套用 2 個標籤', 'success');
@@ -124,7 +125,6 @@ describe('useFolderRuleActions', () => {
   });
 
   it('keeps the no-rule message when neither the item nor parent folder has usable rules', async () => {
-    const parentFolder = item({ id: 10, path: 'C:/Library', itemType: 'folder' });
     const zipItem = item({
       id: 20,
       path: 'C:/Library/book.zip',
@@ -132,13 +132,11 @@ describe('useFolderRuleActions', () => {
       name: 'book.zip',
       category: null,
     });
-    const items = new Map<string, Item>([
-      [pathKey(parentFolder.path), parentFolder],
-      [pathKey(zipItem.path), zipItem],
-    ]);
+    const items = new Map<string, Item>([[pathKey(zipItem.path), zipItem]]);
     const showToast = vi.fn();
 
     apiMock.getFolderRulePreset.mockResolvedValueOnce(null);
+    apiMock.getItemByPath.mockResolvedValueOnce(null);
 
     const { applyRulesForItem } = useFolderRuleActions(
       () => items,
@@ -151,5 +149,51 @@ describe('useFolderRuleActions', () => {
 
     expect(apiMock.applyRulesToItem).not.toHaveBeenCalled();
     expect(showToast).toHaveBeenCalledWith('此項目沒有可套用的標籤規則集', 'info');
+  });
+
+  it('keeps a file category rule ahead of any parent preset', async () => {
+    const zipItem = item({
+      id: 20,
+      path: 'C:/Library/book.zip',
+      itemType: 'file',
+      name: 'book.zip',
+      category: 'comic',
+    });
+    const items = new Map<string, Item>([[pathKey(zipItem.path), zipItem]]);
+    const comicType = itemType({ id: 7, name: 'comic', tagRules });
+
+    const { applyRulesForItem } = useFolderRuleActions(
+      () => items,
+      () => [comicType],
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await applyRulesForItem(fileItem({ path: 'C:/Library/book.zip' }));
+
+    expect(apiMock.getItemByPath).not.toHaveBeenCalled();
+    expect(apiMock.getFolderRulePreset).not.toHaveBeenCalled();
+    expect(apiMock.applyRulesToItem).toHaveBeenCalledWith(20, tagRules);
+  });
+
+  it('uses a folder own preset without looking up a parent', async () => {
+    const folder = item({ id: 30, path: 'C:/Library/Series', itemType: 'folder', name: 'Series' });
+    const items = new Map<string, Item>([[pathKey(folder.path), folder]]);
+    const comicType = itemType({ id: 7, name: 'comic', tagRules });
+    apiMock.getFolderRulePreset.mockResolvedValueOnce(folderPreset({ folderItemId: 30, presetTypeId: 7 }));
+    const showToast = vi.fn();
+
+    const { applyRulesForTarget } = useFolderRuleActions(
+      () => items,
+      () => [comicType],
+      showToast,
+      vi.fn(),
+    );
+
+    await applyRulesForTarget({ path: folder.path });
+
+    expect(apiMock.getFolderRulePreset).toHaveBeenCalledWith(30);
+    expect(apiMock.getItemByPath).not.toHaveBeenCalled();
+    expect(apiMock.applyRulesToItem).toHaveBeenCalledWith(30, tagRules);
   });
 });

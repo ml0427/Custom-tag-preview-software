@@ -1,4 +1,4 @@
-import { ref, readonly } from 'vue';
+import { ref, shallowReadonly } from 'vue';
 import { api, type ItemType } from '../api';
 
 const itemTypes = ref<ItemType[]>([]);
@@ -10,6 +10,7 @@ const DEFAULT_TYPE: ItemType = {
     icon: '📁',
     displayName: '一般資料夾',
     color: null,
+    example: '',
     isBuiltin: true,
     extensions: [],
     tagRules: [],
@@ -36,7 +37,7 @@ export function useItemTypes() {
     const invalidate = () => { loaded = false; };
 
     return {
-        itemTypes: readonly(itemTypes),
+        itemTypes: shallowReadonly(itemTypes),
         load,
         getTypeConfig,
         getTypeByExtension,

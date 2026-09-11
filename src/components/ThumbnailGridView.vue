@@ -7,6 +7,8 @@ import { useContextMenu } from '../composables/useContextMenu';
 import { useThumbnailLoader } from '../composables/useThumbnailLoader';
 import { useFolderRuleActions } from '../composables/useFolderRuleActions';
 import { isReadableFileItem } from '../utils/readableItem';
+import { pathKey } from '../utils/pathKey';
+import { useVirtualGrid } from '../composables/useVirtualGrid';
 import ThumbnailCard from './ThumbnailCard.vue';
 
 const props = defineProps<{
@@ -52,6 +54,7 @@ const {
 
 // IPC-based thumbnail loading (same approach as FileExplorerTable)
 const thumbUrls = reactive(new Map<string, string>());
+const thumbSignatures = new Map<string, string>();
 const thumbLoading = new Set<string>();
 const queuedThumbs = new Set<string>();
 const thumbQueue: FileItem[] = [];
@@ -65,6 +68,28 @@ let activeArchivePageCountLoads = 0;
 const MAX_ARCHIVE_PAGE_COUNT_LOADS = 4;
 
 const outerRef = ref<HTMLElement | null>(null);
+const cardRefs = ref<Record<string, any>>({});
+const virtualItems = computed(() => props.items);
+const virtualGrid = useVirtualGrid(virtualItems, outerRef, { gap: 14, overscanRows: 2 });
+const virtualColumnCount = virtualGrid.columnCount;
+const virtualRowHeight = virtualGrid.rowHeight;
+const virtualVisibleItems = virtualGrid.visibleItems;
+const virtualTopSpacerHeight = virtualGrid.topSpacerHeight;
+const virtualBottomSpacerHeight = virtualGrid.bottomSpacerHeight;
+
+const getThumbSignature = (item: FileItem): string => {
+  const dbItem = getDbItem(item, props.itemByPath);
+  return [
+    pathKey(item.path),
+    item.fileSize ?? '',
+    item.modifiedTime ?? '',
+    dbItem?.id ?? '',
+    dbItem?.fileModifiedAt ?? '',
+    dbItem?.coverCachePath ?? '',
+    dbItem?.fingerprint ?? '',
+  ].join('|');
+};
+
 const cardElements = new Map<string, { el: Element; item: FileItem }>();
 const observedCards = new Map<Element, string>();
 let currentItemPaths = new Set<string>();
@@ -77,9 +102,8 @@ const normalizeScrollTop = (value: number): number => (
 const restoreScrollTop = () => {
   if (!outerRef.value) return;
   const nextScrollTop = normalizeScrollTop(props.initialScrollTop ?? 0);
-  if (outerRef.value.scrollTop !== nextScrollTop) {
-    outerRef.value.scrollTop = nextScrollTop;
-  }
+  virtualGrid.setScrollTop(nextScrollTop);
+  if (outerRef.value.scrollTop !== nextScrollTop) outerRef.value.scrollTop = nextScrollTop;
 };
 
 const resetObserverAndRestoreScroll = () => {
@@ -98,6 +122,7 @@ const restoreScrollPosition = () => {
 };
 
 const handleOuterScroll = (event: Event) => {
+  virtualGrid.setScrollTop((event.target as HTMLElement).scrollTop);
   if (!props.scrollStateKey) return;
   emit('scrollPositionChange', props.scrollStateKey, (event.target as HTMLElement).scrollTop);
 };
@@ -113,17 +138,24 @@ const captureScrollPosition = () => {
 
 const loadThumb = async (item: FileItem) => {
   const path = item.path;
+  const requestSignature = getThumbSignature(item);
   if (thumbUrls.has(path) || thumbLoading.has(path) || item.isDir) return;
   thumbLoading.add(path);
   try {
     const url = await loadThumbUrl(item, props.itemByPath);
-    if (url && currentItemPaths.has(path)) thumbUrls.set(path, url);
+    const currentItem = props.items.find(candidate => candidate.path === path);
+    if (url && currentItemPaths.has(path) && currentItem && getThumbSignature(currentItem) === requestSignature) {
+      thumbUrls.set(path, url);
+    }
   } finally {
     thumbLoading.delete(path);
+    const currentItem = props.items.find(candidate => candidate.path === path);
+    if (currentItem && getThumbSignature(currentItem) !== requestSignature) enqueueThumb(currentItem);
   }
 };
 
 const handleImgError = async (item: FileItem) => {
+  const requestSignature = getThumbSignature(item);
   onImgError(item.path);
   const failedUrl = thumbUrls.get(item.path);
   logThumbDebug('img.error.grid', {
@@ -133,7 +165,7 @@ const handleImgError = async (item: FileItem) => {
   });
   if (failedUrl?.startsWith('data:')) return;
   const fallbackUrl = await loadThumbFallbackUrl(item, props.itemByPath);
-  if (fallbackUrl && currentItemPaths.has(item.path)) {
+  if (fallbackUrl && currentItemPaths.has(item.path) && getThumbSignature(item) === requestSignature) {
     thumbUrls.set(item.path, fallbackUrl);
     logThumbDebug('img.fallback.grid', {
       path: item.path,
@@ -178,13 +210,19 @@ const shouldLoadArchivePageCount = (item: FileItem) =>
 
 const loadArchivePageCountForItem = async (item: FileItem) => {
   const path = item.path;
+  const requestSignature = getThumbSignature(item);
   if (!shouldLoadArchivePageCount(item)) return;
   archivePageCountLoading.add(path);
   try {
     const count = await loadArchivePageCount(item);
-    if (currentItemPaths.has(path)) archivePageCounts.set(path, count);
+    const currentItem = props.items.find(candidate => candidate.path === path);
+    if (currentItem && currentItemPaths.has(path) && getThumbSignature(currentItem) === requestSignature) {
+      archivePageCounts.set(path, count);
+    }
   } finally {
     archivePageCountLoading.delete(path);
+    const currentItem = props.items.find(candidate => candidate.path === path);
+    if (currentItem && getThumbSignature(currentItem) !== requestSignature) enqueueArchivePageCount(currentItem);
   }
 };
 
@@ -227,8 +265,12 @@ const registerCard = (el: Element | null, item: FileItem) => {
     cardElements.delete(item.path);
   }
 
-  if (!el || item.isDir) return;
+  if (!el || item.isDir) {
+    delete cardRefs.value[item.path];
+    return;
+  }
   cardElements.set(item.path, { el, item });
+  virtualGrid.observeRowElement(el);
   observeCard(el, item);
 };
 
@@ -261,9 +303,18 @@ const resetObserver = () => {
   cardElements.forEach(({ el, item }) => observeCard(el, item));
 };
 
-watch(() => props.items, items => {
+watch(() => ({ items: props.items, itemByPath: props.itemByPath }), ({ items }) => {
   const livePaths = new Set(items.map(item => item.path));
   currentItemPaths = livePaths;
+  const liveSignatures = new Map(items.map(item => [item.path, getThumbSignature(item)]));
+  for (const [path, signature] of liveSignatures) {
+    if (thumbSignatures.get(path) !== signature) {
+      thumbUrls.delete(path);
+      archivePageCounts.delete(path);
+    }
+  }
+  thumbSignatures.clear();
+  liveSignatures.forEach((signature, path) => thumbSignatures.set(path, signature));
   Array.from(thumbUrls.keys()).forEach(path => {
     if (!livePaths.has(path)) thumbUrls.delete(path);
   });
@@ -296,6 +347,7 @@ onBeforeUnmount(() => {
 defineExpose({ restoreScrollPosition, captureScrollPosition });
 onUnmounted(() => {
   thumbObserver?.disconnect();
+  thumbSignatures.clear();
   cardElements.clear();
   observedCards.clear();
   thumbQueue.splice(0, thumbQueue.length);
@@ -303,8 +355,6 @@ onUnmounted(() => {
   archivePageCountQueue.splice(0, archivePageCountQueue.length);
   queuedArchivePageCounts.clear();
 });
-
-const cardRefs = ref<Record<string, any>>({});
 
 const { applyRulesForItem } = useFolderRuleActions(
   () => props.itemByPath,
@@ -328,9 +378,16 @@ const startRenameCtx = () => {
 
 <template>
   <div class="thumb-grid-outer" ref="outerRef" @scroll.passive="handleOuterScroll" @contextmenu.prevent>
-    <div class="thumb-grid">
+    <div class="thumb-grid-spacer" :style="{ height: virtualTopSpacerHeight + 'px' }" aria-hidden="true"></div>
+    <div
+      class="thumb-grid"
+      :style="{
+        gridTemplateColumns: `repeat(${virtualColumnCount}, minmax(0, 1fr))`,
+        '--thumb-cell-height': `${virtualRowHeight - 14}px`,
+      }"
+    >
       <div
-        v-for="item in items"
+        v-for="item in virtualVisibleItems"
         :key="item.path"
         :ref="el => registerCard(el as Element | null, item)"
         class="thumb-grid-cell"
@@ -339,7 +396,7 @@ const startRenameCtx = () => {
         <ThumbnailCard
           :ref="el => { if (el) cardRefs[item.path] = el }"
           :item="item"
-          :dbItem="getDbItem(item, itemByPath)"
+          :dbItem="getDbItem(item, itemByPath) ?? undefined"
           :isSelected="isSelected(item)"
           :coverUrl="thumbUrls.get(item.path) ?? null"
           :showCover="!!thumbUrls.get(item.path)"
@@ -360,6 +417,7 @@ const startRenameCtx = () => {
         />
       </div>
     </div>
+    <div class="thumb-grid-spacer" :style="{ height: virtualBottomSpacerHeight + 'px' }" aria-hidden="true"></div>
   </div>
 
   <Teleport to="body">
@@ -410,10 +468,27 @@ const startRenameCtx = () => {
   border-radius: 10px;
 }
 
+.thumb-grid-spacer {
+  width: 100%;
+  flex: none;
+  pointer-events: none;
+}
+
 .thumb-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  grid-auto-rows: var(--thumb-cell-height, auto);
+  align-items: stretch;
+}
+
+.thumb-grid-cell {
+  height: var(--thumb-cell-height, auto);
+  min-height: 0;
+}
+
+.thumb-grid-cell :deep(.thumb-card) {
+  height: 100%;
 }
 
 @container (min-width: 642px) {

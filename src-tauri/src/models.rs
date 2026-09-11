@@ -127,11 +127,15 @@ pub struct FolderRulePresetInput {
     pub file_extensions: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanPreviewItem {
     pub path: String,
     pub name: String,
     pub is_dir: bool,
     pub proposed_tags: Vec<String>,
+    pub added_tags: Vec<String>,
+    pub removed_tags: Vec<String>,
+    pub is_new: bool,
+    pub snapshot: String,
 }

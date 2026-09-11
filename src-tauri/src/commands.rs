@@ -8,6 +8,7 @@ mod item_types;
 mod items;
 mod metadata;
 mod rules;
+mod rule_plan;
 mod scan;
 mod sources;
 mod tags;

@@ -22,16 +22,6 @@ export function useThumbnailLoader() {
     return itemByPath.get(pathKey(item.path)) ?? null;
   };
 
-  /** 暴力掃描 itemByPath，用 item.name 比對（不靠 pathKey）。
-   *  解決日文/特殊字元路徑導致 key 配對失敗的問題。 */
-  const getDbItemFallback = (item: FileItem, itemByPath: Map<string, Item>): Item | null => {
-    const name = item.name.toLowerCase();
-    for (const dbItem of itemByPath.values()) {
-      if (dbItem.name.toLowerCase() === name) return dbItem;
-    }
-    return null;
-  };
-
   const hasCategoryAssigned = (item: FileItem, itemByPath: Map<string, Item>): boolean => {
     const dbItem = getDbItem(item, itemByPath);
     return !!dbItem?.category && dbItem.category !== 'default';
@@ -42,27 +32,26 @@ export function useThumbnailLoader() {
   };
 
   const buildThumbCacheUrl = (dbItem: Item): string => {
-    const cacheVersion = encodeURIComponent([
+    const cacheVersionParts = [
       dbItem.coverCachePath ?? '',
       dbItem.fileModifiedAt ?? '',
       dbItem.path,
-    ].join('|'));
+    ];
+    if (dbItem.fingerprint) cacheVersionParts.push(dbItem.fingerprint);
+    const cacheVersion = encodeURIComponent(cacheVersionParts.join('|'));
     return `${convertFileSrc(`${dbItem.id}.jpg`, 'comic-cache')}?v=${cacheVersion}`;
   };
 
   const loadThumbUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
     if (item.isDir) return '';
-    let dbItem = getDbItem(item, itemByPath);
+    const dbItem = getDbItem(item, itemByPath);
 
     if (!dbItem?.id) {
-      dbItem = getDbItemFallback(item, itemByPath);
-      if (!dbItem?.id) {
-        console.warn(
-          '[useThumbnailLoader] 找不到 DB 記錄，fallback 到路徑載入：',
-          item.path,
-          'itemByPath 數量:', itemByPath.size,
-        );
-      }
+      console.warn(
+        '[useThumbnailLoader] 找不到 DB 記錄，fallback 到路徑載入：',
+        item.path,
+        'itemByPath 數量:', itemByPath.size,
+      );
     }
 
     if (dbItem?.id) {
@@ -73,7 +62,9 @@ export function useThumbnailLoader() {
         name: item.name,
         coverCachePath: dbItem.coverCachePath,
       });
-      if (dbItem.coverCachePath) {
+      const ext = item.extension?.toLowerCase() ?? '';
+      const canUseThumbCache = IMAGE_EXTS.has(ext) || ARCHIVE_EXTS.has(ext);
+      if (dbItem.coverCachePath || canUseThumbCache) {
         try {
           await api.ensureThumbCache(dbItem.id);
           const url = buildThumbCacheUrl(dbItem);
@@ -99,7 +90,7 @@ export function useThumbnailLoader() {
 
   const loadThumbFallbackUrl = async (item: FileItem, itemByPath: Map<string, Item>): Promise<string> => {
     if (item.isDir) return '';
-    const dbItem = getDbItem(item, itemByPath) ?? getDbItemFallback(item, itemByPath);
+    const dbItem = getDbItem(item, itemByPath);
     if (dbItem?.id) {
       return await api.getCoverBase64(dbItem.id).catch(error => {
         logThumbDebug('fallback.base64Error', { id: dbItem.id, path: item.path, error });
@@ -187,7 +178,6 @@ export function useThumbnailLoader() {
     onImgError,
     logThumbDebug,
     getDbItem,
-    getDbItemFallback,
     hasCategoryAssigned,
     buildThumbCacheUrl,
     loadThumbUrl,

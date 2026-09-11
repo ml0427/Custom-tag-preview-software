@@ -2,7 +2,7 @@ use super::helpers::{fetch_item_tags, read_item_from_row};
 use crate::db;
 use crate::models::Item;
 use base64::{engine::general_purpose, Engine as _};
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 use tauri::State;
 
 // ── File system ───────────────────────────────────────────────────────────────
@@ -90,45 +90,22 @@ async fn import_or_refresh_item(path: &str, pool: &SqlitePool) -> Result<Item, S
     let item_type = if is_dir { "folder" } else { "file" };
     let import_at = chrono::Local::now().to_rfc3339();
 
-    let inserted_id = db::insert_item(
-        &*pool,
-        path,
-        item_type,
-        &name,
-        file_size,
-        Some(mtime_unix),
-        &import_at,
-        None,
-    )
-    .await
-    .map_err(|e| e.to_string())?;
-    if inserted_id == 0 {
-        if !is_dir {
-            db::update_item_size_mtime(
-                &*pool,
-                sqlx::query_scalar::<_, i64>("SELECT id FROM items WHERE path = ?")
-                    .bind(path)
-                    .fetch_one(&*pool)
-                    .await
-                    .map_err(|e| e.to_string())?,
-                file_size,
-                mtime_unix,
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-        } else {
-            db::mark_item_seen_by_path(&*pool, path, &import_at)
-                .await
-                .map_err(|e| e.to_string())?;
+    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM items WHERE REPLACE(path, '\\', '/') = ? COLLATE NOCASE")
+        .bind(db::path_key(path)).fetch_optional(pool).await.map_err(|e| e.to_string())?;
+    let id = if let Some(id) = existing {
+        db::update_item_size_mtime(pool, id, file_size, mtime_unix).await.map_err(|e| e.to_string())?;
+        id
+    } else {
+        let inserted = db::insert_item(pool, path, item_type, &name, file_size, Some(mtime_unix), &import_at, None)
+            .await.map_err(|e| e.to_string())?;
+        if inserted != 0 { inserted } else {
+            sqlx::query_scalar("SELECT id FROM items WHERE path = ?").bind(path)
+                .fetch_one(pool).await.map_err(|e| e.to_string())?
         }
-    }
-
-    let row = sqlx::query("SELECT * FROM items WHERE path = ?")
-        .bind(path)
-        .fetch_one(&*pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    let id: i64 = row.get("id");
+    };
+    db::mark_item_seen(pool, id, &import_at).await.map_err(|e| e.to_string())?;
+    let row = sqlx::query("SELECT * FROM items WHERE id = ?").bind(id)
+        .fetch_one(pool).await.map_err(|e| e.to_string())?;
     let tags = fetch_item_tags(pool, id).await?;
     Ok(read_item_from_row(&row, tags))
 }
@@ -248,6 +225,24 @@ pub async fn get_image_base64_by_path(path: String) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn refresh_reuses_normalized_path_and_preserves_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let pool = db::init_db(dir.path()).await.unwrap();
+        let file = dir.path().join("Book.zip");
+        std::fs::write(&file, b"fixture").unwrap();
+        let original = file.to_string_lossy().replace('\\', "/");
+        let id = db::insert_item(&pool, &original, "file", "Custom name", Some(7), None, "old", None).await.unwrap();
+        sqlx::query("UPDATE items SET note='Keep',open_count=5 WHERE id=?").bind(id).execute(&pool).await.unwrap();
+        let item = import_or_refresh_item(&file.to_string_lossy(), &pool).await.unwrap();
+        assert_eq!(item.id, id);
+        assert_eq!(item.name, "Custom name");
+        assert_eq!(item.note.as_deref(), Some("Keep"));
+        assert_eq!(item.open_count, 5);
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items").fetch_one(&pool).await.unwrap();
+        assert_eq!(count, 1);
+    }
     use sqlx::Row;
     use tempfile::tempdir;
 

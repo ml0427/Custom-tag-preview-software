@@ -110,7 +110,6 @@ const sortedItems = computed(() => {
 const {
   outerRef,
   scrollTop,
-  containerHeight,
   visibleItems,
   topSpacerHeight,
   bottomSpacerHeight,
@@ -322,6 +321,8 @@ const {
   toggleCol,
   colCount,
 } = useFileExplorerColumns();
+// The template string ref resolves this setup binding at runtime.
+void colPickerRef;
 </script>
 
 <template>

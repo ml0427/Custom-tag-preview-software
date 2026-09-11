@@ -1,6 +1,6 @@
 use crate::scanner;
 use sqlx::{Row, SqlitePool};
-use tauri::{AppHandle, Manager, State};
+use tauri::State;
 
 // ── Tag rules & scan wizard ───────────────────────────────────────────────────
 
@@ -64,19 +64,6 @@ fn evaluate_rule_for_name(
     }
 }
 
-fn apply_rules_to_name(name: &str, rules: &[crate::models::TagRuleInput]) -> Vec<String> {
-    let mut tags: Vec<String> = Vec::new();
-    for rule in rules {
-        let (rule_tags, _) = evaluate_rule_for_name(name, rule);
-        for tag in rule_tags {
-            if !tags.contains(&tag) {
-                tags.push(tag);
-            }
-        }
-    }
-    tags
-}
-
 #[tauri::command]
 pub async fn test_tag_rules(
     name: String,
@@ -131,8 +118,10 @@ pub async fn save_tag_rules(
     rules: Vec<crate::models::TagRuleInput>,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
+    collect_item_rule_tags("", &rules)?;
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     sqlx::query("DELETE FROM tag_rules")
-        .execute(&*pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
     for rule in &rules {
@@ -143,41 +132,21 @@ pub async fn save_tag_rules(
         .bind(&rule.match_type)
         .bind(&rule.pattern)
         .bind(&rule.tag_name)
-        .execute(&*pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
     }
+    tx.commit().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn preview_tag_scan(
-    scope_path: String,
-    rules: Vec<crate::models::TagRuleInput>,
-) -> Result<Vec<crate::models::ScanPreviewItem>, String> {
-    use walkdir::WalkDir;
-    let mut results = Vec::new();
-    for entry in WalkDir::new(&scope_path)
-        .min_depth(1)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let name = entry.file_name().to_string_lossy().to_string();
-        let proposed_tags = apply_rules_to_name(&name, &rules);
-        if !proposed_tags.is_empty() {
-            results.push(crate::models::ScanPreviewItem {
-                path: entry.path().to_string_lossy().to_string(),
-                name,
-                is_dir: entry.file_type().is_dir(),
-                proposed_tags,
-            });
-        }
-    }
-    results.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(results)
+pub async fn preview_tag_scan(scope_path: String, rules: Vec<crate::models::TagRuleInput>, pool: State<'_, SqlitePool>) -> Result<Vec<crate::models::ScanPreviewItem>, String> {
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    super::rule_plan::build_plan(&mut tx, &scope_path, &rules).await
 }
 
-fn collect_item_rule_tags(name: &str, rules: &[crate::models::TagRuleInput]) -> Result<Vec<String>, String> {
+pub(super) fn collect_item_rule_tags(name: &str, rules: &[crate::models::TagRuleInput]) -> Result<Vec<String>, String> {
     let mut tags = scanner::extract_filename_tags(name).map_err(|e| e.to_string())?;
     for rule in rules {
         let (rule_tags, error) = evaluate_rule_for_name(name, rule);
@@ -299,83 +268,10 @@ async fn apply_rules_to_item_inner(
     Ok(tags.len() as i32)
 }
 
-/// 套用 tag rules。後端自己判斷 scope_path 是檔案還是目錄：
-/// - 檔案：只對該 item 套規則（純資料層動作，不碰 FS 同步）
-/// - 目錄：做 FS↔DB 增量同步（增/改/刪），然後對 scope 內所有 items 套規則
-///
-/// 此 command 是給「不知道 target 形態」的呼叫端用的安全入口（SourcePanel、
-/// 右鍵選單等）；對於已經拿到 item.id 的場景，直接呼叫 `apply_rules_to_item`
-/// 更有效率。
+/// 驗證預覽快照後，在同一交易套用標籤變更並保存規則。
 #[tauri::command]
-pub async fn apply_tag_scan(
-    scope_path: String,
-    rules: Vec<crate::models::TagRuleInput>,
-    pool: State<'_, SqlitePool>,
-    app: AppHandle,
-) -> Result<serde_json::Value, String> {
-    // 路徑指向單一檔案：避開「目錄同步」流程，直接對該 item 套規則。
-    let scope = std::path::Path::new(&scope_path);
-    if scope.is_file() {
-        let row = sqlx::query("SELECT id, name FROM items WHERE path = ?")
-            .bind(&scope_path)
-            .fetch_optional(&*pool)
-            .await
-            .map_err(|e| e.to_string())?;
-        let tagged = if let Some(row) = row {
-            let item_id: i64 = row.get("id");
-            let name: String = row.get("name");
-            apply_rules_to_item_inner(&pool, item_id, &name, &rules).await?
-        } else {
-            // 檔案存在於 FS 但尚未 import 到 DB；單一檔案場景不主動 import，
-            // 維持「套規則」這個動作的語意純度（要 import 請走 quick_import_item）。
-            0
-        };
-        return Ok(serde_json::json!({
-            "added": 0, "updated": 0, "removed": 0, "tagged": tagged
-        }));
-    }
-
-    let cache_dir = app
-        .path()
-        .app_data_dir()
-        .expect("failed to get app data dir")
-        .join("thumb_cache");
-    let (added, updated, removed, cancelled) =
-        scanner::incremental_scan_directory(&pool, &scope_path, &cache_dir, &app, None)
-            .await
-            .map_err(|e| e.to_string())?;
-
-    let folder_prefix = if scope_path.ends_with('\\') || scope_path.ends_with('/') {
-        scope_path.clone()
-    } else {
-        format!("{}\\", scope_path)
-    };
-    let folder_prefix_alt = if folder_prefix.contains('\\') {
-        folder_prefix.replace('\\', "/")
-    } else {
-        folder_prefix.replace('/', "\\")
-    };
-
-    let items = sqlx::query(
-        "SELECT id, name, item_type FROM items WHERE path = ? OR path LIKE ? OR path LIKE ?",
-    )
-    .bind(&scope_path)
-    .bind(format!("{}%", folder_prefix))
-    .bind(format!("{}%", folder_prefix_alt))
-    .fetch_all(&*pool)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    let mut tagged = 0i32;
-    for item in &items {
-        let item_id: i64 = item.get("id");
-        let name: String = item.get("name");
-        tagged += apply_rules_to_item_inner(&pool, item_id, &name, &rules).await?;
-    }
-
-    Ok(
-        serde_json::json!({ "added": added, "updated": updated, "removed": removed, "tagged": tagged, "cancelled": cancelled }),
-    )
+pub async fn apply_tag_scan(scope_path: String, rules: Vec<crate::models::TagRuleInput>, expected_plan: Vec<crate::models::ScanPreviewItem>, pool: State<'_, SqlitePool>) -> Result<serde_json::Value, String> {
+    super::rule_plan::apply_plan(&pool, &scope_path, &rules, &expected_plan).await
 }
 
 /// 對單一 item 套用 tag rules（純資料層，不碰 FS 同步）。
