@@ -17,7 +17,7 @@ describe('ItemGallery reader close scroll restore', () => {
   it('captures the current gallery position before opening the reader', () => {
     expect(gallerySource).toContain('captureScrollPosition: () => void');
     expect(gallerySource).toContain('const captureGalleryScrollPosition = () =>');
-    expect(gallerySource).toContain('captureGalleryScrollPosition();\n    readerItem.value =');
+    expect(gallerySource).toMatch(/captureGalleryScrollPosition\(\);\r?\n    readerItem\.value =/);
   });
 
   it('does not let reader-open scroll events overwrite the saved gallery position', () => {

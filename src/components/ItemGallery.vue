@@ -15,6 +15,7 @@ import { useGalleryData } from '../composables/useGalleryData';
 import { useGallerySelection } from '../composables/useGallerySelection';
 import { buildGalleryScrollContextKey, useGalleryViewState } from '../composables/useGalleryViewState';
 import { useGalleryPreviewResize } from '../composables/useGalleryPreviewResize';
+import { useGalleryDetails } from '../composables/useGalleryDetails';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
 import { isReadableArchiveItem, isReadableFileItem } from '../utils/readableItem';
@@ -459,7 +460,7 @@ const workspaceTitle = computed(() => {
 
 const workspaceBreadcrumb = computed(() => {
   if (props.sourcePath) {
-    const parts = props.sourcePath.replace(/\\/g, '/').split('/').filter(Boolean);
+    const parts = props.sourcePath.replace(/\\/g, '/').split('/').filter(Boolean).slice(0, -1);
     return parts.length > 2 ? `… / ${parts.slice(-2).join(' / ')}` : parts.join(' / ');
   }
   return props.selectedTagId != null ? '跨工作目錄 / 標籤結果' : '';
@@ -474,10 +475,19 @@ const {
   isPreviewOpen,
   isResizing,
   previewWidth,
-  togglePreview,
   startResizing,
   stopResizing,
 } = useGalleryPreviewResize();
+
+const { openDetails } = useGalleryDetails({
+  itemByPath,
+  previewTab,
+  isPreviewOpen,
+  selectItem: handleFileItemClick,
+  importItem: api.quickImportItem,
+  reloadItems: loadAll,
+  onError: error => showToast('無法載入詳情：' + String(error), 'error'),
+});
 
 // loadAll 後 selectedItem 由 computed 自動更新，不需要任何額外操作
 const refresh = () => loadAll();
@@ -533,21 +543,9 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
       <div class="header">
         <div class="workspace-heading">
           <div class="workspace-title-block">
-            <p class="workspace-breadcrumb">{{ workspaceBreadcrumb }}</p>
+            <p v-if="workspaceBreadcrumb" class="workspace-breadcrumb" :title="sourcePath ?? ''">{{ workspaceBreadcrumb }}</p>
             <h1>{{ workspaceTitle }}</h1>
-            <span class="workspace-count">{{ filteredFileItems.length }} 個項目</span>
           </div>
-          <button
-            class="details-button"
-            :class="{ active: isPreviewOpen }"
-            @click="togglePreview"
-            :title="isPreviewOpen ? '收起詳情' : '查看詳情'"
-            aria-label="切換詳情"
-            :aria-pressed="isPreviewOpen"
-          >
-            <AppIcon name="panel-right" :size="16" />
-            <span>詳情</span>
-          </button>
         </div>
 
         <GalleryToolbar
@@ -676,6 +674,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @click="handleGalleryItemClick"
           @dblclick="handleFileItemDblClick"
           @read="handleReadFileItem"
+          @showDetails="openDetails"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
           @metadataLookup="handleMetadataLookup"
@@ -699,6 +698,7 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @click="handleGalleryItemClick"
           @dblclick="handleFileItemDblClick"
           @read="handleReadFileItem"
+          @showDetails="openDetails"
           @detail="handleContextDetail"
           @addCategory="handleAddCategory"
           @metadataLookup="handleMetadataLookup"
@@ -832,35 +832,6 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
   white-space: nowrap;
 }
 
-.workspace-count {
-  color: var(--content-muted);
-  font-size: 0.72rem;
-}
-
-.details-button {
-  margin-left: auto;
-  min-height: var(--control-height-md);
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--content-secondary);
-  background: var(--surface-panel);
-  border: 1px solid var(--line-default);
-  border-radius: var(--radius-md);
-  font-family: var(--font-jp);
-  font-size: 0.76rem;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.details-button:hover,
-.details-button.active {
-  color: var(--accent);
-  background: var(--accent-bg-subtle);
-  border-color: var(--accent-border);
-}
 
 .external-change-banner {
   margin-top: 8px;

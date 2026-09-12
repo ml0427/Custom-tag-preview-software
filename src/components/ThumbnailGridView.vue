@@ -26,6 +26,7 @@ const emit = defineEmits<{
   (e: 'click', item: FileItem, event: MouseEvent): void;
   (e: 'dblclick', item: FileItem): void;
   (e: 'read', item: FileItem): void;
+  (e: 'showDetails', item: FileItem): void;
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
@@ -405,13 +406,12 @@ const startRenameCtx = () => {
           :typeLabel="getItemType(item, itemByPath)"
           :typeColor="getTypeColor(item, itemByPath)"
           :searchQuery="searchQuery"
-          :showReadAction="canRead(item)"
           :pageCount="archivePageCounts.get(item.path) ?? null"
           :showOpenCount="showOpenCount"
           :openCount="getDbItem(item, itemByPath)?.openCount ?? 0"
           @click="emit('click', item, $event)"
           @dblclick="emit('dblclick', item)"
-          @read="emit('read', item)"
+          @showDetails="emit('showDetails', item)"
           @contextmenu="showContextMenu($event, item)"
           @rename="emit('rename', item, $event)"
           @imgError="handleImgError(item)"

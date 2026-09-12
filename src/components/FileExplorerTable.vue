@@ -27,6 +27,7 @@ const emit = defineEmits<{
   (e: 'click', item: FileItem, event: MouseEvent): void;
   (e: 'dblclick', item: FileItem): void;
   (e: 'read', item: FileItem): void;
+  (e: 'showDetails', item: FileItem): void;
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
@@ -426,14 +427,14 @@ void colPickerRef;
           <!-- Settings spacer -->
           <td class="col-settings row-actions">
             <button
-              v-if="canRead(item)"
-              class="row-read-btn"
+              class="row-details-btn"
               type="button"
-              title="開啟閱讀模式"
-              @click.stop="emit('read', item)"
+              title="查看詳情"
+              :aria-label="`查看 ${item.name} 的詳情`"
+              @click.stop="emit('showDetails', item)"
               @dblclick.stop
             >
-              閱讀
+              詳情
             </button>
           </td>
         </tr>
@@ -537,7 +538,7 @@ void colPickerRef;
   text-align: right;
 }
 
-.row-read-btn {
+.row-details-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -555,17 +556,17 @@ void colPickerRef;
   transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
 }
 
-.row-read-btn:focus-visible {
+.row-details-btn:focus-visible {
   opacity: 1;
 }
 
-.row-read-btn:hover {
+.row-details-btn:hover {
   background: var(--accent-bg-subtle);
   border-color: var(--accent);
   color: var(--text-primary);
 }
 
-tr:hover .row-read-btn {
+tr:hover .row-details-btn {
   opacity: 1;
 }
 

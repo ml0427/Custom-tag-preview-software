@@ -13,7 +13,6 @@ const props = defineProps<{
   typeLabel: string;
   typeColor: string | null;
   searchQuery?: string;
-  showReadAction?: boolean;
   pageCount?: number | null;
   showOpenCount?: boolean;
   openCount?: number;
@@ -22,7 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click', event: MouseEvent): void;
   (e: 'dblclick'): void;
-  (e: 'read'): void;
+  (e: 'showDetails'): void;
   (e: 'contextmenu', event: MouseEvent): void;
   (e: 'rename', newName: string): void;
   (e: 'imgError'): void;
@@ -80,15 +79,15 @@ const tags = props.dbItem?.tags ?? [];
         <span class="thumb-icon">{{ icon }}</span>
       </div>
       <button
-        v-if="showReadAction"
-        class="thumb-read-action"
+        class="thumb-details-action"
         type="button"
-        title="播放/閱讀"
-        @click.stop="emit('read')"
+        title="查看詳情"
+        :aria-label="`查看 ${item.name} 的詳情`"
+        @click.stop="emit('showDetails')"
         @dblclick.stop
       >
-        <AppIcon name="play" :size="14" />
-        <span>播放／閱讀</span>
+        <AppIcon name="panel-right" :size="14" />
+        <span>詳情</span>
       </button>
       <div v-if="typeColor" class="thumb-color-bar" :style="{ background: typeColor }"></div>
     </div>
@@ -216,7 +215,7 @@ const tags = props.dbItem?.tags ?? [];
   height: 100%;
 }
 
-.thumb-read-action {
+.thumb-details-action {
   position: absolute;
   bottom: 9px;
   left: 8px;
@@ -239,16 +238,16 @@ const tags = props.dbItem?.tags ?? [];
   gap: 7px;
 }
 
-.thumb-read-action:focus-visible {
+.thumb-details-action:focus-visible {
   opacity: 1;
   transform: translateY(0);
 }
 
-.thumb-read-action:hover {
-  background: var(--bg-scrim-heavy);
+.thumb-details-action:hover {
+  background: var(--surface-hover);
 }
 
-.thumb-card:hover .thumb-read-action {
+.thumb-card:hover .thumb-details-action {
   opacity: 1;
   transform: translateY(0);
 }

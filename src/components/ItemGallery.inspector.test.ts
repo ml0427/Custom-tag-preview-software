@@ -15,25 +15,22 @@ describe('Archive Workbench Inspector', () => {
   ].map(file => readFileSync(new URL(`./${file}`, import.meta.url), 'utf8'));
 
   it('names and exposes the Inspector region', () => {
-    expect(gallery).toContain('class="details-button"');
     expect(preview).toContain('class="preview-pane inspector-panel"');
     expect(preview).toContain('aria-label="項目 Inspector"');
   });
 
-  it('uses an accessible Inspector toggle', () => {
-    expect(gallery).toContain('aria-label="切換詳情"');
-    expect(gallery).toContain('<AppIcon');
+  it('opens item details from both gallery views', () => {
+    expect(gallery.match(/@showDetails="openDetails"/g)).toHaveLength(2);
   });
 
-  it('places the Inspector toggle in the compact header', () => {
-    expect(gallery).toContain('<button\n            class="details-button"');
-    expect(gallery).toContain('<span>詳情</span>');
+  it('removes the global details toggle now that items own the action', () => {
+    expect(gallery).not.toContain('class="details-button"');
     expect(gallery).not.toContain('class="inspector-toggle"');
   });
 
   it('keeps the gallery header compact and contextual', () => {
     expect(gallery).toContain('class="workspace-breadcrumb"');
-    expect(gallery).toContain('class="workspace-count"');
+    expect(gallery).not.toContain('class="workspace-count"');
     expect(gallery).not.toContain('class="workspace-index"');
     expect(gallery).not.toContain('class="workspace-kicker"');
   });
