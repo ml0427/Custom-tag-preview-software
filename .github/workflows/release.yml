@@ -43,6 +43,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run lint:css
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Tauri's generate_context! embeds frontendDist during cargo test too.
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Rust tests
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --bin app
       - name: Build signed installer and draft release
