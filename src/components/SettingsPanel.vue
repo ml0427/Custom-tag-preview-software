@@ -114,29 +114,28 @@ const themes: { id: ThemeId; label: string; detail: string; color: string }[] = 
   { id: 'phosphor', label: 'Phosphor · 螢光綠', detail: '原有配色：黑底與終端機綠', color: '#00ff41' },
 ];
 
-const settingsSections: { id: SettingsSectionId; eyebrow: string; title: string; description: string }[] = [
+const settingsSections: { id: SettingsSectionId; label: string; title: string; description: string }[] = [
   {
     id: 'automation',
-    eyebrow: '標籤與自動化',
+    label: '標籤與自動化',
     title: '標籤與自動化',
-    description: '維護標籤規則集、清理空標籤；規則只負責輔助套標，不改變資料夾本身。',
+    description: '管理自動套用的標籤規則，並整理沒有使用的標籤。',
   },
   {
     id: 'appearance',
-    eyebrow: '外觀',
+    label: '外觀',
     title: '外觀與閱讀密度',
     description: '調整字型大小與主題，讓資料整理介面符合你的工作距離。',
   },
   {
     id: 'system',
-    eyebrow: '系統',
+    label: '系統',
     title: '系統與診斷',
     description: '程式更新、語言與診斷工具。',
   },
 ];
 
 const currentSection = computed(() => settingsSections.find(section => section.id === activeSection.value) ?? settingsSections[0]);
-const currentThemeLabel = computed(() => themes.find(theme => theme.id === themeStore.current)?.label ?? themeStore.current);
 const ruleSetCount = computed(() => itemTypes.value.length);
 const builtinRuleSetCount = computed(() => itemTypes.value.filter(type => type.isBuiltin).length);
 const customRuleSetCount = computed(() => itemTypes.value.filter(type => !type.isBuiltin).length);
@@ -145,46 +144,36 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 
 <template>
   <div class="settings-panel page-shell">
-    <header class="settings-hero page-header">
-      <div class="hero-copy">
-        <span class="eyebrow page-kicker">設定</span>
-        <h2 class="page-title">設定中心</h2>
-        <p class="page-copy">把外觀、標籤規則集與診斷工具分開管理；資料夾維持單純容器，語意交給標籤。</p>
-      </div>
-      <div class="hero-metrics" aria-label="設定摘要">
-        <span class="metric-pill"><strong>{{ ruleSetCount }}</strong> 規則集</span>
-        <span class="metric-pill"><strong>{{ totalRuleCount }}</strong> 自動規則</span>
-        <span class="metric-pill accent-pill">{{ currentThemeLabel }}</span>
-      </div>
+    <header class="settings-header">
+      <h1 class="page-title">設定中心</h1>
+      <p class="page-copy">管理標籤規則、外觀與程式更新。</p>
     </header>
 
     <div class="settings-shell">
-      <aside class="settings-rail" aria-label="設定分類">
+      <nav class="settings-rail" aria-label="設定分類">
         <button
           v-for="section in settingsSections"
           :key="section.id"
           type="button"
           class="rail-item"
           :class="{ active: activeSection === section.id }"
+          :aria-current="activeSection === section.id ? 'page' : undefined"
           @click="activeSection = section.id"
         >
-          <span class="rail-eyebrow">{{ section.eyebrow }}</span>
-          <span class="rail-title">{{ section.title }}</span>
+          {{ section.label }}
         </button>
-      </aside>
+      </nav>
 
       <main class="settings-content">
         <div class="section-intro">
-          <span class="eyebrow">{{ currentSection.eyebrow }}</span>
           <h3>{{ currentSection.title }}</h3>
           <p>{{ currentSection.description }}</p>
         </div>
 
-        <section v-if="activeSection === 'automation'" class="card-grid card-grid--automation">
-          <article class="settings-card featured-card">
+        <section v-if="activeSection === 'automation'" class="card-grid">
+          <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">規則集</span>
                 <h4>標籤規則集</h4>
               </div>
               <span class="card-count">{{ ruleSetCount }}</span>
@@ -205,7 +194,6 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">標籤整理</span>
                 <h4>清理空標籤</h4>
               </div>
             </div>
@@ -227,7 +215,6 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">密度</span>
                 <h4>字型大小</h4>
               </div>
             </div>
@@ -238,6 +225,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
                 type="button"
                 class="density-option"
                 :class="{ active: fontSizeStore.current === size.id }"
+                :aria-pressed="fontSizeStore.current === size.id"
                 @click="fontSizeStore.setFontSize(size.id)"
               >
                 <span class="density-label">{{ size.label }}</span>
@@ -246,10 +234,9 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
             </div>
           </article>
 
-          <article class="settings-card wide-card">
+          <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">主題</span>
                 <h4>主題風格</h4>
               </div>
             </div>
@@ -260,6 +247,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
                 type="button"
                 class="theme-card"
                 :class="{ active: themeStore.current === theme.id }"
+                :aria-pressed="themeStore.current === theme.id"
                 @click="themeStore.setTheme(theme.id)"
               >
                 <span class="theme-swatch" :style="{ background: theme.color }"></span>
@@ -274,10 +262,9 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
         </section>
 
         <section v-else class="card-grid">
-          <article class="settings-card wide-card">
+          <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">程式更新</span>
                 <h4>自動更新</h4>
               </div>
               <span v-if="currentVersion" class="status-pill">v{{ currentVersion }}</span>
@@ -303,25 +290,23 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">語言</span>
                 <h4>語言</h4>
               </div>
             </div>
             <div class="field-stack">
-              <select class="field-control" disabled>
+              <select class="field-control" aria-label="介面語言" disabled>
                 <option>繁體中文</option>
               </select>
-              <span class="field-hint">i18n 規劃中，目前固定繁體中文。</span>
+              <span class="field-hint">目前提供繁體中文介面。</span>
             </div>
           </article>
 
-          <article class="settings-card wide-card">
+          <article class="settings-card">
             <div class="card-header">
               <div>
-                <span class="card-kicker">診斷</span>
                 <h4>Debug 模式</h4>
               </div>
-              <span class="status-pill" :class="{ active: debugMode }">{{ debugMode ? 'ON' : 'OFF' }}</span>
+              <span class="status-pill" :class="{ active: debugMode }">{{ debugMode ? '已開啟' : '已關閉' }}</span>
             </div>
             <label class="debug-toggle">
               <input type="checkbox" v-model="debugMode" @change="onToggleDebug" />
@@ -353,108 +338,33 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 16% 0%, var(--accent-bg-subtle), transparent 30%),
-    var(--bg-app);
 }
 
-.settings-hero {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 32px 40px 24px;
-  border-bottom: 1px solid var(--border-subtle);
+.settings-header {
   flex-shrink: 0;
+  padding: 16px 24px;
 }
 
-.hero-copy,
-.section-intro,
-.card-header > div,
-.theme-copy,
-.debug-toggle span {
-  min-width: 0;
-}
-
-.eyebrow,
-.card-kicker,
-.rail-eyebrow {
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-tertiary);
-  font-size: 0.65rem;
-  font-weight: 500;
-}
-
-.settings-hero h2,
-.section-intro h3,
-.settings-card h4 {
-  margin: 0;
-  color: var(--text-primary);
+.page-title {
+  margin: 3px 0 2px;
+  color: var(--content-primary);
+  font-family: var(--font-sans);
+  font-size: 21px;
+  font-weight: 650;
   letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
-.settings-hero h2 {
-  margin-top: 8px;
-  font-size: clamp(1.9rem, 3vw, 3rem);
-  line-height: 1;
-  font-weight: 600;
-}
-
-.settings-hero p,
-.section-intro p,
-.card-copy,
-.field-hint {
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.settings-hero p {
-  max-width: 720px;
-  margin: 12px 0 0;
-  font-size: 0.95rem;
-}
-
-.hero-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  min-width: 0;
-}
-
-.metric-pill,
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border-default);
-  background: var(--bg-overlay-soft);
-  color: var(--text-secondary);
-  border-radius: var(--radius-pill);
-  padding: 6px 10px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  white-space: nowrap;
-}
-
-.metric-pill strong,
-.stat-row strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.accent-pill,
-.status-pill.active {
-  border-color: var(--accent-border);
-  background: var(--accent-bg-subtle);
-  color: var(--accent);
+.page-copy {
+  margin-top: 6px;
+  color: var(--content-secondary);
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .settings-shell {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -462,427 +372,158 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 
 .settings-rail {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 24px 16px 24px 24px;
-  border-right: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--bg-panel) 82%, transparent);
-  overflow-y: auto;
+  flex-shrink: 0;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line-default);
+  overflow-x: auto;
 }
 
 .rail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-lg);
-  background: transparent;
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.rail-item:hover {
-  background: var(--bg-overlay-soft);
-  color: var(--text-primary);
-}
-
-.rail-item.active {
-  background: var(--accent-bg-subtle);
-  border-color: var(--accent-border);
-  color: var(--text-primary);
-}
-
-.rail-title {
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
-.settings-content {
-  overflow-y: auto;
-  padding: 28px 40px 40px;
-  min-width: 0;
-}
-
-.section-intro {
-  max-width: 760px;
-  margin-bottom: 20px;
-}
-
-.section-intro h3 {
-  margin-top: 6px;
-  font-size: 1.35rem;
-}
-
-.section-intro p {
-  margin: 8px 0 0;
-  font-size: 0.9rem;
-}
-
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  max-width: 1040px;
-}
-
-.card-grid--automation {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-}
-
-.settings-card {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
-  box-shadow: var(--shadow-sm);
-}
-
-.featured-card {
-  background:
-    linear-gradient(135deg, var(--accent-bg-subtle), transparent 58%),
-    color-mix(in srgb, var(--bg-elevated) 78%, transparent);
-}
-
-.wide-card {
-  grid-column: span 2;
-}
-
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.settings-card h4 {
-  margin-top: 4px;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.card-copy {
-  margin: 0;
-  font-size: 0.86rem;
-}
-
-.card-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
   flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--accent-bg-subtle);
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-weight: 600;
-}
-
-.stat-row,
-.button-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-
-.stat-row span {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill);
-  padding: 6px 9px;
-  color: var(--text-secondary);
-  background: var(--bg-overlay-soft);
-  font-size: 0.78rem;
-}
-
-.primary-action,
-.secondary-action {
-  border-radius: var(--radius-md);
-  padding: 9px 12px;
-  font-size: 0.86rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
-}
-
-.primary-action {
-  align-self: flex-start;
-  border: 1px solid var(--accent-border);
-  background: var(--accent);
-  color: var(--text-on-accent);
-  box-shadow: var(--shadow-accent-elevated);
-}
-
-.primary-action:hover {
-  background: var(--accent-hover);
-}
-
-.secondary-action {
-  border: 1px solid var(--border-default);
+  min-height: 42px;
+  padding: 8px 2px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
-  color: var(--text-secondary);
-}
-
-.secondary-action:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.secondary-action:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: var(--bg-overlay-soft);
-  color: var(--text-primary);
-}
-
-.danger-action:hover:not(:disabled) {
-  border-color: var(--color-danger);
-  background: var(--color-danger-bg-subtle);
-  color: var(--color-danger);
-}
-
-.density-options {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.density-option,
-.theme-card {
-  min-width: 0;
-  border: 1px solid var(--border-default);
-  background: var(--bg-overlay-soft);
-  color: var(--text-secondary);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.density-option {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  text-align: left;
-}
-
-.density-option:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
-.density-option.active {
-  border-color: var(--accent-border);
-  background: var(--accent-bg-subtle);
-  color: var(--text-primary);
-}
-
-.density-label {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.density-detail,
-.theme-detail {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  line-height: 1.45;
-}
-
-.theme-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.theme-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  text-align: left;
-}
-
-.theme-card:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
-.theme-card.active {
-  border-color: var(--accent-border);
-  background: var(--accent-bg-subtle);
-  color: var(--text-primary);
-}
-
-.theme-swatch {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 3px var(--bg-overlay-soft);
-}
-
-.theme-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-}
-
-.theme-label {
-  color: var(--text-primary);
-  font-size: 0.86rem;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--content-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
   white-space: nowrap;
 }
 
-.theme-check {
-  color: var(--accent);
-  font-weight: 700;
-  flex-shrink: 0;
+.rail-item:hover { color: var(--content-primary); }
+.rail-item.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+.settings-content {
+  min-height: 0;
+  min-width: 0;
+  padding: 20px 24px 32px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
-.field-stack {
+.section-intro,
+.card-grid { max-width: 920px; }
+.section-intro { margin-bottom: 16px; }
+.section-intro h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.section-intro p { margin-top: 4px; font-size: 0.8rem; }
+
+.section-intro p,
+.card-copy,
+.field-hint { color: var(--content-secondary); line-height: 1.6; }
+
+.card-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.settings-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.field-control {
-  min-width: 0;
-  width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  color: var(--text-tertiary);
-  border-radius: var(--radius-md);
-  padding: 8px 10px;
-  font-size: 0.86rem;
-  cursor: not-allowed;
-}
-
-.field-hint {
-  font-size: 0.76rem;
-  margin: 0;
-}
-
-.debug-toggle {
-  display: flex;
-  align-items: flex-start;
   gap: 12px;
   min-width: 0;
-  cursor: pointer;
-  color: var(--text-primary);
-}
-
-.debug-toggle input[type="checkbox"] {
-  flex-shrink: 0;
-  margin-top: 2px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.debug-toggle strong,
-.debug-toggle small {
-  display: block;
-}
-
-.debug-toggle small {
-  margin-top: 4px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.log-path-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-overlay-soft);
+  padding: 18px 20px;
+  border: 1px solid var(--line-default);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  background: var(--surface-panel);
 }
 
-.field-label {
-  font-size: 0.74rem;
-  color: var(--text-tertiary);
-}
+.card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.card-header > div,
+.theme-copy,
+.debug-toggle span { min-width: 0; }
+.settings-card h4 { margin: 0; color: var(--content-primary); font-size: 0.9rem; font-weight: 600; }
+.card-copy { margin: 0; font-size: 0.8rem; }
 
-.debug-path {
-  min-width: 0;
-  font-family: var(--font-mono);
+.card-count,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--content-secondary);
   font-size: 0.72rem;
-  color: var(--text-secondary);
-  word-break: break-all;
+  white-space: nowrap;
+}
+.status-pill.active { background: var(--accent-bg-subtle); color: var(--accent); }
+.stat-row,
+.button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.stat-row { gap: 16px; color: var(--content-secondary); font-size: 0.76rem; }
+.stat-row strong { color: var(--content-primary); font-weight: 600; }
+
+.settings-card > button { align-self: flex-start; }
+.primary-action,
+.secondary-action {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.primary-action { border-color: var(--accent); background: var(--accent); color: var(--text-on-accent); }
+.secondary-action { background: var(--surface-panel); color: var(--content-primary); }
+.primary-action:disabled,
+.secondary-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.primary-action:hover:not(:disabled) { background: var(--accent-hover); }
+.secondary-action:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-hover); }
+.danger-action { color: var(--color-danger); }
+.danger-action:hover:not(:disabled) { border-color: var(--color-danger); background: var(--color-danger-bg-subtle); }
+
+.density-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.density-option,
+.theme-card {
+  min-width: 0;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--content-secondary);
+  text-align: left;
+}
+.density-option { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; }
+.theme-card { display: flex; align-items: center; gap: 10px; padding: 12px; }
+.density-option:hover,
+.theme-card:hover { border-color: var(--line-strong); }
+.density-option.active,
+.theme-card.active { border-color: var(--accent-border); background: var(--accent-bg-subtle); }
+.density-label { color: var(--content-primary); font-size: 0.9rem; font-weight: 600; }
+.density-detail,
+.theme-detail { color: var(--content-secondary); font-size: 0.73rem; line-height: 1.5; }
+.theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.theme-swatch { width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; }
+.theme-copy { display: flex; flex-direction: column; flex: 1; gap: 3px; }
+.theme-label { color: var(--content-primary); font-size: 0.8rem; font-weight: 600; overflow-wrap: anywhere; }
+.theme-check { flex-shrink: 0; color: var(--accent); font-weight: 700; }
+
+.field-stack { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field-control {
+  width: min(220px, 100%);
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-input);
+  color: var(--content-secondary);
+  font-size: 0.8rem;
+}
+.field-hint { font-size: 0.75rem; }
+.debug-toggle { display: flex; align-items: flex-start; gap: 10px; min-width: 0; color: var(--content-primary); cursor: pointer; }
+.debug-toggle input[type="checkbox"] { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
+.debug-toggle strong { display: block; font-size: 0.8rem; font-weight: 500; }
+.debug-toggle small { display: block; margin-top: 3px; color: var(--content-secondary); font-size: 0.75rem; line-height: 1.5; }
+.log-path-card { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-hover); }
+.field-label { color: var(--content-muted); font-size: 0.72rem; }
+.debug-path { min-width: 0; color: var(--content-secondary); font-family: var(--font-mono); font-size: 0.72rem; overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  .settings-rail { gap: 20px; }
+  .settings-card { padding: 16px; }
+  .theme-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 900px) {
-  .settings-hero {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 28px 24px 20px;
-  }
-
-  .hero-metrics {
-    justify-content: flex-start;
-  }
-
-  .settings-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .settings-rail {
-    flex-direction: row;
-    overflow-x: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 12px 16px;
-  }
-
-  .rail-item {
-    width: auto;
-    flex: 1 1 0;
-  }
-
-  .settings-content {
-    padding: 24px;
-  }
-
-  .card-grid,
-  .card-grid--automation,
-  .theme-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .wide-card {
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 620px) {
-  .density-options {
-    grid-template-columns: 1fr;
-  }
-
-  .button-row,
-  .primary-action,
-  .secondary-action {
-    width: 100%;
-  }
+@media (max-width: 420px) {
+  .density-options { grid-template-columns: minmax(0, 1fr); }
+  .density-option { flex-direction: row; align-items: baseline; gap: 12px; }
 }
 </style>

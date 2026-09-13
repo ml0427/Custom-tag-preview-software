@@ -32,7 +32,7 @@ const hasAny = computed(() => changes.value.length > 0);
 
 <template>
   <div class="health-view page-shell">
-    <header class="health-hero page-header">
+    <header class="health-header">
       <div>
         <h1 class="page-title">檔案健檢</h1>
         <p class="page-copy">比對磁碟與資料庫狀態，集中處理新增、遺失與內容變更。</p>
@@ -155,33 +155,28 @@ const hasAny = computed(() => changes.value.length > 0);
 </template>
 
 <style scoped>
-.health-hero {
-  padding: 28px 32px 22px;
+.health-header {
+  flex-shrink: 0;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--line-default);
 }
 
-.page-kicker {
-  color: var(--content-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
 .page-title {
-  margin-top: 5px;
+  margin: 3px 0 2px;
   color: var(--content-primary);
   font-family: var(--font-sans);
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-  letter-spacing: -0.045em;
-  line-height: 1;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .page-copy {
   max-width: 680px;
-  margin-top: 10px;
+  margin-top: 6px;
   color: var(--content-secondary);
-  font-size: 0.86rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .state-icon {
