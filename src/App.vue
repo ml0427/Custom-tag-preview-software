@@ -11,6 +11,16 @@ import ItemGallery from './components/ItemGallery.vue'
 import FileHealthView from './components/FileHealthView.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
+import AppUpdateDialog from './components/AppUpdateDialog.vue'
+import { useAppUpdater } from './composables/useAppUpdater'
+
+const appUpdater = useAppUpdater()
+let updateCheckTimer: ReturnType<typeof setTimeout> | null = null
+
+onMounted(() => {
+  void appUpdater.initialize()
+  updateCheckTimer = setTimeout(() => { void appUpdater.checkForUpdates(false) }, 5000)
+})
 
 const activePanel = ref<string | null>(null)
 const selectedTagId = ref<number | null>(null)
@@ -118,6 +128,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (updateCheckTimer) clearTimeout(updateCheckTimer)
   unlistenScan?.()
   if (scanHideTimer) clearTimeout(scanHideTimer)
 })
@@ -183,6 +194,7 @@ onUnmounted(() => {
     </main>
 
     <ToastContainer />
+    <AppUpdateDialog />
 
     <!-- 掃描進度條 -->
     <Teleport to="body">

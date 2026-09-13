@@ -7,6 +7,13 @@ import { useFontSizeStore, type FontSize } from '../stores/fontSizeStore';
 import { useToast } from '../composables/useToast';
 import { useTags } from '../composables/useTags';
 import CategoryManageModal from './CategoryManageModal.vue';
+import { useAppUpdater } from '../composables/useAppUpdater';
+
+const {
+  currentVersion, availableVersion, autoCheck, status: updateStatus,
+  statusText: updateStatusText, errorMessage: updateError, busy: updateBusy,
+  checkForUpdates, setAutoCheck, showUpdate,
+} = useAppUpdater();
 
 const emit = defineEmits<{
   (e: 'categorySaved'): void;
@@ -124,7 +131,7 @@ const settingsSections: { id: SettingsSectionId; eyebrow: string; title: string;
     id: 'system',
     eyebrow: '系統',
     title: '系統與診斷',
-    description: '語言、Debug log 與低階診斷入口。',
+    description: '程式更新、語言與診斷工具。',
   },
 ];
 
@@ -267,6 +274,32 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
         </section>
 
         <section v-else class="card-grid">
+          <article class="settings-card wide-card">
+            <div class="card-header">
+              <div>
+                <span class="card-kicker">程式更新</span>
+                <h4>自動更新</h4>
+              </div>
+              <span v-if="currentVersion" class="status-pill">v{{ currentVersion }}</span>
+            </div>
+            <label class="debug-toggle">
+              <input type="checkbox" :checked="autoCheck" @change="setAutoCheck(($event.target as HTMLInputElement).checked)" />
+              <span>
+                <strong>啟動時檢查更新</strong>
+                <small>有新版時通知，確認後自動下載、安裝並重新開啟。</small>
+              </span>
+            </label>
+            <p class="card-copy" role="status" aria-live="polite">{{ updateStatusText }}</p>
+            <p v-if="updateError" class="card-copy" role="alert">{{ updateError }}</p>
+            <div class="button-row">
+              <button type="button" class="secondary-action" :disabled="updateBusy || updateStatus === 'unsupported' || updateStatus === 'restart-required'" @click="checkForUpdates()">
+                {{ updateStatus === 'checking' ? '檢查中…' : '檢查更新' }}
+              </button>
+              <button v-if="availableVersion" type="button" class="primary-action" :disabled="updateBusy" @click="showUpdate">
+                {{ updateStatus === 'restart-required' ? '重新開啟程式' : `查看 v${availableVersion} 更新` }}
+              </button>
+            </div>
+          </article>
           <article class="settings-card">
             <div class="card-header">
               <div>

@@ -1,12 +1,12 @@
 {
   "name": "client",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.146.0",
   "type": "module",
   "scripts": {
     "tauri:dev": "tauri dev",
     "pretauri:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-tauri-build-blockers.ps1",
-    "tauri:build": "tauri build",
+    "tauri:build": "node scripts/tauri-build.cjs",
     "dev": "vite --host 127.0.0.1 --strictPort",
     "prebuild": "node scripts/stamp-build.cjs",
     "stamp-build": "node scripts/stamp-build.cjs --force",
@@ -17,11 +17,15 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "lint:css": "stylelint \"src/**/*.{vue,css}\"",
-    "lint:css:fix": "stylelint \"src/**/*.{vue,css}\" --fix"
+    "lint:css:fix": "stylelint \"src/**/*.{vue,css}\" --fix",
+    "version:set": "node scripts/release-version.cjs",
+    "version:check": "node scripts/release-version.cjs --check"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.30",
     "vue-router": "^4.6.4"
