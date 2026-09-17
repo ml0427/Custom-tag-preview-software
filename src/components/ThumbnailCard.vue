@@ -163,7 +163,7 @@ const tags = props.dbItem?.tags ?? [];
 .thumb-card.selected .thumb-cover {
   border-color: var(--accent);
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
   box-shadow: var(--shadow-md);
 }
 
