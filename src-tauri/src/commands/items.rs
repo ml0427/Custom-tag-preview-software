@@ -46,6 +46,7 @@ pub(super) async fn query_items(
     tags.sort_unstable(); tags.dedup();
     let search_pattern = search.as_deref().map(str::trim).filter(|q| !q.is_empty())
         .map(|q| format!("%{}%", db::escape_like(q)));
+    let search_includes_dot = search.as_deref().is_some_and(|q| q.trim().contains('.'));
     macro_rules! build_query {
         ($select:expr) => {{
             let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new($select);
@@ -69,7 +70,15 @@ pub(super) async fn query_items(
             if !include_missing.unwrap_or(false) { qb.push(" AND i.exists_on_disk = 1"); }
             if frequent_only.unwrap_or(false) { qb.push(" AND i.open_count > 0"); }
             if let Some(pattern) = &search_pattern {
-                qb.push(" AND (i.name LIKE "); qb.push_bind(pattern.clone()); qb.push(" ESCAPE '!' OR COALESCE(i.note, '') LIKE ");
+                qb.push(" AND (i.name LIKE "); qb.push_bind(pattern.clone());
+                qb.push(" ESCAPE '!'");
+                if !search_includes_dot {
+                    // Match the name before its final dot. A plain `z` must not
+                    // match every `.zip`; a leading dot alone is not an extension.
+                    qb.push(" AND (i.item_type = 'folder' OR i.name NOT LIKE '%.%' OR (i.name LIKE '.%' AND i.name NOT LIKE '.%.%') OR i.name LIKE ");
+                    qb.push_bind(format!("{}.%", pattern)); qb.push(" ESCAPE '!')");
+                }
+                qb.push(" OR COALESCE(i.note, '') LIKE ");
                 qb.push_bind(pattern.clone()); qb.push(" ESCAPE '!' OR EXISTS (SELECT 1 FROM item_tags it JOIN tags t ON t.id = it.tag_id WHERE it.item_id = i.id AND t.name LIKE ");
                 qb.push_bind(pattern.clone()); qb.push(" ESCAPE '!'))");
             }
@@ -228,6 +237,22 @@ mod query_tests {
         assert_eq!(build_renamed_path(Path::new("folder.old"), "folder.new", "folder").unwrap(), Path::new("folder.new"));
         assert!(build_renamed_path(Path::new("book.zip"), "../other", "file").is_err());
     }
+    #[tokio::test]
+    async fn plain_search_ignores_file_extensions_but_dotted_search_finds_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let pool = db::init_db(dir.path()).await.unwrap();
+        db::add_source(&pool, "C:/Library").await.unwrap();
+        for name in ["plain.zip", "zebra.zip", "z.zip", "plain.txt", ".z"] {
+            db::insert_item(&pool, &format!("C:/Library/{name}"), "file", name, None, None, "now", None).await.unwrap();
+        }
+
+        let plain = query_items(&pool, 0, 20, None, Some("name".into()), Some("asc".into()), None, None, None, Some("Z".into()), None).await.unwrap();
+        assert_eq!(plain.content.iter().map(|item| item.name.as_str()).collect::<Vec<_>>(), [".z", "z.zip", "zebra.zip"]);
+
+        let extension = query_items(&pool, 0, 20, None, Some("name".into()), Some("asc".into()), None, None, None, Some(".zip".into()), None).await.unwrap();
+        assert_eq!(extension.content.iter().map(|item| item.name.as_str()).collect::<Vec<_>>(), ["plain.zip", "z.zip", "zebra.zip"]);
+    }
+
     #[tokio::test]
     async fn search_and_sort_run_before_pagination_and_obey_scope_boundaries() {
         let dir = tempfile::tempdir().unwrap(); let pool = db::init_db(dir.path()).await.unwrap();

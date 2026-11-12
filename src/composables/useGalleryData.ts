@@ -37,6 +37,12 @@ interface FileItemsResult {
 
 const EXTERNAL_CHANGE_CONCURRENCY = 4;
 
+const searchableName = (name: string, isDir: boolean, query: string): string => {
+  if (isDir || query.includes('.')) return name;
+  const extensionStart = name.lastIndexOf('.');
+  return extensionStart > 0 ? name.slice(0, extensionStart) : name;
+};
+
 export function useGalleryData(
   sourcePath: () => string | null,
   selectedTagId: () => number | null | undefined,
@@ -93,8 +99,8 @@ export function useGalleryData(
       items = items.filter(fileItem => {
         const dbItem = itemByPath.value.get(pathKey(fileItem.path));
         const searchable = [
-          fileItem.name,
-          dbItem?.name,
+          searchableName(fileItem.name, fileItem.isDir, q),
+          dbItem && searchableName(dbItem.name, dbItem.itemType === 'folder', q),
           dbItem?.note,
           ...(dbItem?.tags.map(tag => tag.name) ?? []),
         ];

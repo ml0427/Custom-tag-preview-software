@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { nextTick } from 'vue';
+import { nextTick, ref } from 'vue';
 import { api, type FileItem, type Item, type Page } from '../api';
 import { useGalleryData } from './useGalleryData';
 
@@ -405,6 +405,31 @@ describe('useGalleryData', () => {
     await gallery.loadAll();
 
     expect(gallery.filteredFileItems.value.map(value => value.name)).toEqual(['placeholder.zip']);
+  });
+
+  it('ignores file extensions for plain terms but searches them when a dot is entered', async () => {
+    apiMock.listDirFiles.mockResolvedValueOnce([
+      file('plain.zip', 20, ''),
+      file('zebra.zip', 20, ''),
+      file('z.zip', 20, ''),
+      file('plain.txt', 20, ''),
+      file('.z', 20, ''),
+    ]);
+    apiMock.getItems.mockResolvedValue(page([]));
+    const query = ref('Z');
+    const gallery = useGalleryData(
+      () => 'C:/Library',
+      () => undefined,
+      () => query.value,
+      () => 'name',
+      () => 'asc',
+    );
+
+    await gallery.loadAll();
+    expect(gallery.filteredFileItems.value.map(value => value.name)).toEqual(['.z', 'z.zip', 'zebra.zip']);
+
+    query.value = '.zip';
+    expect(gallery.filteredFileItems.value.map(value => value.name)).toEqual(['plain.zip', 'z.zip', 'zebra.zip']);
   });
 
   it('sends tag search and ordering to the backend before pagination', async () => {

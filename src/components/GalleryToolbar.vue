@@ -49,6 +49,7 @@ const gallerySearch = computed({
         class="gallery-search"
         placeholder="搜尋檔名、標籤、備註..."
         aria-label="搜尋檔名、標籤或備註"
+        title="一般關鍵字搜尋檔案名稱（不含副檔名）、標籤與備註；輸入 .zip 可搜尋副檔名"
       />
       <button v-if="gallerySearch" type="button" class="search-clear" @click.prevent="gallerySearch = ''" title="清除搜尋" aria-label="清除搜尋">
         <AppIcon name="x" :size="14" />
