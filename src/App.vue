@@ -30,6 +30,7 @@ const tagSidebarRefreshKey = ref(0)
 const workspaceGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const tagGalleryRef = ref<InstanceType<typeof ItemGallery> | null>(null)
 const lastMainView = ref<'workspace' | 'tags'>('workspace')
+const settingsRuleName = ref('comic')
 const { show: showToast } = useToast()
 
 const handleActivitySelect = (id: string) => {
@@ -46,6 +47,11 @@ const handleTagSelect = (tagId: number | null) => {
 const handleJumpToTag = (tagId: number) => {
   selectedTagId.value = tagId
   activePanel.value = 'tags'
+}
+
+const handleEditRules = (ruleName?: string) => {
+  if (ruleName) settingsRuleName.value = ruleName
+  activePanel.value = 'settings'
 }
 
 const handleGalleryItemUpdated = async () => {
@@ -151,6 +157,7 @@ onUnmounted(() => {
           :selectedPath="selectedSourcePath"
           @select="(path) => { selectedSourcePath = path; }"
           @folderCreated="() => { workspaceGalleryRef?.refresh(); tagGalleryRef?.refresh(); loadGlobalTags(); }"
+          @editRules="handleEditRules"
         />
       </aside>
     </transition>
@@ -159,6 +166,8 @@ onUnmounted(() => {
       <FileHealthView v-if="activePanel === 'file-health'" :sourcePath="selectedSourcePath" />
       <SettingsPanel
         v-else-if="activePanel === 'settings'"
+        :initialRuleName="settingsRuleName"
+        @ruleSelected="settingsRuleName = $event"
         @categorySaved="loadItemTypes()"
         @tagsChanged="handleTagsChanged"
       />
@@ -175,6 +184,7 @@ onUnmounted(() => {
           @navigateDir="(path) => { selectedSourcePath = path; }"
           @jumpToTag="handleJumpToTag"
           @openFileHealth="activePanel = 'file-health'"
+          @editRules="handleEditRules"
         />
         <ItemGallery
           v-show="activePanel === 'tags' || (!activePanel && lastMainView === 'tags')"
@@ -189,6 +199,7 @@ onUnmounted(() => {
           @navigateDir="(path) => { selectedSourcePath = path; activePanel = 'workspace'; }"
           @jumpToTag="handleJumpToTag"
           @openFileHealth="activePanel = 'file-health'"
+          @editRules="handleEditRules"
         />
       </template>
     </main>

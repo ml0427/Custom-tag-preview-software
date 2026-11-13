@@ -61,9 +61,10 @@ export function useCategoryManage() {
     };
 
     const save = async () => {
-        if (!form.value.displayName.trim()) { showToast('請填寫顯示名稱', 'error'); return; }
-        if (isNew.value && !form.value.name.trim()) { showToast('請填寫識別名稱', 'error'); return; }
-        if (isNew.value && !/^[a-z0-9_]+$/.test(form.value.name)) { showToast('識別名稱只能使用小寫英數字與底線', 'error'); return; }
+        if (saving.value) return false;
+        if (!form.value.displayName.trim()) { showToast('請填寫顯示名稱', 'error'); return false; }
+        if (isNew.value && !form.value.name.trim()) { showToast('請填寫識別名稱', 'error'); return false; }
+        if (isNew.value && !/^[a-z0-9_]+$/.test(form.value.name)) { showToast('識別名稱只能使用小寫英數字與底線', 'error'); return false; }
 
         const extChanged = !isNew.value && selected.value &&
             JSON.stringify([...selected.value.extensions].sort()) !== JSON.stringify([...form.value.extensions].sort());
@@ -102,8 +103,10 @@ export function useCategoryManage() {
                     showToast('已儲存', 'success');
                 }
             }
+            return true;
         } catch (e: any) {
             showToast('儲存失敗：' + (e?.message ?? e), 'error');
+            return false;
         } finally {
             saving.value = false;
         }

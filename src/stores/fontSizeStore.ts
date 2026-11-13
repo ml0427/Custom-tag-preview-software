@@ -5,7 +5,7 @@ export type FontSize = 'small' | 'medium' | 'large';
 const STORAGE_KEY = 'app-font-size';
 const VALID: FontSize[] = ['small', 'medium', 'large'];
 
-const PX: Record<FontSize, string> = {
+export const FONT_SIZE_PX: Readonly<Record<FontSize, string>> = {
   small:  '14px',
   medium: '16px',
   large:  '18px',
@@ -16,7 +16,7 @@ function isValid(v: string | null): v is FontSize {
 }
 
 function applyToRoot(size: FontSize) {
-  document.documentElement.style.setProperty('--font-base-size', PX[size]);
+  document.documentElement.style.setProperty('--font-base-size', FONT_SIZE_PX[size]);
   document.documentElement.setAttribute('data-font-size', size);
 }
 

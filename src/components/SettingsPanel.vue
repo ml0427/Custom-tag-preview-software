@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
-import { api } from '../api';
-import { useItemTypes } from '../composables/useItemTypes';
+import { api, type ItemType } from '../api';
+import { useCategoryManage } from '../composables/useCategoryManage';
 import { useThemeStore, type ThemeId } from '../stores/themeStore';
-import { useFontSizeStore, type FontSize } from '../stores/fontSizeStore';
+import { FONT_SIZE_PX, useFontSizeStore, type FontSize } from '../stores/fontSizeStore';
 import { useToast } from '../composables/useToast';
 import { useTags } from '../composables/useTags';
-import CategoryManageModal from './CategoryManageModal.vue';
+import CategoryEditor from './CategoryEditor.vue';
 import { useAppUpdater } from '../composables/useAppUpdater';
 
 const {
@@ -15,21 +15,52 @@ const {
   checkForUpdates, setAutoCheck, showUpdate,
 } = useAppUpdater();
 
+const props = defineProps<{ initialRuleName?: string }>();
 const emit = defineEmits<{
   (e: 'categorySaved'): void;
   (e: 'tagsChanged'): void;
+  (e: 'ruleSelected', name: string): void;
 }>();
 
-type SettingsSectionId = 'automation' | 'appearance' | 'system';
+type SettingsSectionId = 'rules' | 'appearance' | 'updates' | 'maintenance' | 'diagnostics';
 
-const { itemTypes, load: loadItemTypes } = useItemTypes();
+const {
+  itemTypes, load: loadItemTypes, selected, isNew, saving, form, extInput,
+  selectType, selectFirst, startNew, addRule, removeRule, addExt, removeExt, save, deleteType,
+} = useCategoryManage();
 const themeStore = useThemeStore();
 const fontSizeStore = useFontSizeStore();
 const { show: showToast, confirm: confirmDialog } = useToast();
 const { loadTags } = useTags();
 
-const showCategoryManage = ref(false);
-const activeSection = ref<SettingsSectionId>('automation');
+const activeSection = ref<SettingsSectionId>('rules');
+const rulesReady = ref(false);
+const rulesLoadError = ref('');
+
+const selectRuleSet = (type: ItemType) => {
+  if (isNew.value || selected.value?.id !== type.id) selectType(type);
+  activeSection.value = 'rules';
+  emit('ruleSelected', type.name);
+};
+const createRuleSet = () => {
+  if (!isNew.value) startNew();
+  activeSection.value = 'rules';
+};
+const saveRuleSet = async () => {
+  if (await save()) {
+    emit('categorySaved');
+    if (selected.value) emit('ruleSelected', selected.value.name);
+  }
+};
+const deleteRuleSet = async () => {
+  if (!selected.value || saving.value) return;
+  const previousId = selected.value.id;
+  await deleteType(selected.value);
+  if (!itemTypes.value.some(type => type.id === previousId)) {
+    emit('categorySaved');
+    if (selected.value) emit('ruleSelected', selected.value.name);
+  }
+};
 
 const isDeletingEmptyTags = ref(false);
 
@@ -50,12 +81,6 @@ const handleDeleteEmptyTags = async () => {
 
 const debugMode = ref(false);
 const debugLogPath = ref('');
-
-const handleCategoryClose = () => {
-  showCategoryManage.value = false;
-  loadItemTypes(true);
-  emit('categorySaved');
-};
 
 const onToggleDebug = async () => {
   try {
@@ -87,10 +112,22 @@ const onClearDebugLog = async () => {
 
 onMounted(async () => {
   try {
+    await loadItemTypes();
+    const initial = itemTypes.value.find(type => type.name === props.initialRuleName)
+      ?? itemTypes.value.find(type => type.name === 'comic');
+    if (initial) {
+      selectType(initial);
+      emit('ruleSelected', initial.name);
+    }
+    else selectFirst();
+    rulesReady.value = true;
+  } catch (e) {
+    rulesLoadError.value = `無法讀取標籤規則：${String(e)}`;
+  }
+  try {
     const [nextDebugMode, nextDebugLogPath] = await Promise.all([
       api.getDebugMode(),
       api.getDebugLogPath(),
-      loadItemTypes(),
     ]);
     debugMode.value = nextDebugMode;
     debugLogPath.value = nextDebugLogPath;
@@ -116,41 +153,55 @@ const themes: { id: ThemeId; label: string; detail: string; color: string }[] = 
 
 const settingsSections: { id: SettingsSectionId; label: string; title: string; description: string }[] = [
   {
-    id: 'automation',
-    label: '標籤與自動化',
-    title: '標籤與自動化',
-    description: '管理自動套用的標籤規則，並整理沒有使用的標籤。',
-  },
-  {
     id: 'appearance',
     label: '外觀',
     title: '外觀與閱讀密度',
     description: '調整字型大小與主題，讓資料整理介面符合你的工作距離。',
   },
   {
-    id: 'system',
-    label: '系統',
-    title: '系統與診斷',
-    description: '程式更新、語言與診斷工具。',
+    id: 'updates', label: '程式更新', title: '程式更新',
+    description: '檢查新版本，設定是否在啟動時通知。',
+  },
+  {
+    id: 'maintenance', label: '資料清理', title: '資料清理',
+    description: '整理沒有使用的標籤。',
+  },
+  {
+    id: 'diagnostics', label: '診斷日誌', title: '診斷日誌',
+    description: '查看與管理除錯日誌。介面語言：繁體中文。',
   },
 ];
 
 const currentSection = computed(() => settingsSections.find(section => section.id === activeSection.value) ?? settingsSections[0]);
-const ruleSetCount = computed(() => itemTypes.value.length);
-const builtinRuleSetCount = computed(() => itemTypes.value.filter(type => type.isBuiltin).length);
-const customRuleSetCount = computed(() => itemTypes.value.filter(type => !type.isBuiltin).length);
-const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum + type.tagRules.length, 0));
 </script>
 
 <template>
   <div class="settings-panel page-shell">
     <header class="settings-header">
-      <h1 class="page-title">設定中心</h1>
-      <p class="page-copy">管理標籤規則、外觀與程式更新。</p>
+      <h1 class="page-title">設定</h1>
     </header>
 
     <div class="settings-shell">
       <nav class="settings-rail" aria-label="設定分類">
+        <span class="nav-group-label">標籤規則</span>
+        <button
+          v-for="type in itemTypes"
+          :key="type.id"
+          type="button"
+          class="rail-item rule-nav-item"
+          :class="{ active: activeSection === 'rules' && !isNew && selected?.id === type.id }"
+          :aria-current="activeSection === 'rules' && !isNew && selected?.id === type.id ? 'page' : undefined"
+          :disabled="saving"
+          @click="selectRuleSet(type)"
+        >
+          <span class="rule-nav-icon" :style="{ color: type.color ?? undefined }">{{ type.icon }}</span>
+          <span class="rule-nav-name">{{ type.displayName }}</span>
+          <span class="rule-nav-count">{{ type.tagRules.length }}</span>
+        </button>
+        <button type="button" class="rail-item add-rule-set" :class="{ active: activeSection === 'rules' && isNew }" :disabled="saving" @click="createRuleSet">
+          ＋ 新增規則集
+        </button>
+        <span class="nav-group-label program-group">程式設定</span>
         <button
           v-for="section in settingsSections"
           :key="section.id"
@@ -165,53 +216,33 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
       </nav>
 
       <main class="settings-content">
-        <div class="section-intro">
+        <div v-if="activeSection !== 'rules'" class="section-intro">
           <h3>{{ currentSection.title }}</h3>
           <p>{{ currentSection.description }}</p>
         </div>
 
-        <section v-if="activeSection === 'automation'" class="card-grid">
-          <article class="settings-card">
-            <div class="card-header">
-              <div>
-                <h4>標籤規則集</h4>
-              </div>
-              <span class="card-count">{{ ruleSetCount }}</span>
-            </div>
-            <p class="card-copy">
-              規則集是套標籤的自動化模板，可被資料夾預設引用；它不改變資料夾本身。
-            </p>
-            <div class="stat-row">
-              <span><strong>{{ builtinRuleSetCount }}</strong> 內建</span>
-              <span><strong>{{ customRuleSetCount }}</strong> 自訂</span>
-              <span><strong>{{ totalRuleCount }}</strong> 規則</span>
-            </div>
-            <button type="button" class="primary-action" @click="showCategoryManage = true">
-              管理規則集
-            </button>
-          </article>
-
-          <article class="settings-card">
-            <div class="card-header">
-              <div>
-                <h4>清理空標籤</h4>
-              </div>
-            </div>
-            <p class="card-copy">
-              移除沒有連到任何檔案或資料夾的標籤，保留所有內容與資料夾本身。
-            </p>
-            <button
-              type="button"
-              class="secondary-action danger-action"
-              :disabled="isDeletingEmptyTags"
-              @click="handleDeleteEmptyTags"
-            >
-              {{ isDeletingEmptyTags ? '刪除中...' : '刪除空標籤' }}
-            </button>
-          </article>
+        <section v-show="activeSection === 'rules'" class="rule-settings" aria-label="標籤規則編輯">
+          <p v-if="rulesLoadError" role="alert">{{ rulesLoadError }}</p>
+          <p v-else-if="!rulesReady" role="status">載入標籤規則中…</p>
+          <CategoryEditor
+            v-else
+            :key="isNew ? 'new' : selected?.name"
+            :isNew="isNew"
+            :saving="saving"
+            :form="form"
+            v-model:extInput="extInput"
+            @addExt="addExt"
+            @removeExt="removeExt"
+            @addRule="addRule"
+            @removeRule="removeRule"
+            @save="saveRuleSet"
+          />
+          <button v-if="selected && !selected.isBuiltin && !isNew" type="button" class="secondary-action danger-action delete-rule-set" :disabled="saving" @click="deleteRuleSet">
+            刪除「{{ selected.displayName }}」規則集
+          </button>
         </section>
 
-        <section v-else-if="activeSection === 'appearance'" class="card-grid">
+        <section v-if="activeSection === 'appearance'" class="card-grid">
           <article class="settings-card">
             <div class="card-header">
               <div>
@@ -228,7 +259,11 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
                 :aria-pressed="fontSizeStore.current === size.id"
                 @click="fontSizeStore.setFontSize(size.id)"
               >
-                <span class="density-label">{{ size.label }}</span>
+                <span class="density-heading">
+                  <span class="density-label">{{ size.label }}</span>
+                  <span class="density-pixels">{{ FONT_SIZE_PX[size.id] }}</span>
+                </span>
+                <span class="density-sample" :style="{ fontSize: FONT_SIZE_PX[size.id] }">漫畫標籤 Aa</span>
                 <span class="density-detail">{{ size.detail }}</span>
               </button>
             </div>
@@ -261,7 +296,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
           </article>
         </section>
 
-        <section v-else class="card-grid">
+        <section v-else-if="activeSection === 'updates'" class="card-grid">
           <article class="settings-card">
             <div class="card-header">
               <div>
@@ -287,20 +322,17 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
               </button>
             </div>
           </article>
+        </section>
+        <section v-else-if="activeSection === 'maintenance'" class="card-grid">
           <article class="settings-card">
-            <div class="card-header">
-              <div>
-                <h4>語言</h4>
-              </div>
-            </div>
-            <div class="field-stack">
-              <select class="field-control" aria-label="介面語言" disabled>
-                <option>繁體中文</option>
-              </select>
-              <span class="field-hint">目前提供繁體中文介面。</span>
-            </div>
+            <h4>清理空標籤</h4>
+            <p class="card-copy">移除沒有連到任何檔案或資料夾的標籤。</p>
+            <button type="button" class="secondary-action danger-action" :disabled="isDeletingEmptyTags" @click="handleDeleteEmptyTags">
+              {{ isDeletingEmptyTags ? '刪除中...' : '刪除空標籤' }}
+            </button>
           </article>
-
+        </section>
+        <section v-else-if="activeSection === 'diagnostics'" class="card-grid">
           <article class="settings-card">
             <div class="card-header">
               <div>
@@ -329,7 +361,6 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
     </div>
   </div>
 
-  <CategoryManageModal :visible="showCategoryManage" @close="handleCategoryClose" />
 </template>
 
 <style scoped>
@@ -343,6 +374,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 .settings-header {
   flex-shrink: 0;
   padding: 16px 24px;
+  border-bottom: 1px solid var(--line-default);
 }
 
 .page-title {
@@ -364,7 +396,7 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 
 .settings-shell {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -372,31 +404,49 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 
 .settings-rail {
   display: flex;
+  flex-direction: column;
   flex-shrink: 0;
-  gap: 24px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--line-default);
-  overflow-x: auto;
+  gap: 3px;
+  width: clamp(148px, 18vw, 220px);
+  padding: 18px 12px;
+  border-right: 1px solid var(--line-default);
+  overflow-y: auto;
 }
 
 .rail-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   flex-shrink: 0;
   min-height: 42px;
-  padding: 8px 2px 10px;
+  width: 100%;
+  padding: 9px 10px;
   border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--content-secondary);
   font-size: 0.82rem;
   font-weight: 500;
-  white-space: nowrap;
+  text-align: left;
 }
 
-.rail-item:hover { color: var(--content-primary); }
-.rail-item.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
+.rail-item:hover { color: var(--content-primary); background: var(--surface-hover); }
+.rail-item.active { border-left-color: var(--accent); color: var(--accent); background: var(--accent-bg-subtle); font-weight: 600; }
+.rail-item:disabled { opacity: 0.45; cursor: wait; }
+.rail-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.nav-group-label { padding: 0 12px 8px; color: var(--content-muted); font-size: 0.73rem; }
+.program-group { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line-default); }
+.rule-nav-icon { flex-shrink: 0; width: 20px; text-align: center; }
+.rule-nav-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rule-nav-count { color: var(--content-muted); font-size: 0.72rem; font-weight: 400; }
+.add-rule-set { font-size: 0.76rem; }
+.rule-settings { max-width: 920px; }
+.rule-settings :deep(.type-form) { overflow: visible; padding: 0; }
+.delete-rule-set { margin-top: 24px; }
 
 .settings-content {
+  flex: 1;
   min-height: 0;
   min-width: 0;
   padding: 20px 24px 32px;
@@ -481,13 +531,16 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
   color: var(--content-secondary);
   text-align: left;
 }
-.density-option { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; }
+.density-option { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 .theme-card { display: flex; align-items: center; gap: 10px; padding: 12px; }
 .density-option:hover,
 .theme-card:hover { border-color: var(--line-strong); }
 .density-option.active,
 .theme-card.active { border-color: var(--accent-border); background: var(--accent-bg-subtle); }
-.density-label { color: var(--content-primary); font-size: 0.9rem; font-weight: 600; }
+.density-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; }
+.density-label { color: var(--content-primary); font-size: 0.8rem; font-weight: 600; }
+.density-pixels { color: var(--content-muted); font-size: 0.7rem; }
+.density-sample { display: block; min-height: 29px; color: var(--content-primary); line-height: 1.6; }
 .density-detail,
 .theme-detail { color: var(--content-secondary); font-size: 0.73rem; line-height: 1.5; }
 .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -517,13 +570,13 @@ const totalRuleCount = computed(() => itemTypes.value.reduce((sum, type) => sum 
 .debug-path { min-width: 0; color: var(--content-secondary); font-family: var(--font-mono); font-size: 0.72rem; overflow-wrap: anywhere; }
 
 @media (max-width: 600px) {
-  .settings-rail { gap: 20px; }
+  .settings-rail { padding: 14px 6px; }
+  .settings-content { padding: 16px 12px 24px; }
   .settings-card { padding: 16px; }
   .theme-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 420px) {
   .density-options { grid-template-columns: minmax(0, 1fr); }
-  .density-option { flex-direction: row; align-items: baseline; gap: 12px; }
 }
 </style>

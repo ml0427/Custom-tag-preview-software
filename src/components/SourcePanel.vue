@@ -12,6 +12,7 @@ const props = defineProps<{ selectedPath: string | null }>();
 const emit = defineEmits<{
   (e: 'select', path: string | null): void;
   (e: 'folderCreated'): void;
+  (e: 'editRules', ruleName?: string): void;
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
@@ -315,6 +316,13 @@ const applyRulesFromCtx = async () => {
   emit('folderCreated');
 };
 
+const editRulesFromCtx = () => {
+  const preset = folderRulePresetByPath.value.get(ctxMenu.value.path);
+  const type = itemTypes.value.find(type => type.id === preset?.presetTypeId);
+  closeCtxMenu();
+  emit('editRules', type?.name);
+};
+
 const enterFolderFromCtx = () => {
   emit('select', ctxMenu.value.path);
   closeCtxMenu();
@@ -395,6 +403,7 @@ onMounted(() => {
       <div class="ctx-divider"></div>
       <div class="ctx-item" @click="openModifyTypeFromCtx">{{ folderByPath.has(ctxMenu.path) ? '編輯標籤' : '加入知識庫' }}</div>
       <div v-if="hasFolderRulePreset(ctxMenu.path)" class="ctx-item" @click="applyRulesFromCtx">套用既有標籤規則</div>
+      <div class="ctx-item" @click="editRulesFromCtx">編輯標籤規則…</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item" @click="openInExplorerFromCtx">在檔案總管中顯示</div>
       <div class="ctx-item ctx-danger" @click="untrackFromCtx">移除追蹤記錄</div>

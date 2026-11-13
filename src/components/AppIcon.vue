@@ -76,8 +76,8 @@ export default defineComponent({
       <path d="m9 12 2 2 4-4" />
     </template>
     <template v-else-if="name === 'settings'">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2.8v2.1M12 19.1v2.1M21.2 12h-2.1M4.9 12H2.8M18.5 5.5 17 7M7 17l-1.5 1.5M18.5 18.5 17 17M7 7 5.5 5.5" />
+      <path d="m9.5 3-.4 2.3-1.6.9-2.3-.8-2.5 4.3 1.8 1.5v1.6l-1.8 1.5 2.5 4.3 2.3-.8 1.6.9.4 2.3h5l.4-2.3 1.6-.9 2.3.8 2.5-4.3-1.8-1.5v-1.6l1.8-1.5-2.5-4.3-2.3.8-1.6-.9-.4-2.3z" />
+      <circle cx="12" cy="12" r="3.2" />
     </template>
     <template v-else-if="name === 'search'">
       <circle cx="11" cy="11" r="7" />

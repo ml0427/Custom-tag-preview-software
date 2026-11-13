@@ -30,8 +30,8 @@ const emit = defineEmits<{
   (e: 'detail', item: FileItem): void;
   (e: 'rename', item: FileItem, newName: string): void;
   (e: 'delete', item: FileItem): void;
-  (e: 'addCategory', item: FileItem): void;
   (e: 'metadataLookup', item: FileItem): void;
+  (e: 'editRules', item: FileItem): void;
   (e: 'rulesApplied'): void;
   (e: 'scrollPositionChange', stateKey: string, scrollTop: number): void;
 }>();
@@ -41,7 +41,6 @@ const { show: showToast } = useToast();
 const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu<FileItem>();
 const {
   getDbItem,
-  hasCategoryAssigned,
   getIcon,
   getItemType,
   getTypeColor,
@@ -428,25 +427,17 @@ const startRenameCtx = () => {
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop @contextmenu.prevent.stop
     >
-      <template v-if="contextMenu.item?.isDir">
-        <button class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">進入資料夾</button>
-        <button v-if="contextMenu.item && canRead(contextMenu.item)" class="ctx-item" @click="emit('read', contextMenu.item!); hideContextMenu()">開啟閱讀模式</button>
-        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">編輯標籤</button>
-        <button class="ctx-item" @click="emit('metadataLookup', contextMenu.item!); hideContextMenu()">Metadata 查詢 / tags</button>
-        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">套用標籤規則</button>
-        <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
-        <div class="ctx-divider"></div>
-        <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
-      </template>
-      <template v-else>
-        <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">詳情/編輯標籤</button>
-        <button class="ctx-item" @click="emit('addCategory', contextMenu.item!); hideContextMenu()">{{ hasCategoryAssigned(contextMenu.item!, itemByPath) ? '修改類別' : '新增類別' }}</button>
-        <button class="ctx-item" @click="emit('metadataLookup', contextMenu.item!); hideContextMenu()">Metadata 查詢 / tags</button>
-        <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">套用標籤規則</button>
-        <button class="ctx-item" @click="startRenameCtx">修改檔名</button>
-        <div class="ctx-divider"></div>
-        <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
-      </template>
+      <button v-if="contextMenu.item?.isDir" class="ctx-item" @click="emit('dblclick', contextMenu.item!); hideContextMenu()">進入資料夾</button>
+      <button v-if="contextMenu.item && canRead(contextMenu.item)" class="ctx-item" @click="emit('read', contextMenu.item!); hideContextMenu()">開啟閱讀模式</button>
+      <button class="ctx-item" @click="emit('showDetails', contextMenu.item!); hideContextMenu()">查看詳情</button>
+      <div class="ctx-divider"></div>
+      <button class="ctx-item" @click="emit('detail', contextMenu.item!); hideContextMenu()">{{ contextMenu.item?.isDir ? '編輯標籤與備註…' : '編輯分類與標籤…' }}</button>
+      <button class="ctx-item" @click="emit('metadataLookup', contextMenu.item!); hideContextMenu()">查詢網路標籤…</button>
+      <button class="ctx-item" @click="applyRulesForItem(contextMenu.item!)">套用標籤規則</button>
+      <button class="ctx-item" @click="emit('editRules', contextMenu.item!); hideContextMenu()">編輯標籤規則…</button>
+      <div class="ctx-divider"></div>
+      <button class="ctx-item" @click="startRenameCtx">重新命名</button>
+      <button class="ctx-item ctx-danger" @click="emit('delete', contextMenu.item!); hideContextMenu()">移至資源回收筒</button>
     </div>
   </Teleport>
 </template>

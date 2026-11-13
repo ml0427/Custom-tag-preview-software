@@ -16,6 +16,8 @@ import { useGallerySelection } from '../composables/useGallerySelection';
 import { buildGalleryScrollContextKey, useGalleryViewState } from '../composables/useGalleryViewState';
 import { useGalleryPreviewResize } from '../composables/useGalleryPreviewResize';
 import { useGalleryDetails } from '../composables/useGalleryDetails';
+import { useItemTypes } from '../composables/useItemTypes';
+import { resolveEffectiveItemRuleSet } from '../utils/effectiveItemRules';
 import { formatSize } from '../utils/format';
 import { pathKey } from '../utils/pathKey';
 import { isReadableArchiveItem, isReadableFileItem } from '../utils/readableItem';
@@ -35,6 +37,7 @@ const emit = defineEmits<{
   (e: 'itemUpdated'): void;
   (e: 'itemDeleted'): void;
   (e: 'tagsChanged'): void;
+  (e: 'editRules', ruleName?: string): void;
 }>();
 
 const { show: showToast, confirm: confirmDialog } = useToast();
@@ -308,8 +311,16 @@ const handleContextDetail = async (fileItem: FileItem) => {
   await openPreviewEditForFileItem(fileItem);
 };
 
-const handleAddCategory = async (fileItem: FileItem) => {
-  await openPreviewEditForFileItem(fileItem);
+const { itemTypes, load: loadRuleSets } = useItemTypes();
+const handleEditRules = async (fileItem: FileItem) => {
+  try {
+    await loadRuleSets();
+    const dbItem = itemByPath.value.get(pathKey(fileItem.path));
+    const ruleSet = dbItem ? await resolveEffectiveItemRuleSet(dbItem, itemTypes.value) : null;
+    emit('editRules', ruleSet?.name);
+  } catch (error) {
+    showToast('讀取標籤規則失敗：' + String(error), 'error');
+  }
 };
 
 const handleContextRename = async (fileItem: FileItem, newName: string) => {
@@ -676,8 +687,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @read="handleReadFileItem"
           @showDetails="openDetails"
           @detail="handleContextDetail"
-          @addCategory="handleAddCategory"
           @metadataLookup="handleMetadataLookup"
+          @editRules="handleEditRules"
           @rulesApplied="loadAll"
           @rename="handleContextRename"
           @delete="handleDelete"
@@ -700,8 +711,8 @@ const goUp = () => { if (parentPath.value) emit('navigateDir', parentPath.value)
           @read="handleReadFileItem"
           @showDetails="openDetails"
           @detail="handleContextDetail"
-          @addCategory="handleAddCategory"
           @metadataLookup="handleMetadataLookup"
+          @editRules="handleEditRules"
           @rulesApplied="loadAll"
           @rename="handleContextRename"
           @delete="handleDelete"
